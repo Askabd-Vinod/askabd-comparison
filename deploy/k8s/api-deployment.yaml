@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: comparison-api
+  labels:
+    app: comparison-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: comparison-api
+  template:
+    metadata:
+      labels:
+        app: comparison-api
+    spec:
+      containers:
+      - name: comparison-api
+        image: askabd/comparison-api:latest
+        ports:
+        - containerPort: 4200
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "4200"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: comparison-secrets
+              key: database-url
+        - name: GATEWAY_URL
+          value: "http://gateway-service:3000"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "200m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 4200
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 4200
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: comparison-api-service
+spec:
+  selector:
+    app: comparison-api
+  ports:
+  - port: 4200
+    targetPort: 4200
+  type: ClusterIP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: comparison-api-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: comparison-api
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70

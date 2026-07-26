@@ -1,0 +1,20 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: 'npm' }
+      - name: Install & Test API
+        working-directory: apps/api
+        run: npm install && npm run typecheck && npm run build && npm test
+      - name: Build Docker Image
+        run: docker build -t askabd/comparison-api:${{ github.ref_name }} -f apps/api/Dockerfile .
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
