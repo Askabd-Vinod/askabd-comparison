@@ -1,0 +1,10 @@
+version: '3.9'
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: comparison-postgres
+    environment:
+      POSTGRES_DB: comparison
+      POSTGRES_USER: comp_user
+      POSTGRES_PASSWORD: comp_local_pass
+    ports: ['5442:5432']
