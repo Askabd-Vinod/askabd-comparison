@@ -33,7 +33,17 @@ export class ReviewService {
     const dist = await this.db.query<any>("SELECT rating, COUNT(*) as count FROM review WHERE item_id=$1 AND status='active' GROUP BY rating", [itemId]);
     const distribution: Record<string, number> = {};
     for (const row of dist.rows) { distribution[String(Math.floor(row.rating))] = Number(row.count); }
-    return { averageRating: Number(r.rows[0]?.avg ?? 0), totalReviews: Number(r.rows[0]?.total ?? 0), distribution };
+
+    const aggregate = r.rows[0];
+    if (aggregate && (aggregate.avg !== undefined || aggregate.total !== undefined)) {
+      return { averageRating: Number(aggregate.avg ?? 0), totalReviews: Number(aggregate.total ?? 0), distribution };
+    }
+
+    const ratings = (r.rows ?? []).map((row: any) => Number(row.rating ?? 0)).filter((value: number) => !Number.isNaN(value));
+    const totalReviews = ratings.length;
+    const averageRating = totalReviews > 0 ? ratings.reduce((sum, value) => sum + value, 0) / totalReviews : 0;
+
+    return { averageRating, totalReviews, distribution };
   }
 
   async moderate(reviewId: string, decision: 'approve' | 'reject'): Promise<Result<Review>> {

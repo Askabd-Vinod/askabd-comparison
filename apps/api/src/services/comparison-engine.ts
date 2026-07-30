@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { DbClient } from '../db/connection.js';
 export type Result<T> = { ok: true; value: T } | { ok: false; error: { category: string; code: string; field?: string; message: string } };
 
-export interface Category { id: string; tenantId: string; name: string; slug: string; parentId?: string; icon?: string; description?: string; comparisonTemplate: unknown[]; sortOrder: number; active: boolean; }
+export interface Category { id: string; tenantId: string; name: string; slug: string; parentId?: string; icon?: string; description?: string; comparisonTemplate: unknown[]; sortOrder: number; active: boolean; itemCount?: number; }
 export interface Item { id: string; tenantId: string; categoryId: string; name: string; slug: string; brand?: string; description?: string; images: string[]; specifications: Record<string, unknown>; pros: string[]; cons: string[]; rating: number; reviewCount: number; priceCurrent?: number; priceOriginal?: number; priceCurrency: string; priceHistory: unknown[]; availability: string; merchant?: string; merchantUrl?: string; offers: unknown[]; warranty?: string; deliveryInfo: Record<string, unknown>; tags: string[]; status: string; createdAt: Date; }
 export interface Comparison { id: string; userId: string; title?: string; categoryId?: string; itemIds: string[]; notes?: string; isPublic: boolean; shareToken?: string; createdAt: Date; }
 
@@ -15,9 +15,19 @@ export class CategoryService {
       [id, input.tenantId ?? 'public', input.name, input.slug, input.parentId ?? null, input.icon ?? null, input.description ?? null, JSON.stringify(input.comparisonTemplate ?? [])]);
     return { ok: true, value: this.mapCat(r.rows[0]!) };
   }
-  async list(tenantId?: string): Promise<Category[]> { const r = await this.db.query<any>('SELECT * FROM category WHERE (tenant_id=$1 OR tenant_id=$2) AND active=TRUE ORDER BY sort_order, name', [tenantId ?? 'public', 'public']); return r.rows.map((row: any) => this.mapCat(row)); }
-  async getBySlug(slug: string, tenantId?: string): Promise<Category|null> { const r = await this.db.query<any>('SELECT * FROM category WHERE slug=$1 AND (tenant_id=$2 OR tenant_id=$3)', [slug, tenantId ?? 'public', 'public']); return r.rows[0] ? this.mapCat(r.rows[0]) : null; }
-  private mapCat(row: any): Category { return { id: row.id, tenantId: row.tenant_id, name: row.name, slug: row.slug, parentId: row.parent_id, icon: row.icon, description: row.description, comparisonTemplate: row.comparison_template, sortOrder: row.sort_order, active: row.active }; }
+  async list(tenantId?: string): Promise<Category[]> {
+    const r = await this.db.query<any>('SELECT * FROM category WHERE (tenant_id=$1 OR tenant_id=$2) AND active=TRUE ORDER BY sort_order, name', [tenantId ?? 'public', 'public']);
+    return Promise.all(r.rows.map(async (row: any) => this.mapCatWithCounts(row)));
+  }
+  async getBySlug(slug: string, tenantId?: string): Promise<Category|null> {
+    const r = await this.db.query<any>('SELECT * FROM category WHERE slug=$1 AND (tenant_id=$2 OR tenant_id=$3)', [slug, tenantId ?? 'public', 'public']);
+    if (r.rows[0] == null) return null;
+    return this.mapCatWithCounts(r.rows[0]);
+  }
+  private async mapCatWithCounts(row: any): Promise<Category> {
+    const itemCountResult = await this.db.query<any>('SELECT COUNT(*)::int AS count FROM item WHERE category_id=$1 AND status=$2', [row.id, 'active']);
+    return { id: row.id, tenantId: row.tenant_id, name: row.name, slug: row.slug, parentId: row.parent_id, icon: row.icon, description: row.description, comparisonTemplate: row.comparison_template, sortOrder: row.sort_order, active: row.active, itemCount: Number(itemCountResult.rows[0]?.count ?? 0) };
+  }
 }
 
 export class ItemService {

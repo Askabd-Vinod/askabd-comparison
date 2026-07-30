@@ -1,6 +1,7 @@
-export default function ComparePage({ searchParams }: { searchParams: { items?: string; category?: string } }) {
-  const itemIds = searchParams.items?.split(',') ?? [];
-  const category = searchParams.category ?? '';
+export default async function ComparePage({ searchParams }: { searchParams: Promise<{ items?: string; category?: string }> }) {
+  const resolvedSearchParams = await searchParams;
+  const itemIds = resolvedSearchParams.items?.split(',') ?? [];
+  const category = resolvedSearchParams.category ?? '';
 
   return (
     <div className="max-w-full mx-auto px-4 py-8">

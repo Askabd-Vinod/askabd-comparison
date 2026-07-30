@@ -1,106 +1,118 @@
-export default function ItemDetailPage({ params }: { params: { slug: string } }) {
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+
+interface CategoryDetail {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  icon?: string;
+  itemCount?: number;
+}
+
+interface CategoryItemsPayload {
+  category?: CategoryDetail;
+  items?: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    description?: string;
+    priceCurrent?: number;
+    priceOriginal?: number;
+    priceCurrency?: string;
+    rating?: number;
+    reviewCount?: number;
+    merchant?: string;
+    availability?: string;
+  }>;
+}
+
+async function getCategoryData(slug: string): Promise<CategoryItemsPayload> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4200';
+
+  try {
+    const categoryResponse = await fetch(`${apiUrl}/api/v1/categories/${slug}`, { cache: 'no-store' });
+    if (!categoryResponse.ok) {
+      if (categoryResponse.status === 404) {
+        notFound();
+      }
+      return { category: undefined, items: [] };
+    }
+
+    const category = await categoryResponse.json() as CategoryDetail;
+    const itemsResponse = await fetch(`${apiUrl}/api/v1/items?categoryId=${category.id}`, { cache: 'no-store' });
+    const itemsPayload = itemsResponse.ok ? await itemsResponse.json() as { items?: CategoryItemsPayload['items'] } : { items: [] };
+
+    return { category, items: itemsPayload.items ?? [] };
+  } catch {
+    return { category: undefined, items: [] };
+  }
+}
+
+export default async function CategoryPage({ params }: { params: Promise<{ slug: string }> }) {
+  const resolvedParams = await params;
+  const data = await getCategoryData(resolvedParams.slug);
+  const category = data.category;
+  const items = data.items ?? [];
+
+  if (!category) {
+    notFound();
+  }
+
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      {/* Breadcrumb */}
-      <nav className="text-sm text-gray-500 mb-4">
-        <a href="/categories" className="hover:text-purple-600">Categories</a> / 
-        <span className="text-gray-700 ml-1">{params.slug}</span>
+    <div className="mx-auto max-w-7xl px-4 py-12">
+      <nav className="mb-6 text-sm text-gray-500">
+        <Link href="/categories" className="hover:text-purple-600">Categories</Link>
+        <span className="mx-2">/</span>
+        <span className="text-gray-700">{category.name}</span>
       </nav>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
-        {/* Media Gallery */}
-        <div>
-          <div className="bg-gray-100 rounded-xl aspect-square flex items-center justify-center">
-            <span className="text-gray-400 text-lg">Product Image</span>
+      <header className="mb-8 rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-purple-50 text-3xl">
+              {category.icon || '📦'}
+            </div>
+            <h1 className="text-3xl font-bold text-gray-900">{category.name}</h1>
+            <p className="mt-2 max-w-2xl text-gray-600">{category.description || 'Explore the best options in this category and compare items side by side.'}</p>
           </div>
-          <div className="flex gap-2 mt-4">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="w-16 h-16 bg-gray-100 rounded-lg border-2 border-transparent hover:border-purple-500 cursor-pointer"></div>
-            ))}
+          <div className="rounded-xl bg-gray-50 px-5 py-4 text-sm text-gray-600">
+            <p className="font-semibold text-gray-900">{(category.itemCount ?? items.length).toLocaleString()} items available</p>
+            <p>Browse curated products and services for this category.</p>
           </div>
         </div>
+      </header>
 
-        {/* Product Info */}
-        <div>
-          <h1 className="text-3xl font-bold mb-2">{params.slug.replace(/-/g, ' ')}</h1>
-          <div className="flex items-center gap-4 mb-4">
-            <div className="flex text-yellow-400">{'★'.repeat(4)}{'☆'.repeat(1)}</div>
-            <span className="text-gray-500">4.2 (128 reviews)</span>
-          </div>
-          <div className="mb-6">
-            <span className="text-3xl font-bold gradient-text">$999</span>
-            <span className="text-gray-400 line-through ml-3">$1,199</span>
-            <span className="ml-3 bg-green-100 text-green-800 px-2 py-1 rounded text-sm font-medium">17% off</span>
-          </div>
-          <div className="flex gap-3 mb-8">
-            <button className="gradient-brand text-white px-6 py-3 rounded-lg font-medium">Compare</button>
-            <button className="border border-gray-300 px-6 py-3 rounded-lg hover:bg-gray-50">❤️ Wishlist</button>
-            <button className="border border-gray-300 px-6 py-3 rounded-lg hover:bg-gray-50">🔔 Price Alert</button>
-          </div>
-
-          {/* Merchant Offers */}
-          <div className="border rounded-xl p-4">
-            <h3 className="font-semibold mb-3">Available From</h3>
-            {['Amazon', 'Flipkart', 'Official Store'].map((m) => (
-              <div key={m} className="flex items-center justify-between py-2 border-b last:border-0">
-                <span className="font-medium">{m}</span>
-                <div className="flex items-center gap-3">
-                  <span className="font-bold">$999</span>
-                  <a href="#" className="text-purple-600 text-sm font-medium">View Offer →</a>
+      {items.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center text-gray-600">
+          <h2 className="text-lg font-semibold text-gray-900">No items published yet</h2>
+          <p className="mt-2">This category is live, but there are no products available at the moment.</p>
+        </div>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {items.map((item) => (
+            <Link key={item.slug} href={`/categories/${category.slug}/${item.slug}`} className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">{item.name}</h2>
+                  <p className="mt-1 text-sm text-gray-500">{item.merchant || 'Verified merchant'}</p>
+                </div>
+                <div className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                  {item.availability || 'Available'}
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Specifications */}
-      <section className="mb-12">
-        <h2 className="text-2xl font-bold mb-4">Specifications</h2>
-        <div className="bg-white rounded-xl border overflow-hidden">
-          {['Display', 'Processor', 'RAM', 'Storage', 'Battery', 'Camera'].map((spec) => (
-            <div key={spec} className="flex border-b last:border-0">
-              <div className="w-1/3 p-4 bg-gray-50 font-medium text-gray-700">{spec}</div>
-              <div className="w-2/3 p-4">Loaded from specifications JSONB</div>
-            </div>
+              {item.description ? <p className="mb-4 text-sm text-gray-600">{item.description}</p> : null}
+              <div className="flex items-center justify-between text-sm">
+                <div>
+                  <p className="font-semibold text-gray-900">{item.priceCurrent ? `${item.priceCurrency || 'USD'} ${item.priceCurrent.toLocaleString()}` : 'Price not listed'}</p>
+                  {item.rating ? <p className="text-gray-500">⭐ {item.rating.toFixed(1)} ({item.reviewCount ?? 0} reviews)</p> : null}
+                </div>
+                <span className="text-purple-600">View details →</span>
+              </div>
+            </Link>
           ))}
         </div>
-      </section>
-
-      {/* Pros & Cons */}
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-        <div className="bg-green-50 rounded-xl p-6">
-          <h3 className="font-semibold text-green-800 mb-3">✅ Pros</h3>
-          <ul className="space-y-2 text-green-700">
-            <li>Great camera quality</li>
-            <li>Long battery life</li>
-            <li>Premium build</li>
-          </ul>
-        </div>
-        <div className="bg-red-50 rounded-xl p-6">
-          <h3 className="font-semibold text-red-800 mb-3">❌ Cons</h3>
-          <ul className="space-y-2 text-red-700">
-            <li>Expensive</li>
-            <li>No expandable storage</li>
-          </ul>
-        </div>
-      </section>
-
-      {/* Price History */}
-      <section className="mb-12">
-        <h2 className="text-2xl font-bold mb-4">Price History</h2>
-        <div className="bg-white rounded-xl border p-6 h-48 flex items-center justify-center text-gray-400">
-          Price chart (connected to Price Engine API)
-        </div>
-      </section>
-
-      {/* Reviews */}
-      <section>
-        <h2 className="text-2xl font-bold mb-4">Reviews</h2>
-        <div className="bg-white rounded-xl border p-8 text-center text-gray-500">
-          Reviews loaded from API (review service)
-        </div>
-      </section>
+      )}
     </div>
   );
 }
