@@ -41,14 +41,14 @@
 - ✅ Feature Flag Framework — env/tenant/role/user scoping, 8 flags
 - ✅ Configuration Validation Engine — startup diagnostics
 
-## Phase 7: Production Hardening (Next)
-- ⬜ CI/CD pipeline (GitHub Actions)
+## Phase 7: Production Hardening (In Progress)
+- ✅ CI/CD pipeline (GitHub Actions) — all branches, caching, security audit
+- ✅ Container image (Dockerfile) — multi-stage, vendor packages, healthcheck
 - ⬜ Migrate services to tryCatch/safeOperation pattern
 - ⬜ Input validation on all write endpoints
 - ⬜ API documentation (OpenAPI/Swagger)
 - ⬜ Integration test suite
 - ⬜ Performance benchmarks
-- ⬜ Container image (Dockerfile)
 - ⬜ Infrastructure as Code (Terraform/Pulumi)
 
 ## Phase 8: Cross-Repository Adoption

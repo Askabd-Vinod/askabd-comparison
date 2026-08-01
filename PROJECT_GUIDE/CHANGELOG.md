@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0] — 2026-08-02 — CI/CD & Container
+
+### Added
+- **CI Pipeline**: Triggers on all branches (feature branch CI enabled), npm caching, security audit step
+- **Dockerfile**: Fixed vendor tarball resolution, multi-stage build, --skipLibCheck compatibility
+- Production readiness: 94% → 96%
+
 ## [0.2.1] — 2026-08-02 — Platform Stabilization
 
 ### Changed
