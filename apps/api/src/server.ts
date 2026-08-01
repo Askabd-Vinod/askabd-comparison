@@ -10,6 +10,7 @@ import { registerErrorHandler } from './middleware/error-handler.js';
 import { registerAuthorizationMiddleware, COMPARISON_API_RULES } from './platform/rbac/index.js';
 import { registerAuditEngine } from './platform/audit/index.js';
 import { registerMonitoring } from './platform/monitoring/index.js';
+import { registerOpenAPI } from './platform/openapi/index.js';
 
 /**
  * Creates the Fastify server with shared platform logging and authentication.
@@ -34,13 +35,16 @@ export async function createServer(): Promise<FastifyInstance> {
   await server.register(helmet, { contentSecurityPolicy: false });
   await server.register(cors, { origin: true, credentials: true });
 
+  // OpenAPI documentation (must be registered before routes)
+  await registerOpenAPI(server);
+
   // Echo correlation ID in response headers for distributed tracing
   server.addHook('onSend', async (request, reply) => {
     reply.header('x-request-id', request.id);
   });
 
   // Authentication middleware (dev bypass when no JWT_SECRET configured)
-  registerAuthMiddleware(server, { publicRoutes: ['/health', '/ready', '/metrics', '/platform/startup'] });
+  registerAuthMiddleware(server, { publicRoutes: ['/health', '/ready', '/metrics', '/platform/startup', '/docs'] });
 
   // Authorization middleware (RBAC — evaluates route rules after auth)
   registerAuthorizationMiddleware(server, {
