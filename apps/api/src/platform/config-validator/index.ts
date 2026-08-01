@@ -443,6 +443,7 @@ export interface ReadinessScore {
   readonly security: number;
   readonly database: number;
   readonly infrastructure: number;
+  readonly deployment: number;
   readonly api: number;
   readonly overall: number;
 }
@@ -450,6 +451,8 @@ export interface ReadinessScore {
 /**
  * Calculates enterprise readiness scores from a validation report.
  * Each dimension is 0-100.
+ *
+ * Reusable for both internal platform validation and enterprise assessment.
  */
 export function calculateReadiness(report: ConfigValidationReport): ReadinessScore {
   const results = report.results;
@@ -461,12 +464,13 @@ export function calculateReadiness(report: ConfigValidationReport): ReadinessSco
     return Math.round((passed / matched.length) * 100);
   };
 
-  const platform = score(['node', 'middleware', 'port', 'memory']);
-  const security = score(['jwt', 'auth']);
+  const platform = score(['node', 'middleware', 'port', 'memory', 'feature flag', 'monitoring', 'logging', 'diagnostics', 'audit', 'rbac']);
+  const security = score(['jwt', 'auth', 'secret', 'rbac']);
   const database = score(['database']);
-  const infrastructure = score(['node', 'memory', 'port']);
-  const api = score(['gateway', 'port']);
-  const overall = Math.round((platform + security + database + infrastructure + api) / 5);
+  const infrastructure = score(['node', 'memory', 'cpu', 'disk', 'port', 'docker', 'os']);
+  const deployment = score(['docker', 'compose', 'port']);
+  const api = score(['gateway', 'port', 'endpoint', 'health', 'ready', 'metrics']);
+  const overall = Math.round((platform + security + database + infrastructure + deployment + api) / 6);
 
-  return { platform, security, database, infrastructure, api, overall };
+  return { platform, security, database, infrastructure, deployment, api, overall };
 }

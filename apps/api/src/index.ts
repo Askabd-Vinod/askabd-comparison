@@ -11,17 +11,50 @@ import {
   portCheck,
   memoryCheck,
 } from './platform/config-validator/index.js';
+import {
+  osCheck,
+  cpuCheck,
+  loggingCheck,
+  featureFlagCheck,
+  monitoringCheck,
+  auditCheck,
+  rbacCheck,
+  diagnosticsCheck,
+  dockerCheck,
+  redisCheck,
+} from './platform/config-validator/checks.js';
 
 async function main(): Promise<void> {
   // ─── Startup Configuration Validation ───────────────────────────────────────
   const report = await validateConfiguration('comparison-api', config.NODE_ENV ?? 'development', [
+    // Infrastructure
     nodeVersionCheck(20),
+    osCheck(),
+    cpuCheck(2),
+    memoryCheck(256),
     portCheck(config.PORT ?? 4200),
+
+    // Database
     databaseCheck(config.DATABASE_URL),
     databaseConnectivityCheck(config.DATABASE_URL),
+
+    // Security
     jwtCheck(),
+
+    // Platform Capabilities
+    loggingCheck(config.LOG_LEVEL),
+    featureFlagCheck(),
+    monitoringCheck(),
+    auditCheck(),
+    rbacCheck(),
+    diagnosticsCheck(),
+
+    // External Services
     urlCheck('Gateway', config.GATEWAY_URL, false),
-    memoryCheck(256),
+    redisCheck(process.env.REDIS_URL),
+
+    // Docker
+    dockerCheck(),
   ]);
 
   const readiness = calculateReadiness(report);
@@ -34,7 +67,7 @@ async function main(): Promise<void> {
     console.log(`${sym} ${r.name}: ${r.message}`);
     if (r.fix && r.status !== 'pass') console.log(`      Fix: ${r.fix}`);
   }
-  console.log(`\n  Readiness: Platform=${readiness.platform}% Security=${readiness.security}% Database=${readiness.database}% Infrastructure=${readiness.infrastructure}% Overall=${readiness.overall}%\n`);
+  console.log(`\n  Readiness: Platform=${readiness.platform}% Security=${readiness.security}% Database=${readiness.database}% Infra=${readiness.infrastructure}% Deploy=${readiness.deployment}% API=${readiness.api}% Overall=${readiness.overall}%\n`);
 
   // In production, fail-fast on required check failures
   if (report.overallStatus === 'failed' && config.NODE_ENV === 'production') {
