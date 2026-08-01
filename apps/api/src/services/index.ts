@@ -5,6 +5,6 @@ export { TemplateService, type ComparisonTemplate, type ComparisonAttribute, typ
 export type { Result } from './category-service.js';
 export { BrandService, MerchantService, type Brand, type Merchant, type MerchantVerification, type MerchantBranch } from './merchant-brand-prisma.js';
 export { CatalogService, type CatalogItem, type ItemMedia, type ItemRelation } from './catalog-service-prisma.js';
-export { PriceEngine, type PriceEntry, type Offer } from './price-engine.js';
+export { PriceEngine, type PriceEntry, type Offer } from './price-engine-prisma.js';
 export { InventoryService, PricingConsole, CampaignService, type InventoryEntry, type PriceRule, type Campaign } from './merchant-portal-service.js';
 export { ReviewService, type Review, type ReviewStats } from './review-service.js';

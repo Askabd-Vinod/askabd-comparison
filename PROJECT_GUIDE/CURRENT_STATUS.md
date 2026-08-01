@@ -12,7 +12,7 @@
 | TemplateService | ✅ Prisma | 682b547 |
 | MerchantBrandService | ✅ Prisma | b507ea7 |
 | CatalogService | ✅ Prisma | (current) |
-| PriceEngine | ⬜ Raw pg | — |
+| PriceEngine | ✅ Prisma | (current) |
 | ReviewService | ⬜ Raw pg | — |
 | MerchantPortalService | ⬜ Raw pg | — |
 | SearchService | ⬜ Raw pg | — |

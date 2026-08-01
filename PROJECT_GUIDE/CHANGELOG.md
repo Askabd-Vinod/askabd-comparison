@@ -2,6 +2,15 @@
 
 ## 2026-08-01
 
+### feat(prisma): migrate PriceEngine
+- Price recording with BigInt handling
+- Price history with merchant filtering
+- Lowest price lookup with validity check
+- Merchant price deduplication (latest per merchant)
+- Offer creation and active offers retrieval
+- Trending deals query
+- 5 tests passing
+
 ### feat(prisma): migrate CatalogService
 - Item creation with Prisma (specifications, media, relations)
 - Item update with proper not-found handling

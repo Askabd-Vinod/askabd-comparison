@@ -9,7 +9,7 @@
 ## Phase 2: Business Services (in progress)
 5. ✅ MerchantBrandService
 6. ✅ CatalogService
-7. ⬜ PriceEngine
+7. ✅ PriceEngine
 8. ⬜ ReviewService
 9. ⬜ MerchantPortalService
 
