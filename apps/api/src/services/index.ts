@@ -1,4 +1,8 @@
-export { CategoryService, ItemService, ComparisonService, type Category, type Item, type Comparison, type Result } from './comparison-engine.js';
+export { CategoryService, type Category } from './category-service.js';
+export { ItemService, type Item } from './item-service.js';
+export { ComparisonService, type Comparison } from './comparison-service.js';
+export { TemplateService, type ComparisonTemplate, type ComparisonAttribute, type AttributeDataType } from './template-service-prisma.js';
+export type { Result } from './category-service.js';
 export { TemplateService, type ComparisonTemplate, type ComparisonAttribute, type AttributeDataType } from './template-service.js';
 export { BrandService, MerchantService, type Brand, type Merchant, type MerchantVerification, type MerchantBranch } from './merchant-brand-service.js';
 export { CatalogService, type CatalogItem, type ItemMedia, type ItemRelation } from './catalog-service.js';
