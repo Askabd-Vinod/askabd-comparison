@@ -19,9 +19,22 @@ export async function createServer(): Promise<FastifyInstance> {
     level: config.LOG_LEVEL as any,
   });
 
-  const server = Fastify({ loggerInstance: logger, genReqId: () => crypto.randomUUID() });
+  const server = Fastify({
+    loggerInstance: logger,
+    genReqId: (req) => {
+      // Propagate incoming correlation ID or generate a new one
+      return (req.headers['x-request-id'] as string)
+        || (req.headers['x-correlation-id'] as string)
+        || crypto.randomUUID();
+    },
+  });
   await server.register(helmet, { contentSecurityPolicy: false });
   await server.register(cors, { origin: true, credentials: true });
+
+  // Echo correlation ID in response headers for distributed tracing
+  server.addHook('onSend', async (request, reply) => {
+    reply.header('x-request-id', request.id);
+  });
 
   // Authentication middleware (dev bypass when no JWT_SECRET configured)
   registerAuthMiddleware(server, { publicRoutes: ['/health', '/ready'] });
