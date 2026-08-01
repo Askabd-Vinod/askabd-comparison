@@ -2,6 +2,14 @@
 
 ## 2026-08-01
 
+### feat(shared): adopt @askabd/shared-logging
+- Server logger created via shared createLogger()
+- Log entries include mandatory: service, environment, version
+- Sensitive fields automatically redacted (password, token, secret, authorization, credential)
+- Fastify 5 integration via loggerInstance option
+- pino-pretty available as dev dependency
+- All 49 tests pass, API verified
+
 ### feat(seed): add reusable seed framework
 - Minimal seed: 6 core categories
 - Demo seed: 5 brands, 5 items, comparison template with 5 attributes

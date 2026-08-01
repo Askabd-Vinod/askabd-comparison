@@ -19,7 +19,8 @@
 ## Phase 4: Production Readiness
 - ✅ @askabd/shared-configuration adopted
 - ✅ Seed framework (minimal, demo, performance, cleanup)
-- ⬜ @askabd/shared-logging
+- ✅ @askabd/shared-logging adopted
+- ⬜ @askabd/shared-contracts
 - ⬜ @askabd/shared-contracts
 - ⬜ @askabd/shared-validation
 - ⬜ @askabd/shared-errors

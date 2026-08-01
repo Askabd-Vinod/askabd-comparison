@@ -26,5 +26,5 @@
 - **Database:** 25 tables, 5 migrations applied, zero drift
 - **Prisma:** Schema valid, Client v7.9.1, zero raw pg in routes
 - **Data layer:** 100% Prisma
-- **Shared Platform:** @askabd/shared-configuration adopted
+- **Shared Platform:** @askabd/shared-configuration, @askabd/shared-logging adopted
 - **Seed Framework:** minimal, demo, performance, cleanup scripts
