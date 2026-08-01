@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 
-export type Result<T> = { ok: true; value: T } | { ok: false; error: { category: string; code: string; field?: string; message: string; statusCode?: number } };
+import { type Result } from './types.js';
 
 export interface InventoryEntry { id: string; itemId: string; variantId?: string; merchantId: string; warehouse: string; location?: string; quantity: number; reserved: number; lowStockThreshold: number; status: string; }
 export interface InventoryChange { id: string; inventoryId: string; changeType: string; quantityChange: number; quantityAfter: number; reason?: string; createdAt: Date; }
@@ -23,7 +23,7 @@ export class InventoryService {
     const warehouse = input.warehouse ?? 'default';
 
     const row = await this.prisma.inventory.upsert({
-      where: { item_id_variant_id_merchant_id_warehouse: { item_id: input.itemId, variant_id: input.variantId ?? null, merchant_id: input.merchantId, warehouse } },
+      where: { item_id_variant_id_merchant_id_warehouse: { item_id: input.itemId, variant_id: (input.variantId ?? null) as any, merchant_id: input.merchantId, warehouse } },
       create: { item_id: input.itemId, variant_id: input.variantId ?? null, merchant_id: input.merchantId, warehouse, quantity: input.quantity, low_stock_threshold: threshold, status },
       update: { quantity: input.quantity, status, updated_at: new Date() },
     });

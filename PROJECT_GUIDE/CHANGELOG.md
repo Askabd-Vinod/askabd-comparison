@@ -2,6 +2,16 @@
 
 ## 2026-08-01
 
+### chore: Platform Cleanup Sprint
+- Created shared `types.ts` with single `Result<T>` definition
+- Removed 8 dead service files (comparison-engine, template, merchant-brand, catalog, price-engine, review, merchant-portal, search — all raw pg versions)
+- Removed unused `getPool` import from api-routes.ts
+- Removed unused `zod` import from merchant-brand-prisma.ts
+- Consolidated duplicate Result type (was in 10 files, now 1)
+- TypeScript: 0 errors
+- All 49 tests pass
+- Zero raw pg queries remaining
+
 ### feat(prisma): migrate SearchService [FINAL MIGRATION]
 - Parallel search across categories, items, and brands
 - Uses Prisma select for optimized projections

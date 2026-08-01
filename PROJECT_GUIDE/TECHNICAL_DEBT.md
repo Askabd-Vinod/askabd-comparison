@@ -1,14 +1,10 @@
 # Technical Debt
 
 ## Dead Code (pending cleanup approval)
-- `src/services/comparison-engine.ts` — reduced to Result type export only
-- `src/services/template-service.ts` — old raw pg version, unused
-- `src/services/merchant-brand-service.ts` — old raw pg version, unused
-- `src/services/catalog-service.ts` — old raw pg version, unused
-- `src/services/price-engine.ts` — old raw pg version, unused
-- `src/services/review-service.ts` — old raw pg version, unused
-- `src/services/merchant-portal-service.ts` — old raw pg version, unused
-- `src/services/search-service.ts` — old raw pg version, unused
+- ✅ ALL DEAD FILES REMOVED (8 files deleted)
+- ✅ Result<T> consolidated into shared `types.ts`
+- ✅ Unused getPool import removed from routes
+- ✅ Unused `z` import removed from merchant-brand
 
 ## Type Safety
 - 5 instances of `as any` for Prisma JSON fields (Prisma v7 InputJsonValue type)
@@ -22,5 +18,6 @@
 - No seed data script
 
 ## Dependencies
-- `comparison-engine.ts` still exports `Result` type used by remaining raw pg services
-- Will be removed after all services are migrated
+- ✅ `comparison-engine.ts` DELETED — no longer needed
+- `db/connection.ts` still exists for health check (Prisma handles all queries)
+- Raw `pg` package still in dependencies (used by @prisma/adapter-pg)

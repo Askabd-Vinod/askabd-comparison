@@ -1,12 +1,21 @@
 {
   "name": "askabd-comparison",
   "private": true,
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev": "npm run dev --workspace=apps/api & npm run dev --workspace=apps/web",
     "build": "npm run build --workspaces",
     "test": "npm run test --workspaces",
     "lint": "npm run lint --workspaces"
   },
-  "engines": { "node": ">=20.0.0" }
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "@prisma/client": "^7.9.1",
+    "prisma": "^7.9.1"
+  }
 }

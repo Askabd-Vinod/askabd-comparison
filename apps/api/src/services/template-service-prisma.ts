@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 
-export type Result<T> = { ok: true; value: T } | { ok: false; error: { category: string; code: string; field?: string; message: string; statusCode?: number } };
+import { type Result } from './types.js';
 export type AttributeDataType = 'text' | 'number' | 'boolean' | 'date' | 'enum' | 'url' | 'currency' | 'rating';
 
 export interface ComparisonAttribute {
@@ -72,8 +72,8 @@ export class TemplateService {
           category_id: d.categoryId,
           name: d.name,
           slug: d.slug,
-          attribute_groups: d.attributeGroups,
-          layout_config: d.layoutConfig,
+          attribute_groups: d.attributeGroups as any,
+          layout_config: d.layoutConfig as any,
         },
       });
       return { ok: true, value: this.mapTemplate(row) };
@@ -101,7 +101,7 @@ export class TemplateService {
           slug: d.slug,
           data_type: d.dataType,
           unit: d.unit ?? null,
-          options: d.options,
+          options: d.options as any,
           is_comparable: d.isComparable,
           is_filterable: d.isFilterable,
           is_required: d.isRequired,
@@ -144,19 +144,20 @@ export class TemplateService {
       return { ok: false, error: { category: 'validation', code: 'no_updates', message: 'No fields to update', statusCode: 400 } };
     }
     try {
+      const data: any = {};
+      if (updates.name !== undefined) data.name = updates.name;
+      if (updates.unit !== undefined) data.unit = updates.unit;
+      if (updates.options !== undefined) data.options = updates.options;
+      if (updates.isComparable !== undefined) data.is_comparable = updates.isComparable;
+      if (updates.isFilterable !== undefined) data.is_filterable = updates.isFilterable;
+      if (updates.isRequired !== undefined) data.is_required = updates.isRequired;
+      if (updates.displayOrder !== undefined) data.display_order = updates.displayOrder;
+      if (updates.groupName !== undefined) data.group_name = updates.groupName;
+      if (updates.weight !== undefined) data.weight = updates.weight;
+
       const row = await this.prisma.comparison_attribute.update({
         where: { id: attrId },
-        data: {
-          ...(updates.name !== undefined && { name: updates.name }),
-          ...(updates.unit !== undefined && { unit: updates.unit }),
-          ...(updates.options !== undefined && { options: updates.options }),
-          ...(updates.isComparable !== undefined && { is_comparable: updates.isComparable }),
-          ...(updates.isFilterable !== undefined && { is_filterable: updates.isFilterable }),
-          ...(updates.isRequired !== undefined && { is_required: updates.isRequired }),
-          ...(updates.displayOrder !== undefined && { display_order: updates.displayOrder }),
-          ...(updates.groupName !== undefined && { group_name: updates.groupName }),
-          ...(updates.weight !== undefined && { weight: updates.weight }),
-        },
+        data,
       });
       return { ok: true, value: this.mapAttribute(row) };
     } catch (e: unknown) {

@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 
-export type Result<T> = { ok: true; value: T } | { ok: false; error: { category: string; code: string; field?: string; message: string; statusCode?: number } };
+import { type Result } from './types.js';
 
 export interface Review { id: string; itemId: string; userId: string; rating: number; title?: string; content?: string; pros: string[]; cons: string[]; verifiedPurchase: boolean; helpfulCount: number; status: string; createdAt: Date; }
 export interface ReviewStats { averageRating: number; totalReviews: number; distribution: Record<string, number>; }

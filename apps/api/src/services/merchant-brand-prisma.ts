@@ -1,7 +1,6 @@
 import { PrismaClient } from '@prisma/client';
-import { z } from 'zod';
 
-export type Result<T> = { ok: true; value: T } | { ok: false; error: { category: string; code: string; field?: string; message: string; statusCode?: number } };
+import { type Result } from './types.js';
 export type MerchantStatus = 'pending' | 'active' | 'suspended';
 export type VerificationLevel = 'basic' | 'verified' | 'premium' | 'enterprise';
 export type VerificationStatus = 'pending' | 'in_review' | 'approved' | 'rejected' | 'expired';

@@ -1,5 +1,4 @@
 import { FastifyInstance } from 'fastify';
-import { getPool } from '../db/connection.js';
 import { CategoryService } from '../services/category-service.js';
 import { ItemService } from '../services/item-service.js';
 import { ComparisonService } from '../services/comparison-service.js';
@@ -17,7 +16,6 @@ async function safeRead<T>(operation: () => Promise<T>, fallback: T): Promise<T>
 }
 
 export async function apiRoutes(server: FastifyInstance): Promise<void> {
-  const pool = getPool();
   const prisma = getPrisma();
   const catSvc = new CategoryService(prisma);
   const itemSvc = new ItemService(prisma);

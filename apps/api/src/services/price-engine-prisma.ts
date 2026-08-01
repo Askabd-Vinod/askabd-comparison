@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 
-export type Result<T> = { ok: true; value: T } | { ok: false; error: { category: string; code: string; field?: string; message: string; statusCode?: number } };
+import { type Result } from './types.js';
 
 export interface PriceEntry { id: string; itemId: string; variantId?: string; merchantId?: string; price: number; originalPrice?: number; currency: string; sourceUrl?: string; isAffiliate: boolean; validFrom: Date; validUntil?: Date; recordedAt: Date; }
 export interface Offer { id: string; itemId?: string; merchantId?: string; type: string; title: string; description?: string; code?: string; discountValue?: number; discountType?: string; validFrom: Date; validUntil?: Date; terms?: string; url?: string; status: string; priority: number; }

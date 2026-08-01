@@ -1,0 +1,528 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model migrations {
+  name       String   @id @db.VarChar(255)
+  applied_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("_migrations")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model brand {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String   @db.VarChar(255)
+  slug         String   @unique @db.VarChar(255)
+  logo_url     String?
+  description  String?
+  website      String?
+  verified     Boolean  @default(false)
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  manufacturer String?  @db.VarChar(255)
+  aliases      String[] @default([])
+  social_links Json?    @default("{}")
+  categories   String[] @default([]) @db.Uuid
+  status       String?  @default("active") @db.VarChar(30)
+  media        Json?    @default("[]")
+  metadata     Json?    @default("{}")
+  item         item[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model campaign {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  merchant_id  String?   @db.Uuid
+  tenant_id    String    @default("public") @db.VarChar(255)
+  name         String    @db.VarChar(255)
+  type         String    @db.VarChar(30)
+  status       String    @default("draft") @db.VarChar(30)
+  starts_at    DateTime? @db.Timestamptz(6)
+  ends_at      DateTime? @db.Timestamptz(6)
+  config       Json      @default("{}")
+  item_ids     String[]  @default([]) @db.Uuid
+  category_ids String[]  @default([]) @db.Uuid
+  metadata     Json?     @default("{}")
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  merchant     merchant? @relation(fields: [merchant_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([merchant_id], map: "idx_campaign_merchant")
+  @@index([status, starts_at], map: "idx_campaign_status")
+}
+
+model category {
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenant_id           String                @default("public") @db.VarChar(255)
+  name                String                @db.VarChar(255)
+  slug                String                @db.VarChar(255)
+  parent_id           String?               @db.Uuid
+  icon                String?               @db.VarChar(100)
+  description         String?
+  comparison_template Json?                 @default("[]") @map("comparison_template")
+  sort_order          Int?                  @default(0)
+  active              Boolean               @default(true)
+  created_at          DateTime              @default(now()) @db.Timestamptz(6)
+  category            category?             @relation("categoryTocategory", fields: [parent_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  other_category      category[]            @relation("categoryTocategory")
+  comparison          comparison[]
+  templates           comparison_template[]
+  item                item[]
+  merchant_category   merchant_category[]
+  price_rule          price_rule[]
+  search_history      search_history[]
+
+  @@unique([tenant_id, slug])
+  @@index([parent_id], map: "idx_cat_parent")
+  @@index([tenant_id, active], map: "idx_cat_tenant")
+}
+
+model comparison {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenant_id   String    @default("public") @db.VarChar(255)
+  user_id     String    @db.Uuid
+  title       String?   @db.VarChar(500)
+  category_id String?   @db.Uuid
+  item_ids    String[]  @default([]) @db.Uuid
+  notes       String?
+  is_public   Boolean   @default(false)
+  share_token String?   @db.VarChar(100)
+  created_at  DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime  @default(now()) @db.Timestamptz(6)
+  category    category? @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([share_token], map: "idx_comparison_share")
+  @@index([user_id], map: "idx_comparison_user")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model comparison_attribute {
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  template_id         String              @db.Uuid
+  name                String              @db.VarChar(255)
+  slug                String              @db.VarChar(255)
+  data_type           String              @default("text") @db.VarChar(30)
+  unit                String?             @db.VarChar(50)
+  options             Json?               @default("[]")
+  is_comparable       Boolean             @default(true)
+  is_filterable       Boolean             @default(false)
+  is_required         Boolean             @default(false)
+  display_order       Int?                @default(0)
+  group_name          String?             @db.VarChar(100)
+  weight              Decimal?            @default(1.0) @db.Decimal(3, 2)
+  comparison_template comparison_template @relation(fields: [template_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([template_id, display_order], map: "idx_attr_template")
+}
+
+model comparison_template {
+  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  category_id          String                 @db.Uuid
+  name                 String                 @db.VarChar(255)
+  slug                 String                 @db.VarChar(255)
+  attribute_groups     Json                   @default("[]")
+  layout_config        Json?                  @default("{}")
+  version              Int                    @default(1)
+  created_at           DateTime               @default(now()) @db.Timestamptz(6)
+  comparison_attribute comparison_attribute[]
+  category             category               @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([category_id], map: "idx_template_category")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model inventory {
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  item_id             String              @db.Uuid
+  variant_id          String?             @db.Uuid
+  merchant_id         String              @db.Uuid
+  warehouse           String?             @default("default") @db.VarChar(255)
+  location            String?             @db.VarChar(255)
+  quantity            Int                 @default(0)
+  reserved            Int                 @default(0)
+  low_stock_threshold Int?                @default(5)
+  status              String              @default("in_stock") @db.VarChar(30)
+  updated_at          DateTime            @default(now()) @db.Timestamptz(6)
+  item                item                @relation(fields: [item_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  merchant            merchant            @relation(fields: [merchant_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  item_variant        item_variant?       @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  inventory_history   inventory_history[]
+
+  @@unique([item_id, variant_id, merchant_id, warehouse])
+  @@index([item_id], map: "idx_inventory_item")
+  @@index([merchant_id, status], map: "idx_inventory_merchant")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model inventory_history {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  inventory_id    String    @db.Uuid
+  change_type     String    @db.VarChar(30)
+  quantity_change Int
+  quantity_after  Int
+  reason          String?
+  actor_id        String?   @db.Uuid
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  inventory       inventory @relation(fields: [inventory_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([inventory_id, created_at(sort: Desc)], map: "idx_inv_history")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model item {
+  id                                                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenant_id                                         String          @default("public") @db.VarChar(255)
+  category_id                                       String          @db.Uuid
+  name                                              String          @db.VarChar(500)
+  slug                                              String          @db.VarChar(500)
+  brand_name                                        String?         @map("brand") @db.VarChar(255)
+  description                                       String?
+  images                                            Json?           @default("[]")
+  videos                                            Json?           @default("[]")
+  specifications                                    Json?           @default("{}")
+  pros                                              String[]        @default([])
+  cons                                              String[]        @default([])
+  rating                                            Decimal?        @default(0) @db.Decimal(3, 2)
+  review_count                                      Int?            @default(0)
+  price_current                                     BigInt?
+  price_original                                    BigInt?
+  price_currency                                    String?         @default("USD") @db.VarChar(3)
+  price_history                                     Json?           @default("[]")
+  availability                                      String?         @default("available") @db.VarChar(30)
+  merchant_name                                     String?         @map("merchant") @db.VarChar(255)
+  merchant_url                                      String?
+  offers                                            Json?           @default("[]")
+  warranty                                          String?
+  delivery_info                                     Json?           @default("{}")
+  tags                                              String[]        @default([])
+  metadata                                          Json?           @default("{}")
+  status                                            String          @default("active") @db.VarChar(30)
+  created_by                                        String?         @db.Uuid
+  created_at                                        DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at                                        DateTime        @default(now()) @db.Timestamptz(6)
+  brand_id                                          String?         @db.Uuid
+  merchant_id                                       String?         @db.Uuid
+  published_at                                      DateTime?       @db.Timestamptz(6)
+  source                                            String?         @default("manual") @db.VarChar(50)
+  source_url                                        String?
+  locale                                            String?         @default("en") @db.VarChar(10)
+  inventory                                         inventory[]
+  brand                                             brand?          @relation(fields: [brand_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  category                                          category        @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  merchant                                          merchant?       @relation(fields: [merchant_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  item_media                                        item_media[]
+  item_price                                        item_price[]
+  item_relation_item_relation_item_idToitem         item_relation[] @relation("item_relation_item_idToitem")
+  item_relation_item_relation_related_item_idToitem item_relation[] @relation("item_relation_related_item_idToitem")
+  item_variant                                      item_variant[]
+  offer                                             offer[]
+  price_rule                                        price_rule[]
+  review                                            review[]
+  wishlist_item                                     wishlist_item[]
+
+  @@unique([tenant_id, slug])
+  @@index([brand_name], map: "idx_item_brand")
+  @@index([category_id, status], map: "idx_item_category")
+  @@index([price_current], map: "idx_item_price")
+  @@index([rating(sort: Desc)], map: "idx_item_rating")
+  @@index([tags], map: "idx_item_tags", type: Gin)
+  @@index([tenant_id, status], map: "idx_item_tenant")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model item_media {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  item_id       String   @db.Uuid
+  type          String   @db.VarChar(20)
+  url           String
+  thumbnail_url String?
+  alt_text      String?  @db.VarChar(500)
+  caption       String?
+  sort_order    Int?     @default(0)
+  is_primary    Boolean? @default(false)
+  metadata      Json?    @default("{}")
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  item          item     @relation(fields: [item_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([item_id, type, sort_order], map: "idx_item_media")
+}
+
+model item_price {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  item_id        String        @db.Uuid
+  variant_id     String?       @db.Uuid
+  merchant_id    String?       @db.Uuid
+  price          BigInt
+  original_price BigInt?
+  currency       String?       @default("USD") @db.VarChar(3)
+  source_url     String?
+  is_affiliate   Boolean?      @default(false)
+  valid_from     DateTime?     @default(now()) @db.Timestamptz(6)
+  valid_until    DateTime?     @db.Timestamptz(6)
+  recorded_at    DateTime      @default(now()) @db.Timestamptz(6)
+  item           item          @relation(fields: [item_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  merchant       merchant?     @relation(fields: [merchant_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  item_variant   item_variant? @relation(fields: [variant_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([item_id, recorded_at(sort: Desc)], map: "idx_price_item")
+  @@index([merchant_id], map: "idx_price_merchant")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model item_relation {
+  id                                       String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  item_id                                  String @db.Uuid
+  related_item_id                          String @db.Uuid
+  relation_type                            String @default("similar") @db.VarChar(30)
+  sort_order                               Int?   @default(0)
+  item_item_relation_item_idToitem         item   @relation("item_relation_item_idToitem", fields: [item_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  item_item_relation_related_item_idToitem item   @relation("item_relation_related_item_idToitem", fields: [related_item_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([item_id, related_item_id, relation_type])
+  @@index([item_id, relation_type], map: "idx_item_relation")
+}
+
+model item_variant {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  item_id        String       @db.Uuid
+  name           String       @db.VarChar(255)
+  sku            String?      @db.VarChar(100)
+  specifications Json?        @default("{}")
+  price_current  BigInt?
+  price_original BigInt?
+  currency       String?      @default("USD") @db.VarChar(3)
+  availability   String?      @default("available") @db.VarChar(30)
+  created_at     DateTime     @default(now()) @db.Timestamptz(6)
+  inventory      inventory[]
+  item_price     item_price[]
+  item           item         @relation(fields: [item_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([item_id], map: "idx_variant_item")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model merchant {
+  id                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenant_id             String                  @default("public") @db.VarChar(255)
+  name                  String                  @db.VarChar(255)
+  slug                  String                  @db.VarChar(255)
+  logo_url              String?
+  website               String?
+  affiliate_config      Json?                   @default("{}")
+  trust_score           Decimal?                @default(0) @db.Decimal(3, 2)
+  commission_rate       Decimal?                @default(0) @db.Decimal(5, 4)
+  verified              Boolean                 @default(false)
+  status                String                  @default("pending") @db.VarChar(30)
+  created_at            DateTime                @default(now()) @db.Timestamptz(6)
+  description           String?
+  registration_number   String?                 @db.VarChar(100)
+  tax_id                String?                 @db.VarChar(100)
+  business_type         String?                 @db.VarChar(50)
+  founded_year          Int?
+  employee_count        String?                 @db.VarChar(30)
+  annual_revenue        String?                 @db.VarChar(30)
+  social_links          Json?                   @default("{}")
+  policies              Json?                   @default("{}")
+  certifications        String[]                @default([])
+  tags                  String[]                @default([])
+  metadata              Json?                   @default("{}")
+  updated_at            DateTime?               @default(now()) @db.Timestamptz(6)
+  campaign              campaign[]
+  inventory             inventory[]
+  item                  item[]
+  item_price            item_price[]
+  merchant_branch       merchant_branch[]
+  merchant_category     merchant_category[]
+  merchant_contact      merchant_contact[]
+  merchant_settings     merchant_settings?
+  merchant_subscription merchant_subscription[]
+  merchant_verification merchant_verification[]
+  offer                 offer[]
+  price_rule            price_rule[]
+
+  @@unique([tenant_id, slug])
+  @@index([status], map: "idx_merchant_status")
+}
+
+model merchant_branch {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  merchant_id     String   @db.Uuid
+  name            String   @db.VarChar(255)
+  address_line1   String?  @db.VarChar(500)
+  city            String?  @db.VarChar(100)
+  state           String?  @db.VarChar(100)
+  country         String   @db.VarChar(100)
+  postal_code     String?  @db.VarChar(20)
+  phone           String?  @db.VarChar(50)
+  email           String?  @db.VarChar(255)
+  is_headquarters Boolean? @default(false)
+  business_hours  Json?    @default("{}")
+  status          String?  @default("active") @db.VarChar(30)
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  merchant        merchant @relation(fields: [merchant_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([merchant_id], map: "idx_merchant_branch")
+}
+
+model merchant_category {
+  merchant_id String   @db.Uuid
+  category_id String   @db.Uuid
+  category    category @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  merchant    merchant @relation(fields: [merchant_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([merchant_id, category_id])
+}
+
+model merchant_contact {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  merchant_id String   @db.Uuid
+  name        String   @db.VarChar(255)
+  role        String?  @db.VarChar(100)
+  email       String?  @db.VarChar(255)
+  phone       String?  @db.VarChar(50)
+  is_primary  Boolean? @default(false)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  merchant    merchant @relation(fields: [merchant_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([merchant_id], map: "idx_merchant_contact")
+}
+
+model merchant_settings {
+  id                       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  merchant_id              String   @unique @db.Uuid
+  shipping_config          Json?    @default("{}")
+  payment_config           Json?    @default("{}")
+  business_hours           Json?    @default("{}")
+  return_policy            String?
+  tax_config               Json?    @default("{}")
+  notification_preferences Json?    @default("{}")
+  updated_at               DateTime @default(now()) @db.Timestamptz(6)
+  merchant                 merchant @relation(fields: [merchant_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model merchant_subscription {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  merchant_id String    @db.Uuid
+  plan        String    @default("free") @db.VarChar(50)
+  status      String    @default("active") @db.VarChar(30)
+  started_at  DateTime  @default(now()) @db.Timestamptz(6)
+  expires_at  DateTime? @db.Timestamptz(6)
+  features    Json?     @default("[]")
+  metadata    Json?     @default("{}")
+  merchant    merchant  @relation(fields: [merchant_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([merchant_id, status], map: "idx_merchant_sub")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model merchant_verification {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  merchant_id String    @db.Uuid
+  level       String    @default("basic") @db.VarChar(30)
+  status      String    @default("pending") @db.VarChar(30)
+  documents   Json?     @default("[]")
+  reviewer_id String?   @db.Uuid
+  reviewed_at DateTime? @db.Timestamptz(6)
+  notes       String?
+  expires_at  DateTime? @db.Timestamptz(6)
+  created_at  DateTime  @default(now()) @db.Timestamptz(6)
+  merchant    merchant  @relation(fields: [merchant_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([merchant_id, status], map: "idx_merchant_verif")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model offer {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  item_id        String?   @db.Uuid
+  merchant_id    String?   @db.Uuid
+  type           String    @db.VarChar(30)
+  title          String    @db.VarChar(500)
+  description    String?
+  code           String?   @db.VarChar(100)
+  discount_value Decimal?  @db.Decimal(10, 2)
+  discount_type  String?   @db.VarChar(20)
+  valid_from     DateTime? @default(now()) @db.Timestamptz(6)
+  valid_until    DateTime? @db.Timestamptz(6)
+  terms          String?
+  url            String?
+  priority       Int?      @default(0)
+  status         String    @default("active") @db.VarChar(30)
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+  item           item?     @relation(fields: [item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  merchant       merchant? @relation(fields: [merchant_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([item_id, status], map: "idx_offer_item")
+  @@index([merchant_id, status], map: "idx_offer_merchant")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model price_rule {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  merchant_id String?   @db.Uuid
+  item_id     String?   @db.Uuid
+  category_id String?   @db.Uuid
+  rule_type   String    @db.VarChar(30)
+  name        String    @db.VarChar(255)
+  config      Json      @default("{}")
+  priority    Int?      @default(0)
+  active      Boolean   @default(true)
+  valid_from  DateTime? @default(now()) @db.Timestamptz(6)
+  valid_until DateTime? @db.Timestamptz(6)
+  created_at  DateTime  @default(now()) @db.Timestamptz(6)
+  category    category? @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  item        item?     @relation(fields: [item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  merchant    merchant? @relation(fields: [merchant_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([merchant_id, active], map: "idx_price_rule")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model review {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  item_id           String   @db.Uuid
+  user_id           String   @db.Uuid
+  rating            Decimal  @db.Decimal(3, 2)
+  title             String?  @db.VarChar(500)
+  content           String?
+  pros              String[] @default([])
+  cons              String[] @default([])
+  verified_purchase Boolean? @default(false)
+  helpful_count     Int?     @default(0)
+  status            String?  @default("active") @db.VarChar(30)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  item              item     @relation(fields: [item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([item_id, status], map: "idx_review_item")
+  @@index([user_id], map: "idx_review_user")
+}
+
+model search_history {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id       String    @db.Uuid
+  query         String    @db.VarChar(500)
+  category_id   String?   @db.Uuid
+  filters       Json?     @default("{}")
+  results_count Int?      @default(0)
+  searched_at   DateTime  @default(now()) @db.Timestamptz(6)
+  category      category? @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([user_id, searched_at(sort: Desc)], map: "idx_search_user")
+}
+
+model wishlist_item {
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id               String   @db.Uuid
+  item_id               String   @db.Uuid
+  notes                 String?
+  price_alert_threshold BigInt?
+  created_at            DateTime @default(now()) @db.Timestamptz(6)
+  item                  item     @relation(fields: [item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([user_id, item_id])
+  @@index([user_id], map: "idx_wishlist_user")
+}
