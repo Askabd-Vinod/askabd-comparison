@@ -89,4 +89,5 @@
 | Input validation (all services) | ✅ 100% |
 | Observable route layer | ✅ 100% |
 | Startup validation | ✅ 100% |
+| Readiness scoring | ✅ 100% |
 | CI/CD pipeline | ✅ 100% |
