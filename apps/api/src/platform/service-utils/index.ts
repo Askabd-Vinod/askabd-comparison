@@ -1,104 +1,49 @@
 /**
- * AskABD Platform — Service Utilities
+ * AskABD Comparison Platform — Service Utilities Adapter
  *
- * Reusable service-layer utilities that standardize error handling,
- * logging, and result conversion across all platform services.
+ * Re-exports from @askabd/shared-service-utils for platform-wide use.
+ * Adds Prisma-specific helpers that use the platform's error framework.
  *
- * Designed for extraction to @askabd/shared-service-utils.
- *
- * Replaces:
- * - Manual try/catch with Prisma error codes
- * - Raw Zod safeParse (use validateInput instead)
- * - Silent error swallowing in route handlers
- *
- * Provides:
- * - safeQuery: observable read with fallback (replaces safeRead)
- * - safeWrite: observable write with structured error conversion
- * - withPrismaError: wraps Prisma operations with standard error handling
+ * Consumers import from this module — not directly from the shared package.
+ * This allows platform-specific error mapping to be injected transparently.
  */
 
-import type { Result } from '../../services/types.js';
+// Re-export shared package utilities (the source of truth)
+export { safeQuery, sendResult } from '@askabd/shared-service-utils';
+export type { SafeQueryContext, HttpReply, ServiceResult, ServiceError } from '@askabd/shared-service-utils';
+
+// Platform-specific: Prisma error handling via shared-errors
+import { safeWrite as sharedSafeWrite, withErrorMap } from '@askabd/shared-service-utils';
+import type { ServiceResult, ServiceError, ErrorMapper } from '@askabd/shared-service-utils';
 import { handlePrismaError, toApiError } from '../../errors/index.js';
 
 /**
- * Observable read operation with fallback.
- * Unlike the old safeRead, this logs failures for monitoring/alerting.
- *
- * Use for GET endpoints where a fallback is acceptable.
+ * Platform error mapper — converts any thrown error (including Prisma codes)
+ * into the AskABD platform error format via shared-errors.
  */
-export async function safeQuery<T>(
-  operation: () => Promise<T>,
-  fallback: T,
-  context?: { service?: string; operation?: string; log?: { warn: (...args: any[]) => void } },
-): Promise<T> {
-  try {
-    return await operation();
-  } catch (err) {
-    if (context?.log) {
-      context.log.warn(
-        { err: (err as Error).message, service: context.service, operation: context.operation },
-        `Query failed, returning fallback`,
-      );
-    }
-    return fallback;
-  }
-}
+const platformErrorMapper: ErrorMapper = (e: unknown): ServiceError => {
+  const appError = handlePrismaError(e);
+  const apiError = toApiError(appError);
+  return apiError;
+};
 
 /**
- * Wraps a Prisma write operation with standard error handling.
- * Converts Prisma error codes to platform Result format.
- *
- * Use for POST/PUT/DELETE operations.
+ * Wraps an async operation with platform Prisma error handling.
+ * Uses @askabd/shared-service-utils safeWrite with the platform error mapper.
  */
 export async function safeWrite<T>(
   operation: () => Promise<T>,
-): Promise<Result<T>> {
-  try {
-    const value = await operation();
-    return { ok: true, value };
-  } catch (e: unknown) {
-    const appError = handlePrismaError(e);
-    return { ok: false, error: toApiError(appError) };
-  }
+): Promise<ServiceResult<T>> {
+  return sharedSafeWrite(operation, platformErrorMapper);
 }
 
 /**
- * Wraps a Prisma operation that may throw P2002/P2025/P2003
- * with custom error messages for better UX.
+ * Wraps a Prisma operation with code-specific error messages.
+ * Falls back to platform error mapper for unknown codes.
  */
 export async function withPrismaError<T>(
   operation: () => Promise<T>,
-  errorMap?: Partial<Record<string, { category: string; code: string; message: string; statusCode: number; field?: string }>>,
-): Promise<Result<T>> {
-  try {
-    const value = await operation();
-    return { ok: true, value };
-  } catch (e: unknown) {
-    if (e && typeof e === 'object' && 'code' in e) {
-      const prismaCode = (e as any).code as string;
-      const customError = errorMap?.[prismaCode];
-      if (customError) {
-        return { ok: false, error: customError };
-      }
-    }
-    const appError = handlePrismaError(e);
-    return { ok: false, error: toApiError(appError) };
-  }
-}
-
-/**
- * Sends a Result as HTTP response.
- * Success: 200 (or custom status) with value.
- * Failure: error.statusCode with { error } envelope.
- */
-export function sendResult<T>(
-  reply: { status: (code: number) => any; send: (data: any) => any },
-  result: Result<T>,
-  successStatus: number = 200,
-): void {
-  if (result.ok) {
-    reply.status(successStatus).send(result.value);
-  } else {
-    reply.status(result.error.statusCode ?? 400).send({ error: result.error });
-  }
+  errorMap?: Partial<Record<string, ServiceError>>,
+): Promise<ServiceResult<T>> {
+  return withErrorMap(operation, errorMap ?? {}, platformErrorMapper);
 }
