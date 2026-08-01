@@ -1,6 +1,5 @@
 /**
- * AskABD Platform — Audit Module
+ * Re-exports from @askabd/shared-audit.
  */
-
-export type { AuditEntry, AuditConfig, AuditSink } from './types.js';
-export { registerAuditEngine, createAuditEntry } from './engine.js';
+export { registerAuditEngine, createAuditEntry } from '@askabd/shared-audit';
+export type { AuditEntry, AuditConfig, AuditSink } from '@askabd/shared-audit';

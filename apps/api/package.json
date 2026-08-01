@@ -18,12 +18,16 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@askabd/shared-audit": "file:../../vendor/askabd-shared-audit-0.0.0.tgz",
     "@askabd/shared-config-validator": "file:../../vendor/askabd-shared-config-validator-0.0.0.tgz",
     "@askabd/shared-configuration": "file:../../vendor/askabd-shared-configuration-0.0.0.tgz",
     "@askabd/shared-contracts": "file:../../vendor/askabd-shared-contracts-0.0.0.tgz",
+    "@askabd/shared-diagnostics": "file:../../vendor/askabd-shared-diagnostics-0.0.0.tgz",
     "@askabd/shared-errors": "file:../../vendor/askabd-shared-errors-0.0.0.tgz",
+    "@askabd/shared-feature-flags": "file:../../vendor/askabd-shared-feature-flags-0.0.0.tgz",
     "@askabd/shared-health": "file:../../vendor/askabd-shared-health-0.0.0.tgz",
     "@askabd/shared-logging": "file:../../vendor/askabd-shared-logging-0.0.0.tgz",
+    "@askabd/shared-monitoring": "file:../../vendor/askabd-shared-monitoring-0.0.0.tgz",
     "@askabd/shared-result": "file:../../vendor/askabd-shared-result-0.0.0.tgz",
     "@askabd/shared-service-utils": "file:../../vendor/askabd-shared-service-utils-0.0.0.tgz",
     "@askabd/shared-utilities": "file:../../vendor/askabd-shared-utilities-0.0.0.tgz",
