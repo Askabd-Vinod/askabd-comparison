@@ -7,6 +7,7 @@
 - `src/services/catalog-service.ts` — old raw pg version, unused
 - `src/services/price-engine.ts` — old raw pg version, unused
 - `src/services/review-service.ts` — old raw pg version, unused
+- `src/services/merchant-portal-service.ts` — old raw pg version, unused
 
 ## Type Safety
 - 5 instances of `as any` for Prisma JSON fields (Prisma v7 InputJsonValue type)

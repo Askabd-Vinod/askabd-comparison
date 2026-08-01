@@ -14,7 +14,7 @@
 | CatalogService | ✅ Prisma | (current) |
 | PriceEngine | ✅ Prisma | (current) |
 | ReviewService | ✅ Prisma | (current) |
-| MerchantPortalService | ⬜ Raw pg | — |
+| MerchantPortalService | ✅ Prisma | (current) |
 | SearchService | ⬜ Raw pg | — |
 
 ## Platform Health

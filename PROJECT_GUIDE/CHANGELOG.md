@@ -2,6 +2,13 @@
 
 ## 2026-08-01
 
+### feat(prisma): migrate MerchantPortalService
+- InventoryService: upsert with status derivation, adjustStock with Prisma $transaction
+- PricingConsole: price rule CRUD with active filter
+- CampaignService: create (draft), activate (draft→active), list by merchant
+- Inventory history recording within transaction for atomicity
+- 6 tests passing
+
 ### feat(prisma): migrate ReviewService
 - Review creation with auto item rating/count update (Prisma aggregate)
 - Review listing by item with pagination

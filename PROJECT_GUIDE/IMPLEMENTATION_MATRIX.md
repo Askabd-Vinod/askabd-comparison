@@ -11,5 +11,5 @@
 | CatalogService | Prisma | Manual | P2002/P2003/P2025 | 6 | (programmatic) | ✅ |
 | PriceEngine | Prisma | Manual | Validation | 5 | (programmatic) | ✅ |
 | ReviewService | Prisma | Manual | P2025 duck-type | 4 | (programmatic) | ✅ |
-| MerchantPortalService | Raw pg | Manual | Manual | 6 | (programmatic) | ⬜ |
+| MerchantPortalService | Prisma | Manual | P2025 + $transaction | 6 | (programmatic) | ✅ |
 | SearchService | Raw pg | None | safeRead wrapper | 1 | api-routes.ts | ⬜ |
