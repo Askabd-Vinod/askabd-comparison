@@ -244,3 +244,229 @@ export async function validateConfiguration(
     summary: { total: results.length, passed, failed, warnings, skipped },
   };
 }
+
+
+// ─── Extended Platform Checks ─────────────────────────────────────────────────
+
+/**
+ * Node.js version check (platform minimum).
+ */
+export function nodeVersionCheck(minMajor: number = 20): ConfigCheck {
+  return {
+    name: 'Node.js Version',
+    required: true,
+    async check(): Promise<ConfigValidationResult> {
+      const version = process.versions.node;
+      const major = parseInt(version.split('.')[0]!, 10);
+      if (major < minMajor) {
+        return {
+          name: 'Node.js Version',
+          status: 'fail',
+          message: `Node.js ${version} detected. Minimum required: ${minMajor}.x`,
+          fix: `Upgrade Node.js to v${minMajor} or later (nvm install ${minMajor})`,
+          required: true,
+        };
+      }
+      return {
+        name: 'Node.js Version',
+        status: 'pass',
+        message: `Node.js ${version} (meets minimum ${minMajor}.x)`,
+        required: true,
+      };
+    },
+  };
+}
+
+/**
+ * Port availability check (ensure port isn't already in use).
+ */
+export function portCheck(port: number): ConfigCheck {
+  return {
+    name: `Port ${port}`,
+    required: true,
+    async check(): Promise<ConfigValidationResult> {
+      const net = await import('node:net');
+      return new Promise((resolve) => {
+        const server = net.createServer();
+        server.once('error', (err: NodeJS.ErrnoException) => {
+          if (err.code === 'EADDRINUSE') {
+            resolve({
+              name: `Port ${port}`,
+              status: 'fail',
+              message: `Port ${port} is already in use`,
+              fix: `Stop the process using port ${port}, or change PORT in .env`,
+              required: true,
+            });
+          } else {
+            resolve({
+              name: `Port ${port}`,
+              status: 'warn',
+              message: `Port check error: ${err.message}`,
+              required: true,
+            });
+          }
+        });
+        server.once('listening', () => {
+          server.close(() => {
+            resolve({
+              name: `Port ${port}`,
+              status: 'pass',
+              message: `Port ${port} is available`,
+              required: true,
+            });
+          });
+        });
+        server.listen(port, '127.0.0.1');
+      });
+    },
+  };
+}
+
+/**
+ * Database connectivity check (live TCP probe — does NOT import Prisma).
+ */
+export function databaseConnectivityCheck(connectionString?: string): ConfigCheck {
+  return {
+    name: 'Database Connectivity',
+    required: true,
+    async check(): Promise<ConfigValidationResult> {
+      if (!connectionString) {
+        return { name: 'Database Connectivity', status: 'skip', message: 'No DATABASE_URL', required: true };
+      }
+      try {
+        const url = new URL(connectionString);
+        const host = url.hostname === 'localhost' ? '127.0.0.1' : url.hostname;
+        const port = parseInt(url.port || '5432', 10);
+
+        const net = await import('node:net');
+        return new Promise((resolve) => {
+          const socket = net.createConnection({ host, port, timeout: 3000 });
+          socket.once('connect', () => {
+            socket.destroy();
+            resolve({
+              name: 'Database Connectivity',
+              status: 'pass',
+              message: `PostgreSQL reachable at ${host}:${port}`,
+              required: true,
+            });
+          });
+          socket.once('timeout', () => {
+            socket.destroy();
+            resolve({
+              name: 'Database Connectivity',
+              status: 'fail',
+              message: `Cannot reach PostgreSQL at ${host}:${port} (timeout)`,
+              fix: `Ensure PostgreSQL is running: docker compose up -d`,
+              required: true,
+            });
+          });
+          socket.once('error', (err) => {
+            socket.destroy();
+            resolve({
+              name: 'Database Connectivity',
+              status: 'fail',
+              message: `Cannot reach PostgreSQL at ${host}:${port}: ${err.message}`,
+              fix: `Start PostgreSQL: docker compose up -d (or check DATABASE_URL)`,
+              required: true,
+            });
+          });
+        });
+      } catch {
+        return { name: 'Database Connectivity', status: 'fail', message: 'Invalid DATABASE_URL format', fix: 'Check DATABASE_URL format', required: true };
+      }
+    },
+  };
+}
+
+/**
+ * Memory check (available memory threshold).
+ */
+export function memoryCheck(warnThresholdMB: number = 256): ConfigCheck {
+  return {
+    name: 'Memory',
+    required: false,
+    async check(): Promise<ConfigValidationResult> {
+      const mem = process.memoryUsage();
+      const rssMB = Math.round(mem.rss / 1024 / 1024);
+      if (rssMB > warnThresholdMB) {
+        return {
+          name: 'Memory',
+          status: 'warn',
+          message: `RSS ${rssMB}MB exceeds warning threshold ${warnThresholdMB}MB`,
+          fix: 'Investigate memory usage or increase container limits',
+          required: false,
+        };
+      }
+      return {
+        name: 'Memory',
+        status: 'pass',
+        message: `RSS ${rssMB}MB (threshold: ${warnThresholdMB}MB)`,
+        required: false,
+      };
+    },
+  };
+}
+
+/**
+ * Platform middleware check (verifies expected modules are loadable).
+ */
+export function middlewareCheck(middlewareName: string, importPath: string): ConfigCheck {
+  return {
+    name: `Middleware: ${middlewareName}`,
+    required: false,
+    async check(): Promise<ConfigValidationResult> {
+      try {
+        await import(importPath);
+        return {
+          name: `Middleware: ${middlewareName}`,
+          status: 'pass',
+          message: `${middlewareName} module available`,
+          required: false,
+        };
+      } catch (err) {
+        return {
+          name: `Middleware: ${middlewareName}`,
+          status: 'fail',
+          message: `${middlewareName} module failed to load: ${(err as Error).message}`,
+          fix: `Check that ${importPath} exists and has no syntax errors`,
+          required: false,
+        };
+      }
+    },
+  };
+}
+
+// ─── Enterprise Readiness Score ───────────────────────────────────────────────
+
+export interface ReadinessScore {
+  readonly platform: number;
+  readonly security: number;
+  readonly database: number;
+  readonly infrastructure: number;
+  readonly api: number;
+  readonly overall: number;
+}
+
+/**
+ * Calculates enterprise readiness scores from a validation report.
+ * Each dimension is 0-100.
+ */
+export function calculateReadiness(report: ConfigValidationReport): ReadinessScore {
+  const results = report.results;
+
+  const score = (names: string[]): number => {
+    const matched = results.filter(r => names.some(n => r.name.toLowerCase().includes(n.toLowerCase())));
+    if (matched.length === 0) return 100; // No checks for this dimension = assumed ready
+    const passed = matched.filter(r => r.status === 'pass').length;
+    return Math.round((passed / matched.length) * 100);
+  };
+
+  const platform = score(['node', 'middleware', 'port', 'memory']);
+  const security = score(['jwt', 'auth']);
+  const database = score(['database']);
+  const infrastructure = score(['node', 'memory', 'port']);
+  const api = score(['gateway', 'port']);
+  const overall = Math.round((platform + security + database + infrastructure + api) / 5);
+
+  return { platform, security, database, infrastructure, api, overall };
+}

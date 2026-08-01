@@ -2,18 +2,29 @@ import { createServer } from './server.js';
 import { config } from './config/env.js';
 import {
   validateConfiguration,
+  calculateReadiness,
   databaseCheck,
+  databaseConnectivityCheck,
   jwtCheck,
   urlCheck,
+  nodeVersionCheck,
+  portCheck,
+  memoryCheck,
 } from './platform/config-validator/index.js';
 
 async function main(): Promise<void> {
   // ─── Startup Configuration Validation ───────────────────────────────────────
   const report = await validateConfiguration('comparison-api', config.NODE_ENV ?? 'development', [
+    nodeVersionCheck(20),
+    portCheck(config.PORT ?? 4200),
     databaseCheck(config.DATABASE_URL),
+    databaseConnectivityCheck(config.DATABASE_URL),
     jwtCheck(),
     urlCheck('Gateway', config.GATEWAY_URL, false),
+    memoryCheck(256),
   ]);
+
+  const readiness = calculateReadiness(report);
 
   // Log startup report
   const icon = report.overallStatus === 'ready' ? '✓' : report.overallStatus === 'degraded' ? '⚠' : '✗';
@@ -23,7 +34,7 @@ async function main(): Promise<void> {
     console.log(`${sym} ${r.name}: ${r.message}`);
     if (r.fix && r.status !== 'pass') console.log(`      Fix: ${r.fix}`);
   }
-  console.log('');
+  console.log(`\n  Readiness: Platform=${readiness.platform}% Security=${readiness.security}% Database=${readiness.database}% Infrastructure=${readiness.infrastructure}% Overall=${readiness.overall}%\n`);
 
   // In production, fail-fast on required check failures
   if (report.overallStatus === 'failed' && config.NODE_ENV === 'production') {
@@ -35,7 +46,7 @@ async function main(): Promise<void> {
   const server = await createServer();
 
   // Expose startup report on platform endpoint (must register before listen)
-  server.get('/platform/startup', async () => report);
+  server.get('/platform/startup', async () => ({ ...report, readiness }));
 
   await server.listen({ port: config.PORT, host: config.HOST });
   server.log.info(`Comparison API on ${config.HOST}:${config.PORT}`);
