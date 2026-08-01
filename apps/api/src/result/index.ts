@@ -16,7 +16,7 @@
 
 import { ok, err, isOk, isErr, map, flatMap, match } from '@askabd/shared-result';
 import type { Result as SharedResult, Ok, Err } from '@askabd/shared-result';
-import { isAppError, toApiError, handlePrismaError } from '../errors/index.js';
+import { toApiError, handlePrismaError } from '../errors/index.js';
 import type { AppError } from '../errors/index.js';
 import type { Result as PlatformResult } from '../services/types.js';
 

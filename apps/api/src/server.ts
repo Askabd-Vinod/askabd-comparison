@@ -4,10 +4,10 @@ import helmet from '@fastify/helmet';
 import { createLogger } from '@askabd/shared-logging';
 import { config } from './config/env.js';
 import { apiRoutes } from './routes/api-routes.js';
+import { registerAuthMiddleware } from './middleware/auth.js';
 
 /**
- * Creates the Fastify server with shared platform logging.
- * Logger includes: service name, environment, version, redaction of secrets.
+ * Creates the Fastify server with shared platform logging and authentication.
  */
 export async function createServer(): Promise<FastifyInstance> {
   const logger = createLogger({
@@ -20,6 +20,10 @@ export async function createServer(): Promise<FastifyInstance> {
   const server = Fastify({ loggerInstance: logger, genReqId: () => crypto.randomUUID() });
   await server.register(helmet, { contentSecurityPolicy: false });
   await server.register(cors, { origin: true, credentials: true });
+
+  // Authentication middleware (dev bypass when no JWT_SECRET configured)
+  registerAuthMiddleware(server, { publicRoutes: ['/health', '/ready'] });
+
   server.get('/health', async () => ({ status: 'ok', service: 'comparison-api', uptime: process.uptime() }));
   server.get('/ready', async () => ({ status: 'ready' }));
   await server.register(apiRoutes, { prefix: '/api/v1' });
