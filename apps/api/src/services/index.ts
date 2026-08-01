@@ -7,4 +7,4 @@ export { BrandService, MerchantService, type Brand, type Merchant, type Merchant
 export { CatalogService, type CatalogItem, type ItemMedia, type ItemRelation } from './catalog-service-prisma.js';
 export { PriceEngine, type PriceEntry, type Offer } from './price-engine-prisma.js';
 export { InventoryService, PricingConsole, CampaignService, type InventoryEntry, type PriceRule, type Campaign } from './merchant-portal-service.js';
-export { ReviewService, type Review, type ReviewStats } from './review-service.js';
+export { ReviewService, type Review, type ReviewStats } from './review-service-prisma.js';

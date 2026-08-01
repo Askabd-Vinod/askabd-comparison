@@ -10,7 +10,7 @@
 5. ✅ MerchantBrandService
 6. ✅ CatalogService
 7. ✅ PriceEngine
-8. ⬜ ReviewService
+8. ✅ ReviewService
 9. ⬜ MerchantPortalService
 
 ## Phase 3: Cross-Cutting

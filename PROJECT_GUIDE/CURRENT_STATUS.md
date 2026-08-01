@@ -13,7 +13,7 @@
 | MerchantBrandService | ✅ Prisma | b507ea7 |
 | CatalogService | ✅ Prisma | (current) |
 | PriceEngine | ✅ Prisma | (current) |
-| ReviewService | ⬜ Raw pg | — |
+| ReviewService | ✅ Prisma | (current) |
 | MerchantPortalService | ⬜ Raw pg | — |
 | SearchService | ⬜ Raw pg | — |
 

@@ -2,6 +2,15 @@
 
 ## 2026-08-01
 
+### feat(prisma): migrate ReviewService
+- Review creation with auto item rating/count update (Prisma aggregate)
+- Review listing by item with pagination
+- Stats with aggregate and groupBy
+- Moderation workflow (approve/reject)
+- Helpful count increment (atomic)
+- Pending review queue
+- 4 tests passing
+
 ### feat(prisma): migrate PriceEngine
 - Price recording with BigInt handling
 - Price history with merchant filtering

@@ -10,6 +10,6 @@
 | MerchantService | Prisma | Manual | P2002/P2025 | 6 | merchant-brand-routes.ts | ✅ |
 | CatalogService | Prisma | Manual | P2002/P2003/P2025 | 6 | (programmatic) | ✅ |
 | PriceEngine | Prisma | Manual | Validation | 5 | (programmatic) | ✅ |
-| ReviewService | Raw pg | Manual | Manual | 4 | (programmatic) | ⬜ |
+| ReviewService | Prisma | Manual | P2025 duck-type | 4 | (programmatic) | ✅ |
 | MerchantPortalService | Raw pg | Manual | Manual | 6 | (programmatic) | ⬜ |
 | SearchService | Raw pg | None | safeRead wrapper | 1 | api-routes.ts | ⬜ |
