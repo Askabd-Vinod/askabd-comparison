@@ -79,7 +79,7 @@ describe('TemplateService (Prisma)', () => {
     const r = await svc.addAttribute({ templateId: tmpl.value.id, name: 'Bad', slug: 'bad', dataType: 'invalid' as any });
     expect(r.ok).toBe(false);
     if (r.ok) return;
-    expect(r.error.code).toBe('invalid_data_type');
+    expect(r.error.code).toBe('invalid_input');
   });
 
   it('retrieves template with attributes for a category', async () => {

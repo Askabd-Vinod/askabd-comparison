@@ -1,13 +1,14 @@
 import { FastifyInstance } from 'fastify';
 import { getPrisma } from '../services/prisma-client.js';
 import { BrandService, MerchantService } from '../services/merchant-brand-prisma.js';
+import { safeQuery } from '../platform/service-utils/index.js';
 
 export async function merchantBrandRoutes(server: FastifyInstance): Promise<void> {
   const prisma = getPrisma(); const brandSvc = new BrandService(prisma); const merchantSvc = new MerchantService(prisma);
 
   // === Brands (Public) ===
-  server.get('/brands', async (req, reply) => { const q = req.query as any; if (q.search) return reply.send({ brands: await brandSvc.search(q.search) }); reply.send({ brands: await brandSvc.list({ status: q.status, limit: q.limit ? parseInt(q.limit) : undefined, offset: q.offset ? parseInt(q.offset) : undefined }) }); });
-  server.get('/brands/:slug', async (req, reply) => { const b = await brandSvc.getBySlug((req.params as any).slug); if (!b) return reply.status(404).send({ error: { code: 'not_found' } }); reply.send(b); });
+  server.get('/brands', async (req, reply) => { const q = req.query as any; if (q.search) return reply.send({ brands: await safeQuery(() => brandSvc.search(q.search), []) }); reply.send({ brands: await safeQuery(() => brandSvc.list({ status: q.status, limit: q.limit ? parseInt(q.limit) : undefined, offset: q.offset ? parseInt(q.offset) : undefined }), []) }); });
+  server.get('/brands/:slug', async (req, reply) => { const b = await safeQuery(() => brandSvc.getBySlug((req.params as any).slug), null); if (!b) return reply.status(404).send({ error: { code: 'not_found' } }); reply.send(b); });
 
   // === Brands (Admin) ===
   server.post('/admin/brands', async (req, reply) => { const r = await brandSvc.create(req.body as any); if (!r.ok) return reply.status(r.error.category === 'conflict' ? 409 : 400).send({ error: r.error }); reply.status(201).send(r.value); });
@@ -16,8 +17,8 @@ export async function merchantBrandRoutes(server: FastifyInstance): Promise<void
   server.post('/admin/brands/:id/restore', async (req, reply) => { await brandSvc.restore((req.params as any).id); reply.status(204).send(); });
 
   // === Merchants (Public) ===
-  server.get('/merchants', async (req, reply) => { const q = req.query as any; if (q.search) return reply.send({ merchants: await merchantSvc.search(q.search) }); reply.send({ merchants: await merchantSvc.list({ status: q.status as any, tenantId: q.tenantId, limit: q.limit ? parseInt(q.limit) : undefined }) }); });
-  server.get('/merchants/:id', async (req, reply) => { const m = await merchantSvc.getById((req.params as any).id); if (!m) return reply.status(404).send({ error: { code: 'not_found' } }); reply.send(m); });
+  server.get('/merchants', async (req, reply) => { const q = req.query as any; if (q.search) return reply.send({ merchants: await safeQuery(() => merchantSvc.search(q.search), []) }); reply.send({ merchants: await safeQuery(() => merchantSvc.list({ status: q.status as any, tenantId: q.tenantId, limit: q.limit ? parseInt(q.limit) : undefined }), []) }); });
+  server.get('/merchants/:id', async (req, reply) => { const m = await safeQuery(() => merchantSvc.getById((req.params as any).id), null); if (!m) return reply.status(404).send({ error: { code: 'not_found' } }); reply.send(m); });
 
   // === Merchants (Registration + Admin) ===
   server.post('/merchants/register', async (req, reply) => { const r = await merchantSvc.register(req.body as any); if (!r.ok) return reply.status(400).send({ error: r.error }); reply.status(201).send(r.value); });

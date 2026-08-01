@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
-
+import { validateInput } from './validate.js';
 import { type Result } from './types.js';
 
 export interface Comparison {
@@ -29,12 +29,9 @@ export class ComparisonService {
   constructor(private readonly prisma: PrismaClient) {}
 
   async create(input: unknown): Promise<Result<Comparison>> {
-    const parsed = CreateComparisonSchema.safeParse(input);
-    if (!parsed.success) {
-      const e = parsed.error.errors[0]!;
-      return { ok: false, error: { category: 'validation', code: e.path.length ? 'invalid_input' : 'min_items', field: e.path.join('.') || undefined, message: e.message, statusCode: 400 } };
-    }
-    const d = parsed.data;
+    const validated = validateInput(CreateComparisonSchema, input);
+    if (!validated.ok) return validated;
+    const d = validated.value;
     const shareToken = d.isPublic ? randomUUID().substring(0, 12) : null;
 
     const row = await this.prisma.comparison.create({

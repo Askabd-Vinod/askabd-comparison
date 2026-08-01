@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
-
+import { validateInput } from './validate.js';
 import { type Result } from './types.js';
 export type AttributeDataType = 'text' | 'number' | 'boolean' | 'date' | 'enum' | 'url' | 'currency' | 'rating';
 
@@ -60,12 +60,9 @@ export class TemplateService {
   constructor(private readonly prisma: PrismaClient) {}
 
   async createTemplate(input: unknown): Promise<Result<ComparisonTemplate>> {
-    const parsed = CreateTemplateSchema.safeParse(input);
-    if (!parsed.success) {
-      const e = parsed.error.errors[0]!;
-      return { ok: false, error: { category: 'validation', code: 'invalid_input', field: e.path.join('.') || undefined, message: e.message, statusCode: 400 } };
-    }
-    const d = parsed.data;
+    const validated = validateInput(CreateTemplateSchema, input);
+    if (!validated.ok) return validated;
+    const d = validated.value;
     try {
       const row = await this.prisma.comparison_template.create({
         data: {
@@ -86,13 +83,9 @@ export class TemplateService {
   }
 
   async addAttribute(input: unknown): Promise<Result<ComparisonAttribute>> {
-    const parsed = AddAttributeSchema.safeParse(input);
-    if (!parsed.success) {
-      const e = parsed.error.errors[0]!;
-      const code = e.path.includes('dataType') ? 'invalid_data_type' : 'invalid_input';
-      return { ok: false, error: { category: 'validation', code, field: e.path.join('.') || undefined, message: e.message, statusCode: 400 } };
-    }
-    const d = parsed.data;
+    const validated = validateInput(AddAttributeSchema, input);
+    if (!validated.ok) return validated;
+    const d = validated.value;
     try {
       const row = await this.prisma.comparison_attribute.create({
         data: {
