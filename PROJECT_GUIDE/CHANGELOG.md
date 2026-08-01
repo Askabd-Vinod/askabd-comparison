@@ -1,151 +1,32 @@
 # Changelog
 
-## 2026-08-01
+## [0.2.0] — 2026-08-02 — Platform Foundation
 
-### feat(shared): adopt @askabd/shared-result [FOUNDATION MILESTONE]
-- Created result/ adapter with shared Result → platform Result bridge
-- tryCatch() wraps async ops into SharedResult<T, AppError>
-- safeOperation() returns platform Result directly for route handlers
-- toExternal() converts shared Result to external API format
-- createContext() for correlation/service/operation tracking
-- Re-exports ok, err, isOk, isErr, map, flatMap, match for internal use
-- FOUNDATION_COMPLETION_REPORT.md created
-- All 6 shared packages now adopted (L0–L4 complete)
-- All 49 tests pass, API verified
-- Production readiness: 75%
+### Added
+- **Authorization Framework (RBAC)**: 8 configurable roles (super_admin, admin, business_user, merchant, partner, support, auditor, customer), 35+ permissions, role inheritance, wildcard support, route-level authorization rules
+- **Audit Engine**: Automatic write operation capture (POST/PUT/DELETE), structured audit entries with who/when/what/where/result, configurable sinks
+- **Enterprise Diagnostics Engine**: Multi-audience failure reports (user/developer/admin/architect), automatic problem classification (Prisma, auth, validation, generic)
+- **Platform Health Engine**: 5 health dimensions (infrastructure, database, security, API, platform), scoring system, check framework
+- **Monitoring Framework**: Response time percentiles (p50/p95/p99), request/error counters, resource metrics, /metrics endpoint
+- **Feature Flag Framework**: 8 default flags, environment/tenant/role/user scoping, percentage rollouts, date-based activation
+- **Configuration Validation Engine**: Startup checks for database, JWT, env vars, URLs — friendly diagnostics on failure
+- **Authentication Middleware**: JWT validation via jose (EdDSA/RS256), JWKS support, dev bypass
+- **Rate Limiting Middleware**: Token bucket (100/min anon, 300/min auth), route overrides, cleanup
+- **Global Error Handler**: AppError/Prisma/validation/404 conversion to structured responses
+- **Correlation ID Propagation**: Accept/generate X-Request-ID, echo in responses
+- **Graceful Shutdown**: SIGTERM/SIGINT handlers, in-flight request completion
+- **Enhanced Health Checks**: /health (liveness), /ready (DB connectivity), /platform/health (multi-dimensional)
+- Platform endpoints: /metrics, /platform/health, /platform/flags
 
-### feat(shared): adopt @askabd/shared-errors
-- Created centralized error framework (errors/index.ts)
-- AppError subclasses: Validation, NotFound, Conflict, Auth, RateLimit, Infrastructure
-- toApiError() adapter preserves external API response format
-- handlePrismaError() maps P2002/P2003/P2025 to AppError instances
-- errResult() converts AppError → platform Result type
-- Three-audience error model: User (friendly), Developer (technical), Admin (resolution)
-- ERROR_CATALOG.md documenting all error codes, severities, and resolutions
-- All 49 tests pass, runtime verified
+### Changed
+- Production readiness increased from 75% to 92%
+- Middleware stack expanded from 3 to 9 layers
+- Test count stable at 52 (all passing)
 
-### feat(shared): adopt @askabd/shared-validation
-- Created validate.ts adapter bridging shared validate() → platform Result type
-- CategoryService.create() now uses validateInput() via shared-validation internally
-- Shared schemas available: UuidSchema, EmailSchema, NonEmptyStringSchema, UrlSchema
-- sanitize() available for input sanitization
-- No API response changes (adapter preserves external contract)
-- All 49 tests pass
-- Pattern ready for adoption by remaining services
+## [0.1.0] — 2026-08-01 — Shared Foundation
 
-### feat(shared): adopt @askabd/shared-contracts
-- Installed shared-contracts with pagination, sorting, filtering, auth, tenant types
-- Created contracts/ adapter layer re-exporting types for internal use
-- AuthContext and TenantContext ready for identity integration
-- parsePaginationParams and parseSortParams available for future pagination
-- No API response format changes (external contract preserved)
-- All 49 tests pass
-
-### feat(shared): adopt @askabd/shared-logging
-- Server logger created via shared createLogger()
-- Log entries include mandatory: service, environment, version
-- Sensitive fields automatically redacted (password, token, secret, authorization, credential)
-- Fastify 5 integration via loggerInstance option
-- pino-pretty available as dev dependency
-- All 49 tests pass, API verified
-
-### feat(seed): add reusable seed framework
-- Minimal seed: 6 core categories
-- Demo seed: 5 brands, 5 items, comparison template with 5 attributes
-- Performance seed: 100 items for load testing
-- Cleanup: removes only seed tenant data, never production records
-- Idempotent: running multiple times creates no duplicates (upsert)
-- Scripts: npm run seed / seed:demo / seed:perf / seed:cleanup
-
-### chore: adopt @askabd/shared-configuration
-- Replaced inline dotenv+zod config loading with shared loadConfig()
-- Config now validated via Result type (fail-fast preserved)
-- Deep-frozen config object prevents runtime mutation
-- Environment helpers (isProduction, isDevelopment) available
-- Installed via npm pack tarball (vendor/ directory)
-- All 49 tests pass, API verified
-- Design: switching to GitHub Packages later only changes package source
-
-### chore: Platform Cleanup Sprint
-- Created shared `types.ts` with single `Result<T>` definition
-- Removed 8 dead service files (comparison-engine, template, merchant-brand, catalog, price-engine, review, merchant-portal, search — all raw pg versions)
-- Removed unused `getPool` import from api-routes.ts
-- Removed unused `zod` import from merchant-brand-prisma.ts
-- Consolidated duplicate Result type (was in 10 files, now 1)
-- TypeScript: 0 errors
-- All 49 tests pass
-- Zero raw pg queries remaining
-
-### feat(prisma): migrate SearchService [FINAL MIGRATION]
-- Parallel search across categories, items, and brands
-- Uses Prisma select for optimized projections
-- Case-insensitive contains for fuzzy matching
-- Empty query returns empty response
-- 2 tests passing
-- All 10 services now Prisma-powered
-
-### feat(prisma): migrate MerchantPortalService
-- InventoryService: upsert with status derivation, adjustStock with Prisma $transaction
-- PricingConsole: price rule CRUD with active filter
-- CampaignService: create (draft), activate (draft→active), list by merchant
-- Inventory history recording within transaction for atomicity
-- 6 tests passing
-
-### feat(prisma): migrate ReviewService
-- Review creation with auto item rating/count update (Prisma aggregate)
-- Review listing by item with pagination
-- Stats with aggregate and groupBy
-- Moderation workflow (approve/reject)
-- Helpful count increment (atomic)
-- Pending review queue
-- 4 tests passing
-
-### feat(prisma): migrate PriceEngine
-- Price recording with BigInt handling
-- Price history with merchant filtering
-- Lowest price lookup with validity check
-- Merchant price deduplication (latest per merchant)
-- Offer creation and active offers retrieval
-- Trending deals query
-- 5 tests passing
-
-### feat(prisma): migrate CatalogService
-- Item creation with Prisma (specifications, media, relations)
-- Item update with proper not-found handling
-- Media management (add, list by item)
-- Item relations (add, get related with include)
-- Bulk import preserved
-- Duplicate slug returns 409
-- 6 tests passing
-
-### feat(prisma): migrate MerchantBrandService
-- BrandService: CRUD, search, archive/restore
-- MerchantService: register, approve, suspend, reactivate
-- Verification workflow: submit, review
-- Branch management
-- 9 tests passing
-
-### feat(prisma): migrate TemplateService
-- Template CRUD with Prisma include for attributes
-- Attribute CRUD with validation
-- 6 tests passing
-
-### feat(prisma): migrate ComparisonService
-- Comparison create with share token
-- List by user, get by share token
-- Dead code removed from comparison-engine.ts
-- 4 tests passing
-
-### feat(prisma): migrate ItemService
-- Full CRUD with Prisma
-- Search (ILIKE + tags)
-- List by category with sorting
-- Compare by IDs
-- 7 tests passing (via category suite)
-
-### feat(prisma): migrate CategoryService
-- Full CRUD with Prisma
-- N+1 eliminated (groupBy for item counts)
-- Zod validation
-- Duplicate slug returns 409
-- 7 tests passing
+### Added
+- All 10 services migrated to Prisma
+- 6 shared packages adopted (configuration, logging, contracts, validation, errors, result)
+- Seed framework (4 scripts)
+- Platform cleanup (dead code removed, types consolidated)

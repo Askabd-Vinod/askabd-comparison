@@ -7,6 +7,9 @@ import { apiRoutes } from './routes/api-routes.js';
 import { registerAuthMiddleware } from './middleware/auth.js';
 import { registerRateLimitMiddleware } from './middleware/rate-limit.js';
 import { registerErrorHandler } from './middleware/error-handler.js';
+import { registerAuthorizationMiddleware, COMPARISON_API_RULES } from './platform/rbac/index.js';
+import { registerAuditEngine } from './platform/audit/index.js';
+import { registerMonitoring } from './platform/monitoring/index.js';
 
 /**
  * Creates the Fastify server with shared platform logging and authentication.
@@ -37,10 +40,23 @@ export async function createServer(): Promise<FastifyInstance> {
   });
 
   // Authentication middleware (dev bypass when no JWT_SECRET configured)
-  registerAuthMiddleware(server, { publicRoutes: ['/health', '/ready'] });
+  registerAuthMiddleware(server, { publicRoutes: ['/health', '/ready', '/metrics'] });
+
+  // Authorization middleware (RBAC — evaluates route rules after auth)
+  registerAuthorizationMiddleware(server, {
+    rules: COMPARISON_API_RULES,
+    defaultPolicy: 'authenticated',
+    devBypass: config.NODE_ENV !== 'production',
+  });
 
   // Rate limiting middleware (after auth so authenticated users get higher limits)
   registerRateLimitMiddleware(server);
+
+  // Audit engine (captures write operations automatically)
+  registerAuditEngine(server, { service: 'comparison-api', repository: 'askabd-comparison' });
+
+  // Monitoring (records response times and error metrics)
+  registerMonitoring(server, 'comparison-api');
 
   // Global error handler (structured responses for all error types)
   registerErrorHandler(server);
@@ -56,11 +72,35 @@ export async function createServer(): Promise<FastifyInstance> {
     // Readiness: verify database connectivity
     try {
       const { getPrisma } = await import('./services/prisma-client.js');
-      await getPrisma().$queryRaw`SELECT 1`;
+      await getPrisma().category.count();
       return { status: 'ready', database: 'connected' };
     } catch {
       return { status: 'degraded', database: 'disconnected' };
     }
+  });
+  server.get('/platform/health', async () => {
+    const { collectPlatformHealth } = await import('./platform/health/index.js');
+    return collectPlatformHealth('comparison-api', {
+      checkDatabase: async () => {
+        try {
+          const { getPrisma } = await import('./services/prisma-client.js');
+          const start = Date.now();
+          await getPrisma().category.count();
+          return { name: 'connectivity', status: 'healthy' as const, message: 'Connected', durationMs: Date.now() - start };
+        } catch (err) {
+          return { name: 'connectivity', status: 'unhealthy' as const, message: (err as Error).message };
+        }
+      },
+    });
+  });
+  server.get('/platform/flags', async (request) => {
+    const { getFeatureFlags } = await import('./platform/feature-flags/index.js');
+    const auth = (request as any).auth;
+    return getFeatureFlags().getAllFlags({
+      environment: config.NODE_ENV ?? 'development',
+      tenantId: auth?.tenantId,
+      userId: auth?.userId,
+    });
   });
   await server.register(apiRoutes, { prefix: '/api/v1' });
   return server;
