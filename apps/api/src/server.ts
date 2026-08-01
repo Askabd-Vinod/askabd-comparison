@@ -45,8 +45,23 @@ export async function createServer(): Promise<FastifyInstance> {
   // Global error handler (structured responses for all error types)
   registerErrorHandler(server);
 
-  server.get('/health', async () => ({ status: 'ok', service: 'comparison-api', uptime: process.uptime() }));
-  server.get('/ready', async () => ({ status: 'ready' }));
+  server.get('/health', async () => ({
+    status: 'ok',
+    service: 'comparison-api',
+    version: '0.1.0',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+  }));
+  server.get('/ready', async () => {
+    // Readiness: verify database connectivity
+    try {
+      const { getPrisma } = await import('./services/prisma-client.js');
+      await getPrisma().$queryRaw`SELECT 1`;
+      return { status: 'ready', database: 'connected' };
+    } catch {
+      return { status: 'degraded', database: 'disconnected' };
+    }
+  });
   await server.register(apiRoutes, { prefix: '/api/v1' });
   return server;
 }
