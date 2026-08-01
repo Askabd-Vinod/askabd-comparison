@@ -10,7 +10,7 @@ import {
   nodeVersionCheck,
   portCheck,
   memoryCheck,
-} from './platform/config-validator/index.js';
+} from '@askabd/shared-config-validator';
 import {
   osCheck,
   cpuCheck,
