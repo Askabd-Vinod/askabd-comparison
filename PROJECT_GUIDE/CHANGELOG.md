@@ -2,6 +2,14 @@
 
 ## 2026-08-01
 
+### feat(seed): add reusable seed framework
+- Minimal seed: 6 core categories
+- Demo seed: 5 brands, 5 items, comparison template with 5 attributes
+- Performance seed: 100 items for load testing
+- Cleanup: removes only seed tenant data, never production records
+- Idempotent: running multiple times creates no duplicates (upsert)
+- Scripts: npm run seed / seed:demo / seed:perf / seed:cleanup
+
 ### chore: adopt @askabd/shared-configuration
 - Replaced inline dotenv+zod config loading with shared loadConfig()
 - Config now validated via Result type (fail-fast preserved)

@@ -19,7 +19,7 @@
 - No authorization
 - No rate limiting
 - No CI/CD pipeline
-- No seed data script
+- ~~No seed data script~~ ✅ RESOLVED
 
 ## Dependencies
 - ✅ `comparison-engine.ts` DELETED — no longer needed

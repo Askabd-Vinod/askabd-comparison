@@ -27,3 +27,4 @@
 - **Prisma:** Schema valid, Client v7.9.1, zero raw pg in routes
 - **Data layer:** 100% Prisma
 - **Shared Platform:** @askabd/shared-configuration adopted
+- **Seed Framework:** minimal, demo, performance, cleanup scripts
