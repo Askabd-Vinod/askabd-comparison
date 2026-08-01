@@ -1,9 +1,9 @@
 import { FastifyInstance } from 'fastify';
-import { getPool } from '../db/connection.js';
-import { BrandService, MerchantService } from '../services/merchant-brand-service.js';
+import { getPrisma } from '../services/prisma-client.js';
+import { BrandService, MerchantService } from '../services/merchant-brand-prisma.js';
 
 export async function merchantBrandRoutes(server: FastifyInstance): Promise<void> {
-  const pool = getPool(); const brandSvc = new BrandService(pool); const merchantSvc = new MerchantService(pool);
+  const prisma = getPrisma(); const brandSvc = new BrandService(prisma); const merchantSvc = new MerchantService(prisma);
 
   // === Brands (Public) ===
   server.get('/brands', async (req, reply) => { const q = req.query as any; if (q.search) return reply.send({ brands: await brandSvc.search(q.search) }); reply.send({ brands: await brandSvc.list({ status: q.status, limit: q.limit ? parseInt(q.limit) : undefined, offset: q.offset ? parseInt(q.offset) : undefined }) }); });
