@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
-
+import { validateInput } from './validate.js';
 import { type Result } from './types.js';
 
 export interface Item {
@@ -59,12 +59,9 @@ export class ItemService {
   constructor(private readonly prisma: PrismaClient) {}
 
   async create(input: unknown): Promise<Result<Item>> {
-    const parsed = CreateItemSchema.safeParse(input);
-    if (!parsed.success) {
-      const e = parsed.error.errors[0]!;
-      return { ok: false, error: { category: 'validation', code: 'invalid_input', field: e.path.join('.'), message: e.message, statusCode: 400 } };
-    }
-    const d = parsed.data;
+    const validated = validateInput(CreateItemSchema, input);
+    if (!validated.ok) return validated;
+    const d = validated.value;
     const slug = d.slug || d.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
     try {

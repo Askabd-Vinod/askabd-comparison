@@ -12,3 +12,4 @@ export * from './health/index.js';
 export * from './monitoring/index.js';
 export * from './feature-flags/index.js';
 export * from './config-validator/index.js';
+export * from './service-utils/index.js';
