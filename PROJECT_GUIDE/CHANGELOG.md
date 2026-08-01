@@ -2,6 +2,15 @@
 
 ## 2026-08-01
 
+### feat(shared): adopt @askabd/shared-validation
+- Created validate.ts adapter bridging shared validate() → platform Result type
+- CategoryService.create() now uses validateInput() via shared-validation internally
+- Shared schemas available: UuidSchema, EmailSchema, NonEmptyStringSchema, UrlSchema
+- sanitize() available for input sanitization
+- No API response changes (adapter preserves external contract)
+- All 49 tests pass
+- Pattern ready for adoption by remaining services
+
 ### feat(shared): adopt @askabd/shared-contracts
 - Installed shared-contracts with pagination, sorting, filtering, auth, tenant types
 - Created contracts/ adapter layer re-exporting types for internal use

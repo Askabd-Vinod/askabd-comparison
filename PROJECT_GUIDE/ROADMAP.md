@@ -21,7 +21,8 @@
 - ✅ Seed framework (minimal, demo, performance, cleanup)
 - ✅ @askabd/shared-logging adopted
 - ✅ @askabd/shared-contracts adopted
-- ⬜ @askabd/shared-validation
+- ✅ @askabd/shared-validation adopted
+- ⬜ @askabd/shared-errors
 - ⬜ @askabd/shared-contracts
 - ⬜ @askabd/shared-validation
 - ⬜ @askabd/shared-errors

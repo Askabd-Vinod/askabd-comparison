@@ -1,6 +1,6 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 import { z } from 'zod';
-
+import { validateInput } from './validate.js';
 import { type Result } from './types.js';
 
 export interface Category {
@@ -31,12 +31,9 @@ export class CategoryService {
   constructor(private readonly prisma: PrismaClient) {}
 
   async create(input: unknown): Promise<Result<Category>> {
-    const parsed = CreateCategorySchema.safeParse(input);
-    if (!parsed.success) {
-      const firstError = parsed.error.errors[0]!;
-      return { ok: false, error: { category: 'validation', code: 'invalid_input', field: firstError.path.join('.'), message: firstError.message, statusCode: 400 } };
-    }
-    const data = parsed.data;
+    const validated = validateInput(CreateCategorySchema, input);
+    if (!validated.ok) return validated;
+    const data = validated.value;
 
     try {
       const row = await this.prisma.category.create({
