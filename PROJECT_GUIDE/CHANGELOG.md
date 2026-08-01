@@ -2,6 +2,15 @@
 
 ## 2026-08-01
 
+### chore: adopt @askabd/shared-configuration
+- Replaced inline dotenv+zod config loading with shared loadConfig()
+- Config now validated via Result type (fail-fast preserved)
+- Deep-frozen config object prevents runtime mutation
+- Environment helpers (isProduction, isDevelopment) available
+- Installed via npm pack tarball (vendor/ directory)
+- All 49 tests pass, API verified
+- Design: switching to GitHub Packages later only changes package source
+
 ### chore: Platform Cleanup Sprint
 - Created shared `types.ts` with single `Result<T>` definition
 - Removed 8 dead service files (comparison-engine, template, merchant-brand, catalog, price-engine, review, merchant-portal, search — all raw pg versions)

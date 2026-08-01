@@ -10,6 +10,10 @@
 - 5 instances of `as any` for Prisma JSON fields (Prisma v7 InputJsonValue type)
 - TSC full check hangs with Prisma v7 types (use --skipLibCheck)
 
+## Shared Package Integration
+- Packages installed as tarballs (vendor/) — switch to GitHub Packages for CI/CD
+- Internal Result type still uses `{ ok, value/error }` — adapter needed for shared-result adoption
+
 ## Missing Infrastructure
 - No authentication
 - No authorization

@@ -14,6 +14,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@askabd/shared-configuration": "file:../../vendor/askabd-shared-configuration-0.0.0.tgz",
+    "@askabd/shared-errors": "file:../../vendor/askabd-shared-errors-0.0.0.tgz",
+    "@askabd/shared-result": "file:../../vendor/askabd-shared-result-0.0.0.tgz",
+    "@askabd/shared-utilities": "file:../../vendor/askabd-shared-utilities-0.0.0.tgz",
+    "@askabd/shared-validation": "file:../../vendor/askabd-shared-validation-0.0.0.tgz",
     "@fastify/cors": "11.0.0",
     "@fastify/helmet": "13.0.1",
     "@prisma/adapter-pg": "^7.9.1",
