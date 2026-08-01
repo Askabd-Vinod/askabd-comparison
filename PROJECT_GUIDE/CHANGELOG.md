@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.1] — 2026-08-02 — Platform Stabilization
+
+### Changed
+- **ComparisonService**: Migrated from raw z.safeParse to platform validateInput adapter
+- **TemplateService**: Migrated createTemplate() and addAttribute() to validateInput
+- **merchant-brand-routes**: Read operations now use safeQuery (observable, logged)
+- **Validation error codes**: Standardized to `invalid_input` across all services (platform convention)
+
+### Improved
+- Zero silent error swallowing in route layer (all reads use safeQuery)
+- Consistent validation error format across entire API surface
+- All 4 write services use identical validation pattern
+- Production readiness: 92% → 94%
+
 ## [0.2.0] — 2026-08-02 — Platform Foundation
 
 ### Added
