@@ -5,6 +5,7 @@ import { createLogger } from '@askabd/shared-logging';
 import { config } from './config/env.js';
 import { apiRoutes } from './routes/api-routes.js';
 import { registerAuthMiddleware } from './middleware/auth.js';
+import { registerRateLimitMiddleware } from './middleware/rate-limit.js';
 
 /**
  * Creates the Fastify server with shared platform logging and authentication.
@@ -23,6 +24,9 @@ export async function createServer(): Promise<FastifyInstance> {
 
   // Authentication middleware (dev bypass when no JWT_SECRET configured)
   registerAuthMiddleware(server, { publicRoutes: ['/health', '/ready'] });
+
+  // Rate limiting middleware (after auth so authenticated users get higher limits)
+  registerRateLimitMiddleware(server);
 
   server.get('/health', async () => ({ status: 'ok', service: 'comparison-api', uptime: process.uptime() }));
   server.get('/ready', async () => ({ status: 'ready' }));
