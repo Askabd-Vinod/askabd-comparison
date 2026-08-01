@@ -2,6 +2,14 @@
 
 ## 2026-08-01
 
+### feat(prisma): migrate SearchService [FINAL MIGRATION]
+- Parallel search across categories, items, and brands
+- Uses Prisma select for optimized projections
+- Case-insensitive contains for fuzzy matching
+- Empty query returns empty response
+- 2 tests passing
+- All 10 services now Prisma-powered
+
 ### feat(prisma): migrate MerchantPortalService
 - InventoryService: upsert with status derivation, adjustStock with Prisma $transaction
 - PricingConsole: price rule CRUD with active filter

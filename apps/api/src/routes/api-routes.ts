@@ -4,8 +4,8 @@ import { CategoryService } from '../services/category-service.js';
 import { ItemService } from '../services/item-service.js';
 import { ComparisonService } from '../services/comparison-service.js';
 import { TemplateService } from '../services/template-service-prisma.js';
+import { SearchService } from '../services/search-service-prisma.js';
 import { getPrisma } from '../services/prisma-client.js';
-import { SearchService } from '../services/search-service.js';
 import { merchantBrandRoutes } from './merchant-brand-routes.js';
 
 async function safeRead<T>(operation: () => Promise<T>, fallback: T): Promise<T> {
@@ -23,7 +23,7 @@ export async function apiRoutes(server: FastifyInstance): Promise<void> {
   const itemSvc = new ItemService(prisma);
   const compSvc = new ComparisonService(prisma);
   const tmplSvc = new TemplateService(prisma);
-  const searchSvc = new SearchService(pool);
+  const searchSvc = new SearchService(prisma);
 
   // Categories (Prisma-powered)
   server.get('/categories', async () => ({ categories: await safeRead(() => catSvc.list(), []) }));
