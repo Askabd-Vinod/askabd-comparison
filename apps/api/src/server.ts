@@ -40,7 +40,7 @@ export async function createServer(): Promise<FastifyInstance> {
   });
 
   // Authentication middleware (dev bypass when no JWT_SECRET configured)
-  registerAuthMiddleware(server, { publicRoutes: ['/health', '/ready', '/metrics'] });
+  registerAuthMiddleware(server, { publicRoutes: ['/health', '/ready', '/metrics', '/platform/startup'] });
 
   // Authorization middleware (RBAC — evaluates route rules after auth)
   registerAuthorizationMiddleware(server, {
