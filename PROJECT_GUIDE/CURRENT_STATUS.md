@@ -61,6 +61,7 @@
 | GET /health | Liveness probe | No |
 | GET /ready | Readiness probe (DB check) | No |
 | GET /metrics | Response times, error counts | No |
+| GET /platform/startup | Startup validation report | No |
 | GET /platform/health | Multi-dimensional health report | Yes |
 | GET /platform/flags | Feature flag status | Yes |
 
@@ -87,4 +88,5 @@
 | Config validation | ✅ 100% |
 | Input validation (all services) | ✅ 100% |
 | Observable route layer | ✅ 100% |
+| Startup validation | ✅ 100% |
 | CI/CD pipeline | ✅ 100% |
