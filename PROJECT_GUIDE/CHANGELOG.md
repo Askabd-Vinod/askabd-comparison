@@ -2,6 +2,16 @@
 
 ## 2026-08-01
 
+### feat(shared): adopt @askabd/shared-errors
+- Created centralized error framework (errors/index.ts)
+- AppError subclasses: Validation, NotFound, Conflict, Auth, RateLimit, Infrastructure
+- toApiError() adapter preserves external API response format
+- handlePrismaError() maps P2002/P2003/P2025 to AppError instances
+- errResult() converts AppError → platform Result type
+- Three-audience error model: User (friendly), Developer (technical), Admin (resolution)
+- ERROR_CATALOG.md documenting all error codes, severities, and resolutions
+- All 49 tests pass, runtime verified
+
 ### feat(shared): adopt @askabd/shared-validation
 - Created validate.ts adapter bridging shared validate() → platform Result type
 - CategoryService.create() now uses validateInput() via shared-validation internally

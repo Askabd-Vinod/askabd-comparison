@@ -22,7 +22,8 @@
 - ✅ @askabd/shared-logging adopted
 - ✅ @askabd/shared-contracts adopted
 - ✅ @askabd/shared-validation adopted
-- ⬜ @askabd/shared-errors
+- ✅ @askabd/shared-errors adopted
+- ⬜ @askabd/shared-result
 - ⬜ @askabd/shared-contracts
 - ⬜ @askabd/shared-validation
 - ⬜ @askabd/shared-errors
