@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.0] — 2026-08-02 — OpenAPI & Enterprise Readiness
+
+### Added
+- **OpenAPI 3.1**: Full specification auto-generated from routes (35 paths)
+- **Swagger UI**: Interactive API documentation at GET /docs
+- **Enterprise Readiness Engine**: 17 startup checks, 6-dimension readiness scoring
+- **New checks**: OS, CPU, Docker, Redis, Logging, Feature Flags, Monitoring, Audit, RBAC, Diagnostics, TCP, HTTP endpoint, Package, Secret
+- Production readiness: 96% → 98%
+
 ## [0.3.0] — 2026-08-02 — CI/CD & Container
 
 ### Added

@@ -61,11 +61,13 @@
 | GET /health | Liveness probe | No |
 | GET /ready | Readiness probe (DB check) | No |
 | GET /metrics | Response times, error counts | No |
+| GET /docs | Swagger UI (OpenAPI documentation) | No |
+| GET /docs/json | OpenAPI 3.1 JSON specification | No |
 | GET /platform/startup | Startup validation report | No |
 | GET /platform/health | Multi-dimensional health report | Yes |
 | GET /platform/flags | Feature flag status | Yes |
 
-## Production Readiness: 96%
+## Production Readiness: 98%
 
 | Category | Status |
 |----------|--------|
@@ -88,6 +90,7 @@
 | Config validation | ✅ 100% |
 | Input validation (all services) | ✅ 100% |
 | Observable route layer | ✅ 100% |
+| API documentation (OpenAPI) | ✅ 100% |
 | Startup validation | ✅ 100% |
 | Readiness scoring | ✅ 100% |
 | CI/CD pipeline | ✅ 100% |

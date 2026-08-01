@@ -44,9 +44,8 @@
 ## Phase 7: Production Hardening (In Progress)
 - ✅ CI/CD pipeline (GitHub Actions) — all branches, caching, security audit
 - ✅ Container image (Dockerfile) — multi-stage, vendor packages, healthcheck
-- ⬜ Migrate services to tryCatch/safeOperation pattern
-- ⬜ Input validation on all write endpoints
-- ⬜ API documentation (OpenAPI/Swagger)
+- ✅ Enterprise Readiness Engine — 17 checks, readiness scoring, Enterprise Assessment ready
+- ✅ API documentation (OpenAPI 3.1 + Swagger UI) — 35 paths, schemas, auth docs
 - ⬜ Integration test suite
 - ⬜ Performance benchmarks
 - ⬜ Infrastructure as Code (Terraform/Pulumi)
