@@ -2,6 +2,14 @@
 
 ## 2026-08-01
 
+### feat(shared): adopt @askabd/shared-contracts
+- Installed shared-contracts with pagination, sorting, filtering, auth, tenant types
+- Created contracts/ adapter layer re-exporting types for internal use
+- AuthContext and TenantContext ready for identity integration
+- parsePaginationParams and parseSortParams available for future pagination
+- No API response format changes (external contract preserved)
+- All 49 tests pass
+
 ### feat(shared): adopt @askabd/shared-logging
 - Server logger created via shared createLogger()
 - Log entries include mandatory: service, environment, version
