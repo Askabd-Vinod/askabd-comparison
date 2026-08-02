@@ -23,6 +23,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { RouteRule, AuthorizationContext, Permission } from './types.js';
 import { buildAuthorizationContext, authorizeAny } from './engine.js';
 import type { AuthContext } from '../../contracts/index.js';
+import { ROLE_MAP } from './roles.js';
 
 /**
  * Authorization middleware configuration.
@@ -75,6 +76,7 @@ export function registerAuthorizationMiddleware(
         auth.userId,
         auth.tenantId,
         ['super_admin'],
+        ROLE_MAP,
       );
       return;
     }
@@ -85,6 +87,7 @@ export function registerAuthorizationMiddleware(
       auth.userId,
       auth.tenantId,
       roles,
+      ROLE_MAP,
     );
 
     // Attach authorization context to request

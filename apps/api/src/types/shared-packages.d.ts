@@ -32,3 +32,20 @@ declare module '@askabd/shared-audit' {
   export function registerAuditEngine(server: any, userConfig?: Partial<AuditConfig>, sink?: AuditSink): void;
   export function createAuditEntry(partial: Partial<AuditEntry> & Pick<AuditEntry, 'userId' | 'tenantId' | 'operation' | 'resource' | 'success' | 'service'>): AuditEntry;
 }
+
+
+declare module '@askabd/shared-authorization' {
+  export type Permission = string;
+  export type Role = string;
+  export interface RoleDefinition { readonly id: Role; readonly name: string; readonly description: string; readonly permissions: readonly Permission[]; readonly inherits?: readonly Role[] | undefined; readonly priority: number; }
+  export interface PermissionDefinition { readonly id: Permission; readonly resource: string; readonly action: string; readonly description: string; readonly category: string; }
+  export interface AuthorizationContext { readonly userId: string; readonly tenantId: string; readonly roles: readonly Role[]; readonly permissions: readonly Permission[]; readonly directGrants?: readonly Permission[] | undefined; }
+  export interface AuthorizationDecision { readonly allowed: boolean; readonly permission: Permission; readonly grantedBy?: Role | 'direct' | undefined; readonly reason?: string | undefined; }
+  export interface RouteRule { readonly method: string | '*'; readonly path: string; readonly permissions: readonly Permission[]; readonly roles?: readonly Role[] | undefined; readonly authenticatedOnly?: boolean | undefined; }
+  export function resolvePermissions(roles: readonly Role[], roleMap: ReadonlyMap<string, RoleDefinition>): Set<Permission>;
+  export function hasPermission(effectivePermissions: ReadonlySet<Permission>, required: Permission): boolean;
+  export function authorize(context: AuthorizationContext, requiredPermission: Permission): AuthorizationDecision;
+  export function authorizeAny(context: AuthorizationContext, permissions: readonly Permission[]): AuthorizationDecision;
+  export function authorizeAll(context: AuthorizationContext, permissions: readonly Permission[]): AuthorizationDecision;
+  export function buildAuthorizationContext(userId: string, tenantId: string, roles: readonly Role[], roleMap: ReadonlyMap<string, RoleDefinition>, directGrants?: readonly Permission[]): AuthorizationContext;
+}

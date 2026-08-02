@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@askabd/shared-audit": "file:../../vendor/askabd-shared-audit-0.0.0.tgz",
+    "@askabd/shared-authorization": "file:../../vendor/askabd-shared-authorization-0.0.0.tgz",
     "@askabd/shared-config-validator": "file:../../vendor/askabd-shared-config-validator-0.0.0.tgz",
     "@askabd/shared-configuration": "file:../../vendor/askabd-shared-configuration-0.0.0.tgz",
     "@askabd/shared-contracts": "file:../../vendor/askabd-shared-contracts-0.0.0.tgz",
