@@ -1,4 +1,5 @@
 import { apiSafe } from '../lib/api';
+import { getEnvConfig } from '../lib/env';
 
 interface HealthReport { overallStatus: string; overallScore: number; dimensions: { name: string; status: string; score: number; details: string; checks: { name: string; status: string; message: string }[] }[]; }
 interface StartupReport { overallStatus: string; results: { name: string; status: string; message: string; fix?: string }[]; summary: { total: number; passed: number; failed: number; warnings: number }; readiness: { platform: number; security: number; database: number; infrastructure: number; deployment: number; api: number; overall: number }; }
@@ -6,6 +7,7 @@ interface Metrics { timestamp: string; service: string; uptime: number; requests
 interface Flags { [key: string]: boolean; }
 
 export default async function PlatformPage() {
+  const env = getEnvConfig();
   const [health, startup, metrics, flags, swagger] = await Promise.all([
     apiSafe<HealthReport>('/platform/health', { overallStatus: 'unknown', overallScore: 0, dimensions: [] }),
     apiSafe<StartupReport>('/platform/startup', { overallStatus: 'unknown', results: [], summary: { total: 0, passed: 0, failed: 0, warnings: 0 }, readiness: { platform: 0, security: 0, database: 0, infrastructure: 0, deployment: 0, api: 0, overall: 0 } }),
@@ -29,12 +31,18 @@ export default async function PlatformPage() {
         </div>
       </div>
 
-      {/* Health Overview */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <MiniCard label="Environment" value={env.environment.toUpperCase()} icon="🌐" />
         <MiniCard label="Platform" value={health.overallStatus} icon={statusIcon(health.overallStatus)} />
+        <MiniCard label="Version" value={`v${env.version}`} icon="📦" />
+        <MiniCard label="API Paths" value={String(Object.keys(swagger.paths || {}).length)} icon="🔗" />
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <MiniCard label="Uptime" value={`${Math.round(metrics.uptime)}s`} icon="⏱️" />
         <MiniCard label="Requests" value={String(metrics.requests.total)} icon="📊" />
-        <MiniCard label="API Paths" value={String(Object.keys(swagger.paths || {}).length)} icon="🔗" />
+        <MiniCard label="API URL" value={env.apiUrl.replace('http://', '')} icon="🔌" />
+        <MiniCard label="Build" value={env.buildNumber} icon="🏗️" />
       </div>
 
       {/* Readiness Scores */}
