@@ -6,6 +6,8 @@ import { TemplateService } from '../services/template-service-prisma.js';
 import { SearchService } from '../services/search-service-prisma.js';
 import { getPrisma } from '../services/prisma-client.js';
 import { merchantBrandRoutes } from './merchant-brand-routes.js';
+import { reviewRoutes } from './review-routes.js';
+import { priceRoutes } from './price-routes.js';
 import { safeQuery, sendResult } from '../platform/service-utils/index.js';
 
 export async function apiRoutes(server: FastifyInstance): Promise<void> {
@@ -60,4 +62,10 @@ export async function apiRoutes(server: FastifyInstance): Promise<void> {
 
   // Register merchant/brand sub-routes
   await server.register(merchantBrandRoutes);
+
+  // Register review routes
+  await server.register(reviewRoutes);
+
+  // Register price/offer routes
+  await server.register(priceRoutes);
 }
