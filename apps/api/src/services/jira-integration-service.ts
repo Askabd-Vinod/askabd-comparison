@@ -1,13 +1,35 @@
 /**
  * AskABD Jira Integration Service
- * 
+ *
  * Manages Jira Cloud connectivity, issue creation, status synchronization.
  * Idempotent: will not create duplicate issues for the same AskABD finding.
  * Graceful: AskABD remains fully operational if Jira is unavailable.
- * Secure: tokens are encrypted at rest, never logged, never returned in API responses.
+ *
+ * Token handling — current state (verified 2026-08-16, do not assume otherwise):
+ *  - The token is NEVER returned via any API response (getConfig always masks it — see below).
+ *  - The token is NEVER logged (no code path in this service or its routes logs config/token values).
+ *  - The token is NEVER sent to the frontend in any form other than the fixed '••••••••' mask.
+ *  - Storage/retrieval goes through the SecretProvider abstraction (./secrets-provider.ts) —
+ *    DEV: current environment (test/local credential handling — the value round-trips as-is,
+ *    same as before). PRODUCTION: requires secure secret storage; the AWS Secrets Manager
+ *    provider exists as a correctly-shaped integration point but is NOT implemented against
+ *    real AWS in this environment and fails loudly if selected without real infrastructure.
+ *  - The token IS therefore currently stored in PLAINTEXT in `oc_jira_integrations.auth_token_encrypted`
+ *    in this DEV environment. Do not call this "encrypted" — it is not, and the column name is
+ *    misleading; corrected here rather than left to mislead the next reader.
+ *
+ * ⚠ PRODUCTION SECURITY BLOCKER — do not configure real Jira credentials against this service
+ * until real production secret storage is provided and verified. No encryption/key-management
+ * mechanism (KMS, vault, or an application-level envelope-encryption utility) exists anywhere in
+ * this codebase today to reuse — confirmed by inspection, not assumed. No homemade encryption was
+ * added — a hardcoded or env-sourced encryption key in this environment would be a false sense of
+ * security, not a fix. Exact production requirement: docs/jira-secret-production-requirements.md.
+ * This integration is NOT READY UNTIL SECRET STORAGE IS PROVIDED — do not describe it as
+ * "production ready" without that evidence.
  */
 
 import { sharedPool } from './db-pool.js';
+import { getSecretProvider } from './secrets-provider.js';
 
 const dbPool = sharedPool;
 
@@ -63,15 +85,17 @@ export class JiraIntegrationService {
 
   /**
    * Save or update Jira configuration for an environment.
-   * Token is masked before storage (in production, use proper encryption/vault).
+   *
+   * Token storage goes through the SecretProvider abstraction (secrets-provider.ts) rather
+   * than being written to `auth_token_encrypted` directly — but the active provider today
+   * (DevSecretProvider) still stores the raw value as-is, so this column remains plaintext
+   * in practice. See the production security blocker noted at the top of this file: setting
+   * SECRETS_PROVIDER=aws-secrets-manager routes through the same seam without touching this
+   * method again, once that provider is actually implemented against real AWS.
    */
   async saveConfig(config: JiraConfig): Promise<{ success: boolean; status: JiraStatus }> {
-    // Mask token for storage (in production this would be envelope encryption)
-    const maskedToken = config.authToken ? this.maskToken(config.authToken) : '';
-    // Store the actual token in a format that can be used for API calls
-    // For DEV: store as-is but mark as 'configured'
-    // For PRODUCTION: would integrate with Secrets Manager
-    const tokenForStorage = config.authToken || '';
+    const secrets = getSecretProvider();
+    const tokenForStorage = config.authToken ? await secrets.putSecret(`jira/${config.environment}/token`, config.authToken) : '';
 
     await dbPool.query(`
       INSERT INTO oc_jira_integrations (environment, base_url, project_key, auth_method, auth_email, auth_token_encrypted, default_issue_type, default_priority, default_assignee, default_labels, default_components, status, updated_at)
@@ -132,7 +156,7 @@ export class JiraIntegrationService {
     try {
       // Test authentication by fetching current user
       const authRes = await fetch(`${config.base_url}/rest/api/3/myself`, {
-        headers: this.buildHeaders(config),
+        headers: await this.buildHeaders(config),
       });
 
       if (!authRes.ok) {
@@ -144,7 +168,7 @@ export class JiraIntegrationService {
 
       // Test project access
       const projRes = await fetch(`${config.base_url}/rest/api/3/project/${config.project_key}`, {
-        headers: this.buildHeaders(config),
+        headers: await this.buildHeaders(config),
       });
 
       const projectAccessible = projRes.ok;
@@ -199,7 +223,7 @@ export class JiraIntegrationService {
     try {
       const res = await fetch(`${config.base_url}/rest/api/3/issue`, {
         method: 'POST',
-        headers: { ...this.buildHeaders(config), 'Content-Type': 'application/json' },
+        headers: { ...(await this.buildHeaders(config)), 'Content-Type': 'application/json' },
         body: JSON.stringify(jiraPayload),
       });
 
@@ -342,8 +366,8 @@ export class JiraIntegrationService {
     return res.rows[0] || null;
   }
 
-  private buildHeaders(config: any): Record<string, string> {
-    const token = config.auth_token_encrypted;
+  private async buildHeaders(config: any): Promise<Record<string, string>> {
+    const token = await getSecretProvider().getSecret(config.auth_token_encrypted);
     const email = config.auth_email;
     // Jira Cloud API token authentication
     const auth = Buffer.from(`${email}:${token}`).toString('base64');
@@ -355,11 +379,6 @@ export class JiraIntegrationService {
       'UPDATE oc_jira_integrations SET status = $1, last_health_check = NOW(), last_health_status = $1, last_health_error = $2, updated_at = NOW() WHERE environment = $3',
       [status, error, environment]
     ).catch(() => {});
-  }
-
-  private maskToken(token: string): string {
-    if (token.length <= 8) return '••••••••';
-    return token.slice(0, 4) + '••••' + token.slice(-4);
   }
 
   private generateFingerprint(clientId: string, category: string, service: string, title: string): string {

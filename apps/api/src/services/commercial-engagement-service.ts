@@ -5,6 +5,7 @@
  * Reuses existing platform intelligence (problems, gaps, financial, effort, recommendations).
  * All operations are client-scoped and audited.
  */
+import type { PoolClient } from 'pg';
 import { sharedPool } from './db-pool.js';
 import { OperationsCenterService } from './operations-center-service.js';
 import { WorkflowAutomationService } from './workflow-automation-service.js';
@@ -272,36 +273,54 @@ export class CommercialEngagementService {
       estimatedEffort = effRes.rows[0]?.person_days || null;
     } catch { /* table may not exist */ }
 
-    const { rows } = await sharedPool.query(`
-      INSERT INTO oc_engagement_services
-        (engagement_id, client_id, service_id, bundle_id, scope_description, assumptions, exclusions, estimated_effort, estimated_investment, expected_value)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *
-    `, [
-      engagementId, clientId, data.serviceId, data.bundleId || null,
-      data.scopeDescription || null,
-      JSON.stringify(data.assumptions || []),
-      JSON.stringify(data.exclusions || []),
-      estimatedEffort, estimatedInvestment, expectedValue,
-    ]);
+    // Add the service and recalculate engagement totals atomically — either both
+    // commit or neither does. A crash between the two would otherwise leave a real
+    // engagement_service row backed by stale (or missing) totals on the engagement.
+    const client = await sharedPool.connect();
+    let service: any;
+    try {
+      await client.query('BEGIN');
 
-    // Update engagement totals
-    await this.recalculateEngagementTotals(engagementId);
+      const { rows } = await client.query(`
+        INSERT INTO oc_engagement_services
+          (engagement_id, client_id, service_id, bundle_id, scope_description, assumptions, exclusions, estimated_effort, estimated_investment, expected_value)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *
+      `, [
+        engagementId, clientId, data.serviceId, data.bundleId || null,
+        data.scopeDescription || null,
+        JSON.stringify(data.assumptions || []),
+        JSON.stringify(data.exclusions || []),
+        estimatedEffort, estimatedInvestment, expectedValue,
+      ]);
+      service = rows[0];
 
-    await this.audit.createAuditEntry({
-      entityType: 'engagement_service', entityId: rows[0].id, entityName: capability.name,
+      await this.recalculateEngagementTotals(engagementId, client);
+
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    // Audit and workflow notification are best-effort — a hiccup here must not report
+    // the commercial write (already committed above) as a failure to the caller.
+    this.audit.createAuditEntry({
+      entityType: 'engagement_service', entityId: service.id, entityName: capability.name,
       action: 'service_selected', actor: 'admin',
       details: { engagementId, serviceId: data.serviceId, bundleId: data.bundleId },
       evidence: [`Service "${capability.name}" added to engagement ${engagement.name}`],
-    });
+    }).catch(() => {});
 
-    await this.workflow.emitEvent({
+    this.workflow.emitEvent({
       eventType: 'ENGAGEMENT_SERVICE_SELECTED', clientId,
-      entityType: 'engagement_service', entityId: rows[0].id, entityName: capability.name,
+      entityType: 'engagement_service', entityId: service.id, entityName: capability.name,
       actor: 'admin', severity: 'info',
       payload: { engagementId, serviceId: data.serviceId },
-    });
+    }).catch(() => {});
 
-    return { success: true, service: rows[0] };
+    return { success: true, service };
   }
 
   async removeService(engagementId: string, clientId: string, serviceId: string) {
@@ -323,30 +342,47 @@ export class CommercialEngagementService {
       };
     }
 
-    const { rowCount } = await sharedPool.query(
-      'DELETE FROM oc_engagement_services WHERE engagement_id = $1 AND service_id = $2 AND client_id = $3',
-      [engagementId, serviceId, clientId]
-    );
+    // Delete + recalculate atomically — same rationale as addService().
+    const client = await sharedPool.connect();
+    let rowCount = 0;
+    try {
+      await client.query('BEGIN');
 
-    if (rowCount === 0) {
-      return { success: false, error: 'service_not_in_engagement' };
+      const deleteResult = await client.query(
+        'DELETE FROM oc_engagement_services WHERE engagement_id = $1 AND service_id = $2 AND client_id = $3',
+        [engagementId, serviceId, clientId]
+      );
+      rowCount = deleteResult.rowCount ?? 0;
+
+      if (rowCount === 0) {
+        await client.query('ROLLBACK');
+        client.release();
+        return { success: false, error: 'service_not_in_engagement' };
+      }
+
+      await this.recalculateEngagementTotals(engagementId, client);
+
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      client.release();
+      throw err;
     }
+    client.release();
 
-    await this.recalculateEngagementTotals(engagementId);
-
-    await this.audit.createAuditEntry({
+    this.audit.createAuditEntry({
       entityType: 'engagement_service', entityId: serviceId, entityName: serviceId,
       action: 'service_removed', actor: 'admin',
       details: { engagementId, serviceId },
       evidence: [`Service "${serviceId}" removed from engagement ${engagement.name}`],
-    });
+    }).catch(() => {});
 
-    await this.workflow.emitEvent({
+    this.workflow.emitEvent({
       eventType: 'ENGAGEMENT_SERVICE_REMOVED', clientId,
       entityType: 'engagement_service', entityId: serviceId,
       actor: 'admin', severity: 'info',
       payload: { engagementId, serviceId },
-    });
+    }).catch(() => {});
 
     return { success: true };
   }
@@ -762,8 +798,15 @@ export class CommercialEngagementService {
   // INTERNAL HELPERS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  private async recalculateEngagementTotals(engagementId: string) {
-    const { rows } = await sharedPool.query(
+  /**
+   * Recalculates engagement totals from its current services.
+   * Accepts an optional transaction client so callers that need this atomic with
+   * another write (e.g. addService/removeService) can run it inside their own
+   * BEGIN/COMMIT — falls back to the shared pool when called standalone.
+   */
+  private async recalculateEngagementTotals(engagementId: string, client?: PoolClient) {
+    const db = client ?? sharedPool;
+    const { rows } = await db.query(
       `SELECT COALESCE(SUM(estimated_investment), 0) as total_investment,
               COALESCE(SUM(expected_value), 0) as total_value,
               COALESCE(SUM(estimated_effort), 0) as total_effort
@@ -771,7 +814,7 @@ export class CommercialEngagementService {
       [engagementId]
     );
     const totals = rows[0] || {};
-    await sharedPool.query(
+    await db.query(
       `UPDATE oc_commercial_engagements SET
         total_investment = $1, total_expected_value = $2, total_effort_days = $3, updated_at = NOW()
        WHERE id = $4`,

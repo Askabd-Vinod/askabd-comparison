@@ -673,7 +673,7 @@ export default function LifecycleJourneyPage() {
                 )}
                 {/* Inline Requirement Workspace — allows user to provide/edit values */}
                 <div className="mt-4 pt-3 border-t">
-                  <RequirementWorkspace clientId={clientId} serviceId={currentServiceReq?.serviceId || ''} serviceName={currentPhase.title} />
+                  <RequirementWorkspace clientId={clientId} serviceId={currentServiceReq?.serviceId || ''} serviceName={currentPhase.title} onSaveComplete={loadReadiness} />
                 </div>
               </>
             ) : (
@@ -695,7 +695,7 @@ export default function LifecycleJourneyPage() {
           </div>
 
           {!allChecksComplete() && (
-            <p className="text-[10px] text-amber-600 text-center mt-2">⚠ {readinessData ? `${readinessData.blockers?.length || 0} requirement(s) still needed. Save information above, then refresh.` : 'All validation checks must pass before proceeding.'}</p>
+            <p className="text-[10px] text-amber-600 text-center mt-2">⚠ {readinessData ? `${readinessData.blockers?.length || 0} requirement(s) still needed. Save information above — this updates automatically.` : 'All validation checks must pass before proceeding.'}</p>
           )}
         </div>
       ) : (

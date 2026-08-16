@@ -166,7 +166,9 @@ function VerifyPage() {
       }).catch(() => {});
     }
     setSuccess(true);
-    setTimeout(() => router.push(`/clients/${state.organizationId}/lifecycle`), 3000);
+    if (state) {
+      setTimeout(() => router.push(`/clients/${state.organizationId}/lifecycle`), 3000);
+    }
   }
 
   async function resendOtp() {

@@ -22,7 +22,7 @@ export function ClientCommandCenter({ clientId, clientName }: Props) {
   const [delivery, setDelivery] = useState<ClientDeliveryStatus | null>(null);
   const [connStates, setConnStates] = useState<Record<string, 'not-configured' | 'configured' | 'testing' | 'connected' | 'failed'>>({});
   const [connFields, setConnFields] = useState<Record<string, Record<string, string>>>({});
-  const [testResult, setTestResult] = useState<Record<string, { checks: { step: string; pass: boolean }[]; error?: string }>>({});
+  const [testResult, setTestResult] = useState<Record<string, { checks: { step: string; pass: boolean }[]; error?: string; mode?: 'real' | 'demo' }>>({});
 
   useEffect(() => {
     const ls = getLifecycleState(clientId);

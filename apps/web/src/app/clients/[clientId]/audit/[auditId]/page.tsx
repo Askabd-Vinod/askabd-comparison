@@ -1,5 +1,6 @@
 import { CapabilityPlaceholder } from '../../capability-placeholder';
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import { mockClients } from '../../../../lib/mock-clients';
 import { Breadcrumb } from '../../../../components/breadcrumb';
 

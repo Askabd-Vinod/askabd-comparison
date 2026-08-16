@@ -1,7 +1,8 @@
 import Fastify from 'fastify';
-import { describe, expect, it, beforeAll, afterAll } from 'vitest';
+import { describe, expect, it, vi, beforeAll, afterAll } from 'vitest';
 import { operationsCenterRoutes } from '../src/routes/operations-center-routes.js';
 import { sharedPool } from '../src/services/db-pool.js';
+import { CommercialEngagementService } from '../src/services/commercial-engagement-service.js';
 
 const TEST_CLIENT = 'demo-meridian-financial';
 const ISOLATION_CLIENT_A = 'stable-0435';
@@ -193,6 +194,90 @@ describe('Commercial Engagement Service', () => {
 
     // Clean up
     await sharedPool.query('DELETE FROM oc_engagement_services WHERE engagement_id = $1', [freshEngId]);
+    await sharedPool.query('DELETE FROM oc_commercial_engagements WHERE id = $1', [freshEngId]);
+  });
+
+  // ─── SERVICE ADD/REMOVE TRANSACTION SAFETY ───────────────────────────────────
+
+  it('recalculates engagement totals correctly after adding a service (regression on existing behavior)', async () => {
+    const createRes = await app.inject({
+      method: 'POST', url: `/oc/clients/${TEST_CLIENT}/engagements`,
+      payload: { name: 'Totals Regression Engagement' },
+    });
+    const freshEngId = createRes.json().engagement.id;
+
+    const capRes = await sharedPool.query(`SELECT id FROM oc_capabilities WHERE dependencies = '[]' OR dependencies IS NULL LIMIT 1`);
+    if (capRes.rows.length === 0) {
+      await sharedPool.query('DELETE FROM oc_commercial_engagements WHERE id = $1', [freshEngId]);
+      return;
+    }
+    const serviceId = capRes.rows[0].id;
+
+    await app.inject({
+      method: 'POST', url: `/oc/engagements/${freshEngId}/services`,
+      payload: { clientId: TEST_CLIENT, serviceId },
+    });
+
+    const svcRes = await sharedPool.query('SELECT estimated_investment, expected_value, estimated_effort FROM oc_engagement_services WHERE engagement_id = $1', [freshEngId]);
+    const engRes = await sharedPool.query('SELECT total_investment, total_expected_value, total_effort_days FROM oc_commercial_engagements WHERE id = $1', [freshEngId]);
+    // Totals must reflect exactly what was just added — proves the transactional
+    // recalculation still produces the same result as the original implementation.
+    expect(Number(engRes.rows[0].total_investment)).toBe(Number(svcRes.rows[0].estimated_investment) || 0);
+    expect(Number(engRes.rows[0].total_expected_value)).toBe(Number(svcRes.rows[0].expected_value) || 0);
+    expect(Number(engRes.rows[0].total_effort_days)).toBe(Number(svcRes.rows[0].estimated_effort) || 0);
+
+    await sharedPool.query('DELETE FROM oc_engagement_services WHERE engagement_id = $1', [freshEngId]);
+    await sharedPool.query('DELETE FROM oc_commercial_engagements WHERE id = $1', [freshEngId]);
+  });
+
+  it('rolls back cleanly on a mid-transaction failure — no service row, no stale totals, connection released', async () => {
+    const createRes = await app.inject({
+      method: 'POST', url: `/oc/clients/${TEST_CLIENT}/engagements`,
+      payload: { name: 'Rollback Test Engagement' },
+    });
+    const freshEngId = createRes.json().engagement.id;
+
+    const capRes = await sharedPool.query(`SELECT id FROM oc_capabilities WHERE dependencies = '[]' OR dependencies IS NULL LIMIT 1`);
+    if (capRes.rows.length === 0) {
+      await sharedPool.query('DELETE FROM oc_commercial_engagements WHERE id = $1', [freshEngId]);
+      return;
+    }
+    const serviceId = capRes.rows[0].id;
+
+    const beforeTotals = await sharedPool.query('SELECT total_investment FROM oc_commercial_engagements WHERE id = $1', [freshEngId]);
+
+    const releaseFn = vi.fn();
+    const fakeClient = {
+      query: vi.fn(async (sql: string) => {
+        if (typeof sql === 'string' && sql.includes('UPDATE oc_commercial_engagements SET')) {
+          throw new Error('Simulated failure during totals recalculation');
+        }
+        return { rows: [{}], rowCount: 1 };
+      }),
+      release: releaseFn,
+    };
+    // Only intercept the promise-style connect() the transaction uses — pass callback-style
+    // connect() calls (used internally by every plain sharedPool.query()) straight through.
+    const originalConnect = sharedPool.connect.bind(sharedPool);
+    const connectSpy = vi.spyOn(sharedPool, 'connect').mockImplementation((cb?: any) => {
+      if (typeof cb === 'function') return originalConnect(cb);
+      connectSpy.mockRestore();
+      return Promise.resolve(fakeClient as any);
+    });
+
+    const svc = new CommercialEngagementService();
+    await expect(svc.addService(freshEngId, TEST_CLIENT, { serviceId })).rejects.toThrow('Simulated failure during totals recalculation');
+    connectSpy.mockRestore();
+
+    expect(fakeClient.query).toHaveBeenCalledWith('ROLLBACK');
+    expect(releaseFn).toHaveBeenCalled();
+
+    const svcRows = await sharedPool.query('SELECT id FROM oc_engagement_services WHERE engagement_id = $1 AND service_id = $2', [freshEngId, serviceId]);
+    expect(svcRows.rows.length).toBe(0); // INSERT did not survive the rollback
+
+    const afterTotals = await sharedPool.query('SELECT total_investment FROM oc_commercial_engagements WHERE id = $1', [freshEngId]);
+    expect(String(afterTotals.rows[0].total_investment)).toBe(String(beforeTotals.rows[0].total_investment)); // totals unchanged
+
     await sharedPool.query('DELETE FROM oc_commercial_engagements WHERE id = $1', [freshEngId]);
   });
 

@@ -188,9 +188,17 @@ export class RequirementsService {
    * Update a requirement value or multi-field values. Creates history entry.
    * Auto-initializes the requirement if it doesn't exist yet (handles race condition
    * where save is attempted before GET initializes the records).
+   *
+   * Transactional: the UPDATE and its history entry are committed atomically —
+   * either both happen or neither does (no partial requirement state on error).
+   *
+   * Idempotent: if the incoming value/fieldsData is identical to what's already
+   * stored, this is a no-op (no version bump, no duplicate history row). This
+   * makes a retried save (e.g. after a client-side timeout on an already-committed
+   * write) safe to repeat.
    */
   async updateRequirement(clientId: string, serviceId: string, requirementKey: string, value: string, actor: string, fieldsData?: Record<string, string>): Promise<ClientRequirement | null> {
-    // Get current record
+    // Get current record (auto-initializing if missing) — read-only, outside the write transaction.
     let current = await dbPool.query(
       'SELECT * FROM oc_client_service_requirements WHERE client_id = $1 AND service_id = $2 AND requirement_key = $3',
       [clientId, serviceId, requirementKey]
@@ -210,7 +218,6 @@ export class RequirementsService {
 
     const row = current.rows[0];
     const oldValue = row.value || '';
-    const newVersion = (row.version || 1) + 1;
 
     // Determine status based on field completion
     const def = serviceDefinitions.flatMap(s => s.requirements).find(r => r.requirementKey === requirementKey);
@@ -232,25 +239,47 @@ export class RequirementsService {
 
     // If value changed and was previously validated, mark validation outdated
     const newValidationStatus = (oldValue !== value && row.validation_status === 'passed') ? 'outdated' : row.validation_status;
-
-    // Update the requirement
     const finalFieldsData = fieldsData ? JSON.stringify(fieldsData) : (row.fields_data ? JSON.stringify(row.fields_data) : '{}');
-    await dbPool.query(`
-      UPDATE oc_client_service_requirements
-      SET value = $1, status = $2, validation_status = $3, updated_at = NOW(), updated_by = $4, version = $5, fields_data = $6
-      WHERE client_id = $7 AND service_id = $8 AND requirement_key = $9
-    `, [value, newStatus, newValidationStatus, actor, newVersion, finalFieldsData, clientId, serviceId, requirementKey]);
 
-    // Create history entry (mask secrets)
+    // Idempotency guard: nothing actually changed (e.g. a retried save whose
+    // original request already committed) — skip the write, no duplicate history.
+    const existingFieldsData = JSON.stringify(row.fields_data || {});
+    const noOp = oldValue === value && finalFieldsData === existingFieldsData && newStatus === row.status && newValidationStatus === row.validation_status;
+    if (noOp) {
+      return this.mapRow(row);
+    }
+
+    const newVersion = (row.version || 1) + 1;
+
+    // Mask secrets for the history entry
     const safeOld = row.security_classification === 'secret' ? (oldValue ? '••••••••' : '') : oldValue;
     const safeNew = row.security_classification === 'secret' ? (value ? '••••••••' : '') : value;
 
-    await dbPool.query(`
-      INSERT INTO oc_client_service_requirement_history (requirement_id, client_id, service_id, requirement_key, old_value, new_value, old_status, new_status, changed_by, version)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-    `, [row.id, clientId, serviceId, requirementKey, safeOld, safeNew, row.status, newStatus, actor, newVersion]);
+    // UPDATE + history INSERT are atomic: both commit together, or neither does.
+    const client = await dbPool.connect();
+    try {
+      await client.query('BEGIN');
 
-    // Return updated record
+      await client.query(`
+        UPDATE oc_client_service_requirements
+        SET value = $1, status = $2, validation_status = $3, updated_at = NOW(), updated_by = $4, version = $5, fields_data = $6
+        WHERE client_id = $7 AND service_id = $8 AND requirement_key = $9
+      `, [value, newStatus, newValidationStatus, actor, newVersion, finalFieldsData, clientId, serviceId, requirementKey]);
+
+      await client.query(`
+        INSERT INTO oc_client_service_requirement_history (requirement_id, client_id, service_id, requirement_key, old_value, new_value, old_status, new_status, changed_by, version)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `, [row.id, clientId, serviceId, requirementKey, safeOld, safeNew, row.status, newStatus, actor, newVersion]);
+
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    // Return updated record (read-only, post-commit)
     const updated = await dbPool.query(
       'SELECT * FROM oc_client_service_requirements WHERE client_id = $1 AND service_id = $2 AND requirement_key = $3',
       [clientId, serviceId, requirementKey]

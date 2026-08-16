@@ -77,14 +77,35 @@ export async function createServer(): Promise<FastifyInstance> {
   // Global error handler (structured responses for all error types)
   registerErrorHandler(server);
 
-  server.get('/health', async () => ({
-    status: getDatabaseStatus() === 'ready' ? 'ok' : getDatabaseStatus(),
-    service: 'comparison-api',
-    version: '0.1.0',
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
-    database: getDatabaseStatus(),
-  }));
+  server.get('/health', async () => {
+    // Liveness: is this process alive and answering requests? Deliberately does NOT
+    // gate on the database — restarting the API would not fix a database outage, and
+    // a liveness probe that fails on a downstream dependency causes needless restart
+    // loops. `status` therefore reflects startup health only (unchanged contract).
+    //
+    // `database` below is a LIVE check on every call, not the cached startup flag.
+    // Before this fix it reused getDatabaseStatus() — a value set once at startup and
+    // never refreshed — so /health kept reporting the database as ready during a real,
+    // live Postgres outage (confirmed by DEV failure testing: stopping the DB container
+    // left /health saying "database":"ready" while /ready correctly said "disconnected").
+    // A monitoring system reading /health must never be told the database is healthy
+    // when it is actually unreachable, so this field now always reflects reality.
+    let liveDatabase: 'connected' | 'disconnected' = 'disconnected';
+    try {
+      const { getPrisma } = await import('./services/prisma-client.js');
+      await getPrisma().category.count();
+      liveDatabase = 'connected';
+    } catch { /* liveDatabase stays 'disconnected' */ }
+
+    return {
+      status: getDatabaseStatus() === 'ready' ? 'ok' : getDatabaseStatus(), // startup liveness — unchanged
+      service: 'comparison-api',
+      version: '0.1.0',
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString(),
+      database: liveDatabase, // live, current — never stale
+    };
+  });
   server.get('/ready', async () => {
     // Readiness: verify database connectivity
     try {

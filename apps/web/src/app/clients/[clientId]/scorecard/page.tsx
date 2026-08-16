@@ -144,6 +144,9 @@ export default function ClientScorecardPage({ params }: PageProps) {
               </li>
             ))}
           </ul>
+          <Link href={`/clients/${clientId}/lifecycle`} className="inline-block mt-3 text-xs font-medium text-orange-700 hover:text-orange-900 underline">
+            Resolve on the client lifecycle page →
+          </Link>
         </section>
       )}
 

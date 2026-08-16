@@ -6,9 +6,38 @@ interface DocReq { key: string; name: string; description: string; required: boo
 interface Requirement { id: string; requirementKey: string; requirementName: string; description: string; whyRequired: string; fieldType: string; required: boolean; status: string; value: string; fieldsData: Record<string, string>; validationStatus: string; securityClassification: string; version: number; fields?: Field[]; documents?: DocReq[] }
 interface DocRecord { id: string; document_name: string; status: string; version: number; uploaded_at: string; file_size: number; mime_type: string }
 
-interface Props { clientId: string; serviceId: string; serviceName: string }
+interface Props { clientId: string; serviceId: string; serviceName: string; onSaveComplete?: () => void }
 
-export function RequirementWorkspace({ clientId, serviceId, serviceName }: Props) {
+// Bounded backoff for transient save failures — never unbounded, never for validation/auth errors.
+const SAVE_RETRY_DELAYS_MS = [1000, 2000, 4000];
+const API_READY_CHECK_TIMEOUT_MS = 3000;
+
+// Progressive disclosure for save errors: the inline message stays a compact one-liner
+// (unchanged), and this maps that same message to an expandable WHY / WHAT'S NEXT —
+// purely presentational, matches each message this component actually produces.
+function explainSaveError(message: string): { why: string; next: string } | null {
+  if (message.startsWith('AskABD is starting up')) {
+    return { why: 'AskABD could not confirm the API is ready to accept requests before attempting the save, so nothing was sent yet.', next: 'Wait a few seconds and press Save again — no information has been lost.' };
+  }
+  if (message.startsWith('AskABD could not confirm your save')) {
+    return { why: 'The connection was interrupted before AskABD could confirm whether the save reached the server. AskABD checked the server directly and could not confirm it went through.', next: 'Check your network connection, then press Save again. If it did save, saving again is safe and will not create a duplicate.' };
+  }
+  if (message.startsWith('AskABD hit a temporary problem')) {
+    return { why: 'The server returned an error while saving. AskABD already retried automatically and verified the save did not go through.', next: 'Press Save again. If this keeps happening, share the reference below with support.' };
+  }
+  if (message.startsWith('AskABD could not set up this requirement')) {
+    return { why: 'This requirement had not been initialized for this client yet, and AskABD could not complete that setup automatically.', next: 'Refresh the page — this re-initializes the requirement — then try saving again.' };
+  }
+  if (message.startsWith('You are not authorized')) {
+    return { why: 'Your current session does not have permission to update this requirement.', next: 'Contact your AskABD administrator to request access, or sign in with an account that has it.' };
+  }
+  if (message.startsWith('Please check the form fields')) {
+    return { why: 'One or more values did not pass validation on the server.', next: 'Review the highlighted field(s) above and correct them before saving again.' };
+  }
+  return null;
+}
+
+export function RequirementWorkspace({ clientId, serviceId, serviceName, onSaveComplete }: Props) {
   const [requirements, setRequirements] = useState<Requirement[]>([]);
   const [expandedReq, setExpandedReq] = useState<string | null>(null);
   const [fieldValues, setFieldValues] = useState<Record<string, Record<string, string>>>({});
@@ -16,6 +45,7 @@ export function RequirementWorkspace({ clientId, serviceId, serviceName }: Props
   const [saving, setSaving] = useState<string | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [expandedError, setExpandedError] = useState<string | null>(null);
   const [knownData, setKnownData] = useState<Record<string, { value: string; source: string; sourceLabel: string; status: string; confidence?: string; updatedAt?: string; conflict?: any }>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadTarget, setUploadTarget] = useState<{ reqKey: string; docKey: string } | null>(null);
@@ -125,7 +155,22 @@ export function RequirementWorkspace({ clientId, serviceId, serviceName }: Props
     return errs;
   }
 
+  function setErrorWithRef(reqKey: string, message: string, requestId?: string | null) {
+    const ref = requestId ? ` (ref: ${requestId.slice(0, 8)})` : '';
+    setErrors(prev => ({ ...prev, [reqKey]: `${message}${ref}` }));
+  }
+
+  async function checkApiReady(): Promise<boolean> {
+    try {
+      const res = await fetch(`${API}/ready`, { signal: AbortSignal.timeout(API_READY_CHECK_TIMEOUT_MS) });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
   async function saveRequirement(reqKey: string) {
+    if (saving === reqKey) return; // Duplicate-click guard — a save is already in flight for this requirement
     const req = requirements.find(r => r.requirementKey === reqKey);
     if (!req) return;
     const localErrors = validateLocally(req);
@@ -137,107 +182,103 @@ export function RequirementWorkspace({ clientId, serviceId, serviceName }: Props
     }
     setSaving(reqKey);
     setErrors({}); // Clear ALL errors when user initiates a new save
+
+    // API readiness pre-check — avoids a doomed save attempt while AskABD is starting/unreachable
+    if (!(await checkApiReady())) {
+      setErrorWithRef(reqKey, 'AskABD is starting up or temporarily unreachable. Please wait a moment and try again.');
+      setSaving(null);
+      return;
+    }
+
     const vals = fieldValues[reqKey] || {};
     const body = req.fields ? { value: '', actor: 'admin', fieldsData: vals } : { value: vals._value || '', actor: 'admin' };
     const preVersion = req.version || 0;
+    const url = `${API}/api/v1/oc/client-services/${clientId}/${serviceId}/requirements/${reqKey}`;
+    const attemptSave = () => fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 
-    try {
-      const res = await fetch(`${API}/api/v1/oc/client-services/${clientId}/${serviceId}/requirements/${reqKey}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+    function applySuccess(data: any) {
+      setRequirements(prev => {
+        const updated = prev.map(r => r.requirementKey === reqKey ? { ...r, ...data, fieldsData: data.fieldsData || vals } : r);
+        // Auto-advance to next incomplete requirement
+        const nextIncomplete = updated.find(r => r.requirementKey !== reqKey && r.required && r.status !== 'provided' && r.status !== 'valid');
+        setExpandedReq(nextIncomplete ? nextIncomplete.requirementKey : null);
+        return updated;
       });
-      if (res.ok) {
-        const data = await res.json();
-        setRequirements(prev => {
-          const updated = prev.map(r => r.requirementKey === reqKey ? { ...r, ...data, fieldsData: data.fieldsData || vals } : r);
-          // Auto-advance to next incomplete requirement
-          const nextIncomplete = updated.find(r => r.requirementKey !== reqKey && r.required && r.status !== 'provided' && r.status !== 'valid');
-          if (nextIncomplete) {
-            setExpandedReq(nextIncomplete.requirementKey);
-          } else {
-            setExpandedReq(null); // All done — collapse
-          }
-          return updated;
-        });
-        setErrors(prev => { const n = { ...prev }; delete n[reqKey]; return n; });
-        // Re-fetch full state to update readiness/blockers (non-blocking — save already succeeded)
-        loadAll().catch(() => {});
-        setSaving(null);
-        return;
-      } else {
-        const d = await res.json().catch(() => null);
-        if (res.status === 404) {
-          // Requirement not initialized yet — trigger initialization via GET then retry save
-          try {
-            await loadAll(); // This GET initializes records in DB
-            const retryRes = await fetch(`${API}/api/v1/oc/client-services/${clientId}/${serviceId}/requirements/${reqKey}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(body),
-            });
-            if (retryRes.ok) {
-              const retryData = await retryRes.json();
-              setRequirements(prev => {
-                const updated = prev.map(r => r.requirementKey === reqKey ? { ...r, ...retryData, fieldsData: retryData.fieldsData || vals } : r);
-                const nextIncomplete = updated.find(r => r.requirementKey !== reqKey && r.required && r.status !== 'provided' && r.status !== 'valid');
-                setExpandedReq(nextIncomplete ? nextIncomplete.requirementKey : null);
-                return updated;
-              });
-              setErrors(prev => { const n = { ...prev }; delete n[reqKey]; return n; });
-              loadAll().catch(() => {});
-              setSaving(null);
-              return;
-            }
-          } catch { /* retry failed */ }
-          setErrors(prev => ({ ...prev, [reqKey]: 'Please try saving again.' }));
-        } else if (res.status === 400 || res.status === 422) {
-          setErrors(prev => ({ ...prev, [reqKey]: d?.error || 'Please check the form fields and try again.' }));
-        } else {
-          setErrors(prev => ({ ...prev, [reqKey]: d?.error?.message || d?.error || `Server error (${res.status}). Please try again.` }));
-        }
-      }
-    } catch (err: any) {
-      // Network failure — retry once silently before showing error
-      try {
-        await new Promise(r => setTimeout(r, 1500));
-        const retryRes = await fetch(`${API}/api/v1/oc/client-services/${clientId}/${serviceId}/requirements/${reqKey}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-        if (retryRes.ok) {
-          const retryData = await retryRes.json();
-          setRequirements(prev => {
-            const updated = prev.map(r => r.requirementKey === reqKey ? { ...r, ...retryData, fieldsData: retryData.fieldsData || vals } : r);
-            const nextIncomplete = updated.find(r => r.requirementKey !== reqKey && r.required && r.status !== 'provided' && r.status !== 'valid');
-            setExpandedReq(nextIncomplete ? nextIncomplete.requirementKey : null);
-            return updated;
-          });
-          setErrors(prev => { const n = { ...prev }; delete n[reqKey]; return n; });
-          loadAll().catch(() => {});
-          setSaving(null);
-          return;
-        }
-      } catch { /* retry also failed — try reconciliation */ }
+      setErrors(prev => { const n = { ...prev }; delete n[reqKey]; return n; });
+      // Re-fetch full state to update readiness/blockers (non-blocking — save already succeeded)
+      loadAll().catch(() => {});
+      onSaveComplete?.();
+    }
 
-      // On retry failure, verify if the save actually succeeded (timeout reconciliation)
+    // Bounded, exponential-backoff retry — transient failures only, max 3 attempts.
+    // Stops immediately on a non-retryable response (validation/auth) instead of burning retries.
+    async function retryWithBackoff(): Promise<boolean> {
+      for (const delay of SAVE_RETRY_DELAYS_MS) {
+        await new Promise(r => setTimeout(r, delay));
+        try {
+          const retryRes = await attemptSave();
+          if (retryRes.ok) { applySuccess(await retryRes.json()); return true; }
+          if ([400, 401, 403, 422].includes(retryRes.status)) return false; // non-transient — don't keep retrying
+        } catch { /* transient network error — keep retrying */ }
+      }
+      return false;
+    }
+
+    // Timeout reconciliation: a lost response never means "the write didn't happen" —
+    // query authoritative server state before declaring failure.
+    async function reconcileAfterTimeout(): Promise<boolean> {
       try {
         const verifyRes = await fetch(`${API}/api/v1/oc/client-services/${clientId}/${serviceId}/requirements`);
         if (verifyRes.ok) {
           const verifyData = await verifyRes.json();
           const savedReq = (verifyData.requirements || []).find((r: any) => r.requirementKey === reqKey);
           if (savedReq && (savedReq.version || 0) > preVersion) {
-            // Save DID succeed — backend committed before we lost the response
             setRequirements(verifyData.requirements || []);
             setErrors(prev => { const n = { ...prev }; delete n[reqKey]; return n; });
-            setSaving(null);
-            return; // Success — no error to show
+            onSaveComplete?.();
+            return true;
           }
         }
-      } catch { /* verification also failed */ }
+      } catch { /* verification itself failed — fall through to failure message below */ }
+      return false;
+    }
 
-      setErrors(prev => ({ ...prev, [reqKey]: 'Save failed. Please try again.' }));
+    try {
+      const res = await attemptSave();
+      if (res.ok) {
+        applySuccess(await res.json());
+        setSaving(null);
+        return;
+      }
+
+      const requestId = res.headers.get('x-request-id');
+      const d = await res.json().catch(() => null);
+
+      if (res.status === 404) {
+        // Requirement not initialized yet — trigger initialization via GET then retry save once
+        try {
+          await loadAll(); // This GET initializes records in DB
+          const retryRes = await attemptSave();
+          if (retryRes.ok) { applySuccess(await retryRes.json()); setSaving(null); return; }
+        } catch { /* retry failed */ }
+        setErrorWithRef(reqKey, 'AskABD could not set up this requirement. Please refresh the page and try again.', requestId);
+      } else if (res.status === 400 || res.status === 422) {
+        // Validation error — never retried; user must fix the input
+        setErrorWithRef(reqKey, d?.error || 'Please check the form fields and try again.', requestId);
+      } else if (res.status === 401 || res.status === 403) {
+        // Auth/authorization error — never retried
+        setErrorWithRef(reqKey, 'You are not authorized to update this. Contact your AskABD administrator.', requestId);
+      } else {
+        // Transient server error — eligible for bounded retry, then reconciliation
+        if (!(await retryWithBackoff()) && !(await reconcileAfterTimeout())) {
+          setErrorWithRef(reqKey, d?.error?.message || d?.error || `AskABD hit a temporary problem saving this (server error ${res.status}). Your previous information was not lost — please try again.`, requestId);
+        }
+      }
+    } catch {
+      // Network failure / request timeout — bounded retry, then reconciliation before declaring failure
+      if (!(await retryWithBackoff()) && !(await reconcileAfterTimeout())) {
+        setErrorWithRef(reqKey, 'AskABD could not confirm your save — the connection was interrupted. Please check your network and try again.');
+      }
     }
     setSaving(null);
   }
@@ -436,7 +477,29 @@ export function RequirementWorkspace({ clientId, serviceId, serviceName }: Props
                   <button onClick={() => saveRequirement(req.requirementKey)} disabled={saving === req.requirementKey} className="text-[10px] font-semibold bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white px-3 py-1.5 rounded transition">
                     {saving === req.requirementKey ? 'Saving...' : 'Save Information'}
                   </button>
-                  {errors[req.requirementKey] && <p className="text-[9px] text-red-500 mt-1">{errors[req.requirementKey]}</p>}
+                  {errors[req.requirementKey] && (() => {
+                    const errMsg = errors[req.requirementKey];
+                    const detail = explainSaveError(errMsg);
+                    const isExpanded = expandedError === req.requirementKey;
+                    return (
+                      <div className="mt-1">
+                        <p className="text-[9px] text-red-500">
+                          {errMsg}
+                          {detail && (
+                            <button type="button" onClick={() => setExpandedError(isExpanded ? null : req.requirementKey)} className="ml-1.5 underline text-red-400 hover:text-red-600">
+                              {isExpanded ? 'Hide details' : 'Why? What can I do?'}
+                            </button>
+                          )}
+                        </p>
+                        {detail && isExpanded && (
+                          <div className="mt-1 p-2 bg-red-50 border border-red-100 rounded text-[9px] text-red-700 space-y-1">
+                            <p><span className="font-semibold">Why:</span> {detail.why}</p>
+                            <p><span className="font-semibold">What you can do:</span> {detail.next}</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Document requirements */}
                   {hasDocs && (

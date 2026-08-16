@@ -3,6 +3,15 @@ import { getPool } from '../db/connection.js';
 /**
  * Operations Center Service — manages clients, audit logs, remediations, and service actions.
  * All operations are persisted to PostgreSQL for evidence and compliance.
+ *
+ * Audit-write policy (verified per call site, not assumed — see the final hardening pass):
+ * every method below writes its own durable, queryable primary record (oc_clients,
+ * oc_remediations, oc_service_actions) BEFORE it writes to oc_audit_log. The audit_log
+ * entry is therefore a supplementary cross-entity trail, never the sole evidence a change
+ * happened — the primary table already is that evidence. On that basis, every audit call
+ * here is best-effort: a failure to write the audit trail must not turn an already-committed
+ * primary write into a reported failure. Failures are still logged (never silently
+ * swallowed) so an operator can notice and investigate a degraded audit trail.
  */
 export class OperationsCenterService {
   private pool = getPool();
@@ -27,13 +36,14 @@ export class OperationsCenterService {
 
     const client = result.rows[0];
 
-    // Audit
-    await this.createAuditEntry({
+    // Audit — best-effort (see class-level policy note): oc_clients row above is already
+    // the durable record of this client's creation.
+    this.auditBestEffort({
       entityType: 'client', entityId: client.id, entityName: data.name,
       action: 'created', actor: data.primaryContact || 'system',
       details: { industry: data.industry, country: data.country, size: data.businessSize },
       evidence: [`Client "${data.name}" onboarded at ${new Date().toISOString()}`],
-    });
+    }, `client created: ${client.id}`);
 
     return client;
   }
@@ -85,6 +95,18 @@ export class OperationsCenterService {
     return result.rows[0];
   }
 
+  /**
+   * Fire-and-forget audit write for callers whose primary record already durably
+   * captures the change (see the class-level audit-write policy note above). Never
+   * throws — a failed audit write must not turn a successful primary operation into
+   * a reported failure — but never silently swallows either: logged so it's visible.
+   */
+  private auditBestEffort(entry: AuditEntry, context: string): void {
+    this.createAuditEntry(entry).catch((err) => {
+      console.error(`[Audit] Failed to record "${context}" audit entry (primary operation already succeeded):`, err instanceof Error ? err.message : err);
+    });
+  }
+
   async getAuditLog(filters?: { entityType?: string; entityId?: string; limit?: number }) {
     let query = 'SELECT * FROM oc_audit_log WHERE 1=1';
     const params: any[] = [];
@@ -108,12 +130,12 @@ export class OperationsCenterService {
        JSON.stringify(data.steps || []), data.validationCriteria || [], data.rollbackPlan || '', data.owner]
     );
 
-    await this.createAuditEntry({
+    this.auditBestEffort({
       entityType: 'remediation', entityId: result.rows[0].id, entityName: data.title,
       action: 'created', actor: data.owner,
       details: { incidentId: data.incidentId, grade: data.grade },
       evidence: [`Remediation plan created for incident ${data.incidentId}`],
-    });
+    }, `remediation created: ${result.rows[0].id}`);
 
     return result.rows[0];
   }
@@ -136,11 +158,11 @@ export class OperationsCenterService {
       `UPDATE oc_remediations SET ${updates.join(', ')} WHERE id = $1 RETURNING *`, params
     );
 
-    await this.createAuditEntry({
+    this.auditBestEffort({
       entityType: 'remediation', entityId: id, entityName: '',
       action: phase === 'completed' ? 'resolved' : phase === 'rolled-back' ? 'rolled_back' : 'updated',
       actor, details: { phase }, evidence,
-    });
+    }, `remediation phase updated: ${id} -> ${phase}`);
 
     return result.rows[0];
   }
@@ -151,12 +173,12 @@ export class OperationsCenterService {
        WHERE id = $1 RETURNING *`, [id, verifiedBy]
     );
 
-    await this.createAuditEntry({
+    this.auditBestEffort({
       entityType: 'remediation', entityId: id, entityName: '',
       action: 'resolved', actor: verifiedBy,
       details: { ticketClosed: true },
       evidence: [`Ticket closed and verified by ${verifiedBy} at ${new Date().toISOString()}`],
-    });
+    }, `remediation ticket closed: ${id}`);
 
     return result.rows[0];
   }
@@ -172,13 +194,13 @@ export class OperationsCenterService {
        data.success !== false, data.errorMessage || '']
     );
 
-    // Also write to audit log
-    await this.createAuditEntry({
+    // Also write to audit log — best-effort; oc_service_actions row above is the durable record.
+    this.auditBestEffort({
       entityType: data.entityType, entityId: data.entityId, entityName: data.entityName,
       action: data.action, actor: data.actor,
       details: { previousState: data.previousState, newState: data.newState, reason: data.reason },
       evidence: [`${data.action} action on ${data.entityType} "${data.entityName}" by ${data.actor}`],
-    });
+    }, `service action recorded: ${data.entityType}/${data.entityId}`);
 
     return result.rows[0];
   }

@@ -807,7 +807,14 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const { value, actor, fieldsData } = req.body as any;
     if (value === undefined && !fieldsData) { reply.status(400).send({ error: 'value or fieldsData is required' }); return; }
 
-    const result = await requirementsService.updateRequirement(clientId, serviceId, requirementKey, value || '', actor || 'admin', fieldsData);
+    let result;
+    try {
+      result = await requirementsService.updateRequirement(clientId, serviceId, requirementKey, value || '', actor || 'admin', fieldsData);
+    } catch (err) {
+      // Transaction rolled back — no partial write occurred. Surface as a retryable server error.
+      reply.status(500).send({ error: 'Save failed — no changes were committed. Please try again.', requestId: req.id });
+      return;
+    }
     if (!result) { reply.status(404).send({ error: 'Requirement not found' }); return; }
 
     // Audit
@@ -818,7 +825,13 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
       evidence: [`Requirement ${requirementKey} updated for service ${serviceId}`],
     }).catch(() => {});
 
-    reply.send(result);
+    // Additive: authoritative readiness/blockers alongside the saved requirement, so the
+    // client can reconcile UI state from this single response without a second round trip.
+    // Existing top-level fields on `result` (id, status, version, etc.) are unchanged.
+    let readiness = null;
+    try { readiness = await requirementsService.getReadiness(clientId, serviceId); } catch { /* readiness is best-effort enrichment */ }
+
+    reply.send({ ...result, readiness, blockers: readiness?.blockers ?? [], requestId: req.id });
   });
 
   server.get('/oc/client-services/:clientId/:serviceId/requirements/:requirementKey/history', async (req) => {
