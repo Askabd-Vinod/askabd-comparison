@@ -1,0 +1,18 @@
+import { Breadcrumb } from '../../components/breadcrumb';
+import { KnowledgeBaseView } from './knowledge-view';
+
+export default function EngineeringKnowledgePage() {
+  const entries = [
+    { id: 'kb-001', problem: 'Database connection pool exhausted under load', evidence: ['Pool at 100%', 'ORM missing await', 'Connections not released'], rootCause: 'Missing await in async connection release handler', solution: 'Add connection timeout + fix async handler + add pool health monitoring', validation: 'Pool utilization stable at 30-50% for 7 days', regression: 'None — isolated to connection layer', owner: 'ops@askabd.com', approval: 'hello@askabd.com', timeToResolve: '3.5 hours', businessImpact: 'Trading blocked for 150+ users ($45K/hr)', lessonsLearned: ['Always await connection release', 'Add pool health monitoring proactively', 'Set connection timeout defaults'], tags: ['database', 'connection-pool', 'async', 'ORM', 'performance'], createdAt: '2026-07-15T10:00:00Z', reusedCount: 4 },
+    { id: 'kb-002', problem: 'React hydration mismatch with date formatting', evidence: ['Server renders different format than client', 'Locale-dependent Date API'], rootCause: 'SSR uses server locale while client uses browser locale for date formatting', solution: 'Use date-fns format() with explicit locale parameter instead of toLocaleDateString()', validation: 'Zero hydration errors in 24h monitoring', regression: 'None', owner: 'hello@askabd.com', approval: 'ops@askabd.com', timeToResolve: '1.5 hours', businessImpact: 'Calendar not interactive for 15% of users', lessonsLearned: ['Never use locale-dependent APIs in SSR components', 'Use library formatters with explicit locale', 'Test SSR output matches client'], tags: ['react', 'hydration', 'SSR', 'Next.js', 'dates'], createdAt: '2026-06-20T14:00:00Z', reusedCount: 2 },
+    { id: 'kb-003', problem: 'JWT token refresh race condition', evidence: ['401 during concurrent refresh attempts', 'Redis lock not acquired'], rootCause: 'Multiple concurrent requests trigger parallel token refresh without mutex', solution: 'Implement token refresh mutex using Redis SETNX with TTL', validation: 'Zero 401s during concurrent load test (1000 rps)', regression: 'None — backward compatible', owner: 'ops@askabd.com', approval: 'hello@askabd.com', timeToResolve: '5 hours', businessImpact: 'Intermittent auth failures for fleet tracking', lessonsLearned: ['Token refresh must be atomic', 'Use distributed mutex for shared operations', 'Add retry-after header on 401'], tags: ['authentication', 'JWT', 'race-condition', 'Redis', 'concurrency'], createdAt: '2026-05-10T09:00:00Z', reusedCount: 6 },
+    { id: 'kb-004', problem: 'Kubernetes OOM kills on worker pods', evidence: ['Container memory at limit', 'No garbage collection', 'Event listeners not removed'], rootCause: 'Event listeners accumulating without cleanup on WebSocket reconnect', solution: 'Remove event listeners on disconnect + increase memory limit + add memory monitoring', validation: 'Pod stable for 72h under load', regression: 'None', owner: 'ops@askabd.com', approval: 'hello@askabd.com', timeToResolve: '6 hours', businessImpact: 'Order processing delayed', lessonsLearned: ['Always clean up event listeners', 'Set memory alerts before limit', 'Profile memory in staging before production'], tags: ['kubernetes', 'memory-leak', 'OOM', 'WebSocket', 'event-listeners'], createdAt: '2026-04-05T16:00:00Z', reusedCount: 3 },
+  ];
+
+  return (
+    <div className="max-w-[1600px] mx-auto px-4 py-6 animate-in">
+      <Breadcrumb items={[{ label: 'Dashboard', href: '/' }, { label: 'Engineering', href: '/engineering' }, { label: 'Knowledge Base' }]} />
+      <KnowledgeBaseView entries={entries} />
+    </div>
+  );
+}

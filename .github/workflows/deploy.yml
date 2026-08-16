@@ -1,0 +1,169 @@
+# AskABD — AWS Deployment Pipeline
+# Builds, scans, pushes to ECR, deploys to staging, then production with approval.
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  ECS_CLUSTER: askabd-staging-cluster
+  API_SERVICE: askabd-staging-api
+  WEB_SERVICE: askabd-staging-web
+  API_TASK_FAMILY: askabd-staging-api
+  WEB_TASK_FAMILY: askabd-staging-web
+
+jobs:
+  # ─── Build & Test ────────────────────────────────────────────────────────────
+  build-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: apps/api/package-lock.json
+
+      - name: Install API dependencies
+        working-directory: apps/api
+        run: npm ci --ignore-scripts || npm install
+
+      - name: TypeScript check
+        working-directory: apps/api
+        run: npx tsc --noEmit --skipLibCheck
+
+      - name: Unit tests
+        working-directory: apps/api
+        run: npm test
+
+      - name: Security audit
+        working-directory: apps/api
+        run: npm audit --audit-level=critical || true
+
+  # ─── Docker Build + ECR Push ─────────────────────────────────────────────────
+  docker:
+    name: Docker Build & Push
+    runs-on: ubuntu-latest
+    needs: build-test
+    outputs:
+      api_image: ${{ steps.meta.outputs.api_image }}
+      web_image: ${{ steps.meta.outputs.web_image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image metadata
+        id: meta
+        run: |
+          SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          echo "api_image=${{ steps.ecr-login.outputs.registry }}/askabd-staging-api:${SHA}" >> $GITHUB_OUTPUT
+          echo "web_image=${{ steps.ecr-login.outputs.registry }}/askabd-staging-web:${SHA}" >> $GITHUB_OUTPUT
+          echo "sha=${SHA}" >> $GITHUB_OUTPUT
+
+      - name: Build & Push API image
+        run: |
+          docker build -t ${{ steps.meta.outputs.api_image }} -f apps/api/Dockerfile .
+          docker push ${{ steps.meta.outputs.api_image }}
+
+      - name: Build & Push Web image
+        run: |
+          docker build -t ${{ steps.meta.outputs.web_image }} -f apps/web/Dockerfile .
+          docker push ${{ steps.meta.outputs.web_image }}
+
+  # ─── Deploy Staging ──────────────────────────────────────────────────────────
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: docker
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy API to ECS
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.API_SERVICE }} \
+            --force-new-deployment
+
+      - name: Deploy Web to ECS
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.WEB_SERVICE }} \
+            --force-new-deployment
+
+      - name: Wait for API stability
+        run: |
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.API_SERVICE }}
+
+      - name: Smoke test
+        run: |
+          # Wait for ALB to route traffic
+          sleep 30
+          # Health check
+          curl -f https://api.askabd.com/health || exit 1
+          curl -f https://api.askabd.com/ready || exit 1
+
+  # ─── Deploy Production (Manual Approval) ────────────────────────────────────
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    environment: production
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy to Production ECS
+        run: |
+          aws ecs update-service \
+            --cluster askabd-production-cluster \
+            --service askabd-production-api \
+            --force-new-deployment
+          aws ecs update-service \
+            --cluster askabd-production-cluster \
+            --service askabd-production-web \
+            --force-new-deployment
+
+      - name: Wait for stability
+        run: |
+          aws ecs wait services-stable \
+            --cluster askabd-production-cluster \
+            --services askabd-production-api
+
+      - name: Production health check
+        run: |
+          sleep 30
+          curl -f https://api.askabd.com/health || exit 1

@@ -1,0 +1,76 @@
+# AskABD Platform — Production-like Docker Compose
+# Use: docker compose -f docker-compose.prod.yml up
+# Simulates production deployment locally without Mailpit.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: askabd-postgres-prod
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-askabd}
+      POSTGRES_USER: ${POSTGRES_USER:-askabd_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
+    ports: ['5432:5432']
+    volumes:
+      - pgdata_prod:/var/lib/postgresql/data
+      - ./deploy/backup:/backup
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-askabd_user} -d ${POSTGRES_DB:-askabd}']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: askabd-api
+    ports: ['4200:4200']
+    environment:
+      NODE_ENV: production
+      PORT: 4200
+      HOST: 0.0.0.0
+      DATABASE_URL: postgresql://${POSTGRES_USER:-askabd_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-askabd}
+      LOG_LEVEL: info
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-smtp}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET required}
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://app.askabd.com}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:4200/health']
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: askabd-web
+    ports: ['3001:3001']
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      NEXT_PUBLIC_API_URL: ${API_PUBLIC_URL:-http://localhost:4200}
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:3001/']
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  pgdata_prod:

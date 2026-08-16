@@ -31,17 +31,24 @@ export async function registerOpenAPI(server: FastifyInstance): Promise<void> {
     openapi: {
       openapi: '3.1.0',
       info: {
-        title: 'AskABD Comparison API',
-        description: 'Enterprise Comparison Platform — Product comparison, merchant management, catalog, and search APIs.\n\n' +
+        title: 'AskABD Enterprise Platform API',
+        description: 'Universal Enterprise Problem Discovery, Decision, Transformation & Continuous Improvement Platform.\n\n' +
+          '## Core Capabilities\n' +
+          '- Client Onboarding & Lifecycle Management\n' +
+          '- Discovery, Assessment & Problem Universe\n' +
+          '- Gap Analysis, Options & Decision Framework\n' +
+          '- Transformation, Migration & Validation\n' +
+          '- Continuous Optimization & Benefit Realization\n' +
+          '- Multi-Framework Compliance Automation\n' +
+          '- Portfolio Intelligence & Engineering Intelligence\n' +
+          '- Client Self-Service Portal\n' +
+          '- Workflow Automation & Event Engine\n\n' +
           '## Authentication\n' +
-          'All API endpoints (except health/ready) require a Bearer JWT token in the `Authorization` header.\n' +
+          'All API endpoints (except health/ready/docs) require a Bearer JWT token.\n' +
           'In development mode, authentication is bypassed when no `JWT_SECRET` is configured.\n\n' +
           '## Rate Limiting\n' +
-          '- Anonymous: 100 requests/minute\n' +
           '- Authenticated: 300 requests/minute\n' +
-          '- Compare endpoint: 20 requests/minute\n' +
-          '- Admin endpoints: 50 requests/minute\n\n' +
-          'Rate limit headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`\n\n' +
+          '- Rate limit headers: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`\n\n' +
           '## Error Responses\n' +
           'All errors return: `{ error: { category, code, message, statusCode, field? } }`\n\n' +
           '## Versioning\n' +
@@ -69,6 +76,30 @@ export async function registerOpenAPI(server: FastifyInstance): Promise<void> {
         { name: 'Search', description: 'Cross-entity search' },
         { name: 'Brands', description: 'Brand management' },
         { name: 'Merchants', description: 'Merchant registration and management' },
+        { name: 'Clients', description: 'Client registration and management' },
+        { name: 'Lifecycle', description: 'Client lifecycle state machine' },
+        { name: 'Requirements', description: 'Service requirements and readiness' },
+        { name: 'Documents', description: 'Document management and versioning' },
+        { name: 'Connectors', description: 'Database/service connector validation' },
+        { name: 'Discovery', description: 'Infrastructure and schema discovery' },
+        { name: 'Assessment', description: 'Risk assessment and scoring' },
+        { name: 'Recommendations', description: 'AI-assisted recommendations' },
+        { name: 'Problems', description: 'Problem Universe — discovery and classification' },
+        { name: 'Gaps', description: 'Gap Analysis — current vs target state' },
+        { name: 'Decisions', description: 'Option comparison and decision records' },
+        { name: 'Transformations', description: 'Transformation planning and execution' },
+        { name: 'Migration', description: 'Migration planning, execution, validation' },
+        { name: 'Financial', description: 'Financial impact and ROI analysis' },
+        { name: 'Optimization', description: 'Continuous optimization and measurement' },
+        { name: 'Portfolio', description: 'Cross-client portfolio intelligence' },
+        { name: 'Portal', description: 'Client self-service portal' },
+        { name: 'Workflow', description: 'Workflow automation and event engine' },
+        { name: 'Scheduler', description: 'Scheduled job management' },
+        { name: 'Compliance', description: 'Compliance frameworks and controls' },
+        { name: 'Notifications', description: 'Notification delivery and preferences' },
+        { name: 'Audit', description: 'Audit trail and evidence' },
+        { name: 'Capabilities', description: 'Platform capability registry' },
+        { name: 'Services', description: 'Platform service registry' },
       ],
       components: {
         securitySchemes: {

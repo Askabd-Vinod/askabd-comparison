@@ -1,5 +1,6 @@
 import { createServer } from './server.js';
 import { config } from './config/env.js';
+import { initializeDatabase, sharedPool } from './services/db-pool.js';
 import {
   validateConfiguration,
   calculateReadiness,
@@ -75,6 +76,11 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // ─── Database Pool Warmup ──────────────────────────────────────────────────
+  // Ensures the shared pool has a verified connection before accepting requests.
+  // This prevents intermittent first-request latency after cold start.
+  await initializeDatabase();
+
   // ─── Server Start ──────────────────────────────────────────────────────────
   const server = await createServer();
 
@@ -83,12 +89,15 @@ async function main(): Promise<void> {
 
   await server.listen({ port: config.PORT, host: config.HOST });
   server.log.info(`Comparison API on ${config.HOST}:${config.PORT}`);
+  console.log(`[API] Server listening on :${config.PORT}`);
+  console.log(`[API] Ready`);
 
   // ─── Graceful Shutdown ─────────────────────────────────────────────────────
   const shutdown = async (signal: string) => {
     server.log.info({ signal }, 'Received shutdown signal, closing server...');
     try {
       await server.close();
+      await sharedPool.end();
       server.log.info('Server closed gracefully');
       process.exit(0);
     } catch (err) {

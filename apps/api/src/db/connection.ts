@@ -1,6 +1,12 @@
+/**
+ * Database connection module.
+ * Re-exports the shared pool from db-pool.ts to maintain a single connection pool.
+ */
 import pg from 'pg';
-import { config } from '../config/env.js';
-const { Pool } = pg;
-let pool: pg.Pool | null = null;
-export function getPool(): pg.Pool { if (!pool) pool = new Pool({ connectionString: config.DATABASE_URL, max: 20 }); return pool; }
+import { sharedPool } from '../services/db-pool.js';
+
+export function getPool(): pg.Pool {
+  return sharedPool as unknown as pg.Pool;
+}
+
 export type DbClient = pg.Pool;

@@ -4,14 +4,14 @@
 # Build context: repository root (run with -f apps/api/Dockerfile .)
 
 # Build stage
-FROM node:20-alpine AS builder
+FROM node:20.18-alpine AS builder
 WORKDIR /app
 
 # Copy vendor tarballs first (shared platform packages)
 COPY vendor/ ./vendor/
 
 # Copy package manifests and install
-COPY apps/api/package.json apps/api/package-lock.json ./
+COPY apps/api/package.json ./
 RUN npm install --omit=dev || npm install
 
 # Copy source and compile
@@ -20,7 +20,7 @@ COPY apps/api/src ./src
 RUN npx tsc --skipLibCheck
 
 # Production stage
-FROM node:20-alpine
+FROM node:20.18-alpine
 WORKDIR /app
 
 RUN addgroup -g 1001 -S app && adduser -S app -u 1001 -G app

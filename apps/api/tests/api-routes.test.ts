@@ -1,6 +1,9 @@
 import Fastify from 'fastify';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, afterAll } from 'vitest';
 import { apiRoutes } from '../src/routes/api-routes.js';
+import { disconnectPrisma } from '../src/services/prisma-client.js';
+
+afterAll(async () => { await disconnectPrisma(); });
 
 describe('apiRoutes resilience', () => {
   it('returns templates array (200) for admin template reads', async () => {
@@ -16,5 +19,6 @@ describe('apiRoutes resilience', () => {
     const body = res.json();
     expect(body).toHaveProperty('templates');
     expect(Array.isArray(body.templates)).toBe(true);
+    await app.close();
   });
 });

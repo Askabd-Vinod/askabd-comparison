@@ -4,6 +4,8 @@ import helmet from '@fastify/helmet';
 import { createLogger } from '@askabd/shared-logging';
 import { config } from './config/env.js';
 import { apiRoutes } from './routes/api-routes.js';
+import { operationsCenterRoutes } from './routes/operations-center-routes.js';
+import { platformServicesRoutes } from './routes/platform-services-routes.js';
 import { registerAuthMiddleware } from './middleware/auth.js';
 import { registerRateLimitMiddleware } from './middleware/rate-limit.js';
 import { registerErrorHandler } from './middleware/error-handler.js';
@@ -11,6 +13,7 @@ import { registerAuthorizationMiddleware, COMPARISON_API_RULES } from './platfor
 import { registerAuditEngine } from './platform/audit/index.js';
 import { registerMonitoring } from './platform/monitoring/index.js';
 import { registerOpenAPI } from './platform/openapi/index.js';
+import { getDatabaseStatus } from './services/db-pool.js';
 
 /**
  * Creates the Fastify server with shared platform logging and authentication.
@@ -33,7 +36,16 @@ export async function createServer(): Promise<FastifyInstance> {
     },
   });
   await server.register(helmet, { contentSecurityPolicy: false });
-  await server.register(cors, { origin: true, credentials: true });
+  const corsOrigin = config.CORS_ORIGIN ?? '*';
+  await server.register(cors, {
+    origin: corsOrigin === '*' ? true : corsOrigin.split(',').map(s => s.trim()),
+    credentials: true,
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  });
+
+  // Multipart file upload support
+  const multipart = await import('@fastify/multipart');
+  await server.register(multipart.default, { limits: { fileSize: 20 * 1024 * 1024 } });
 
   // OpenAPI documentation (must be registered before routes)
   await registerOpenAPI(server);
@@ -66,11 +78,12 @@ export async function createServer(): Promise<FastifyInstance> {
   registerErrorHandler(server);
 
   server.get('/health', async () => ({
-    status: 'ok',
+    status: getDatabaseStatus() === 'ready' ? 'ok' : getDatabaseStatus(),
     service: 'comparison-api',
     version: '0.1.0',
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
+    database: getDatabaseStatus(),
   }));
   server.get('/ready', async () => {
     // Readiness: verify database connectivity
@@ -122,5 +135,7 @@ export async function createServer(): Promise<FastifyInstance> {
     });
   });
   await server.register(apiRoutes, { prefix: '/api/v1' });
+  await server.register(operationsCenterRoutes, { prefix: '/api/v1' });
+  await server.register(platformServicesRoutes);
   return server;
 }

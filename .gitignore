@@ -1,2 +1,12 @@
 node_modules
 .next/
+dist/
+
+# Environment secrets — NEVER commit real credentials
+.env
+.env.local
+.env.staging
+.env.production
+.env.*.local
+!.env.example
+!.env.staging.example

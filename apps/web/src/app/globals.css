@@ -34,12 +34,14 @@ body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
   transition: all 0.2s ease;
 }
 
 .card:hover {
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(99,102,241,0.1);
+  transform: translateY(-2px);
+  border-color: rgba(124,58,237,0.2);
 }
 
 .skeleton {
