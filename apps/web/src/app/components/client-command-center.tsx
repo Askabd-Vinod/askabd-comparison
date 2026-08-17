@@ -11,6 +11,17 @@ import {
 } from '../lib/service-readiness';
 import { logAuditEvent } from '../lib/operations-api';
 import { RequirementWorkspace } from './requirement-workspace';
+import { PhaseHeader, type PhaseStatus } from './phase-header';
+
+/** Maps the real 27-stage lifecycle model onto the shared PhaseHeader's fixed
+ *  status vocabulary. The lifecycle itself has no "blocked" concept today —
+ *  a customer-action-required stage still counts as in_progress, since the
+ *  overall client engagement IS progressing, just waiting on an owner. */
+function toPhaseStatus(order: number): PhaseStatus {
+  if (order === 0) return 'not_started';
+  if (order >= 23) return 'complete'; // go-live and every steady-state stage after it
+  return 'in_progress';
+}
 
 interface Props {
   clientId: string;
@@ -148,34 +159,20 @@ export function ClientCommandCenter({ clientId, clientName }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* Header — Current Delivery Status */}
-      <div className="bg-white rounded-xl border p-5">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wide">Client Delivery Status</h3>
-          <Link href={lifecycleUrl} className="text-[10px] text-purple-600 font-medium hover:text-purple-800">View Full Lifecycle →</Link>
-        </div>
-        <div className="grid md:grid-cols-4 gap-3 mb-4">
-          <div className="bg-gray-50 rounded-lg p-3">
-            <p className="text-[9px] text-gray-500 uppercase">Current Stage</p>
-            <p className={`text-xs font-semibold mt-0.5 px-2 py-0.5 rounded inline-block ${currentStep?.color || 'bg-gray-100'}`}>{currentStep?.label || state.status}</p>
-          </div>
-          <div className="bg-gray-50 rounded-lg p-3">
-            <p className="text-[9px] text-gray-500 uppercase">Progress</p>
-            <p className="text-lg font-bold text-purple-600 mt-0.5">{progress}%</p>
-          </div>
-          <div className="bg-gray-50 rounded-lg p-3">
-            <p className="text-[9px] text-gray-500 uppercase">Current Owner</p>
-            <p className={`text-[10px] font-semibold mt-1 px-2 py-0.5 rounded inline-block ${ownerColors[delivery.currentOwner]}`}>{ownerLabels[delivery.currentOwner]}</p>
-          </div>
-          <div className="bg-gray-50 rounded-lg p-3">
-            <p className="text-[9px] text-gray-500 uppercase">Next Step</p>
-            <p className="text-xs font-medium text-gray-700 mt-0.5">{delivery.nextService?.serviceName || 'Complete'}</p>
-          </div>
-        </div>
-        {/* Progress bar */}
-        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-          <div className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full transition-all" style={{ width: `${progress}%` }} />
-        </div>
+      {/* Header — Current Delivery Status, using the shared AskABD PhaseHeader pattern */}
+      <PhaseHeader
+        name={currentStep?.label || state.status}
+        description={currentStep?.description || ''}
+        status={toPhaseStatus(currentStep?.order ?? 0)}
+        progress={progress}
+        nextAction={{ label: currentStep?.whatNext || 'View Full Lifecycle', href: lifecycleUrl }}
+        lastVerified={state.updatedAt ? new Date(state.updatedAt) : undefined}
+      />
+
+      {/* Current owner — real, not part of PhaseHeader's fixed vocabulary (client/askabd/automatic/approval is a different axis than status) */}
+      <div className="flex items-center gap-2 -mt-2">
+        <span className="text-[9px] text-gray-400 uppercase">Current Owner</span>
+        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded inline-block ${ownerColors[delivery.currentOwner]}`}>{ownerLabels[delivery.currentOwner]}</span>
       </div>
 
       {/* Current Service */}

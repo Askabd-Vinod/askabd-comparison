@@ -24,6 +24,7 @@ import { RequirementsService } from '../services/requirements-service.js';
 import { CommercialEngagementService } from '../services/commercial-engagement-service.js';
 import { PaymentMethodService } from '../services/payment-method-service.js';
 import { FinancialReconciliationService } from '../services/financial-reconciliation-service.js';
+import { ServiceRequirementMatrixService } from '../services/service-requirement-matrix-service.js';
 
 // Use the shared application-wide database pool
 const routePool = sharedPool;
@@ -55,7 +56,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     return { client };
   });
 
-  server.put('/oc/clients/:id', async (req, reply) => {
+  server.put('/oc/clients/:id', async (req, _reply) => {
     const client = await ocService.updateClient((req.params as any).id, req.body as any);
     return { client };
   });
@@ -453,6 +454,15 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     return { clientId, connectors };
   });
 
+  // Real connection-test history — powers the client "Testing" page honestly (see
+  // apps/web's testing/page.tsx), replacing what was previously a hardcoded fake test-suite
+  // list identical for every client. Every row here is a genuine past testConnection() run.
+  server.get('/oc/clients/:clientId/connection-tests', async (req) => {
+    const { clientId } = req.params as any;
+    const tests = await connectorService.getConnectionTests(clientId);
+    return { clientId, tests };
+  });
+
   server.post('/oc/connectors/save', async (req, reply) => {
     const { provider, clientId, fields, securityLevel } = req.body as any;
     if (!provider || !clientId) {
@@ -723,6 +733,36 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     return { clientId, runs };
   });
 
+  // Platform-wide migration portfolio — real oc_migration_runs rows, not sample data.
+  // Mapped to the same camelCase shape as GET /oc/migrations/:migrationId (MigrationExecutionService.getRun)
+  // so the frontend has one consistent migration-run shape regardless of which endpoint it came from.
+  server.get('/oc/migrations', async (req) => {
+    const q = req.query as any;
+    try {
+      let query = 'SELECT * FROM oc_migration_runs WHERE 1=1';
+      const params: any[] = [];
+      if (q.clientId) { params.push(q.clientId); query += ` AND client_id = $${params.length}`; }
+      if (q.status) { params.push(q.status); query += ` AND status = $${params.length}`; }
+      query += ' ORDER BY created_at DESC LIMIT 100';
+      const res = await routePool.query(query, params);
+      const migrations = res.rows.map((row: any) => ({
+        id: row.id, clientId: row.client_id, sourceSchema: row.source_schema, targetSchema: row.target_schema,
+        status: row.status, steps: row.steps || [], plan: row.plan || {}, progress: row.progress || {},
+        startedAt: row.started_at, completedAt: row.completed_at, durationMs: row.duration_ms,
+        error: row.error_message, evidence: row.evidence || [], createdAt: row.created_at,
+      }));
+      return { migrations, total: migrations.length };
+    } catch { return { migrations: [], total: 0 }; }
+  });
+
+  // Single migration run detail — reuses MigrationExecutionService.getRun, no fabricated fields added.
+  server.get('/oc/migrations/:migrationId', async (req, reply) => {
+    const { migrationId } = req.params as any;
+    const run = await migrationExecution.getRun(migrationId);
+    if (!run) { reply.status(404).send({ error: 'Migration run not found' }); return; }
+    return { migration: run };
+  });
+
   // ─── CLIENT SERVICE REQUIREMENTS ──────────────────────────────────────────
 
   const requirementsService = new RequirementsService();
@@ -848,7 +888,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
 
   // Validate a document (check expiry, type, etc.)
   server.post('/oc/client-services/:clientId/:serviceId/requirements/:requirementKey/documents/:documentId/validate', async (req, reply) => {
-    const { clientId, serviceId, requirementKey, documentId } = req.params as any;
+    const { clientId, documentId } = req.params as any;
     const { expiryDate } = req.body as any;
     const pool = routePool;
     try {
@@ -1597,7 +1637,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     }
 
     // Resolve conflicts: if multiple sources provide the same key with different values
-    for (const [key, sources] of Object.entries(allSources)) {
+    for (const sources of Object.values(allSources)) {
       if (sources.length === 1) {
         fields.push(sources[0]);
       } else {
@@ -1771,7 +1811,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     reply.send(job);
   });
 
-  server.post('/oc/scheduler/run-all', async (req, reply) => {
+  server.post('/oc/scheduler/run-all', async (_req, reply) => {
     const result = await schedulerService.runAllDue();
     ocService.createAuditEntry({ entityType: 'scheduler', entityId: 'system', entityName: 'run-all', action: 'scheduler_cycle', actor: 'system', details: result, evidence: [`Scheduler: ${result.executed.length} executed, ${result.skipped.length} skipped, ${result.errors.length} errors`] }).catch(() => {});
     reply.send(result);
@@ -1885,26 +1925,65 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
 
   server.get('/oc/clients/:clientId/services', async (req) => {
     const { clientId } = req.params as any;
-    // Get all capabilities + client-specific enablement
-    const [capsRes, svcRes] = await Promise.all([
-      routePool.query(`SELECT id, name, category, domain, status, maturity, description, business_value, roadmap_phase, dependencies FROM oc_capabilities ORDER BY category, name`),
+    // Get all capabilities + client-specific enablement + any real commercial-engagement
+    // service selections (the "Path A" evidence source — a real, signed/drafted engagement
+    // proposing this service, distinct from Path B manual confirmation).
+    const [capsRes, svcRes, engSvcRes] = await Promise.all([
+      routePool.query(`SELECT id, name, category, domain, status, maturity, description, business_value, roadmap_phase, dependencies, external_dependencies FROM oc_capabilities ORDER BY category, name`),
       routePool.query(`SELECT * FROM oc_client_services WHERE client_id = $1`, [clientId]),
+      routePool.query(
+        `SELECT es.service_id, es.engagement_id, es.status as engagement_service_status, ce.name as engagement_name, ce.status as engagement_status
+         FROM oc_engagement_services es JOIN oc_commercial_engagements ce ON ce.id = es.engagement_id
+         WHERE es.client_id = $1`,
+        [clientId]
+      ),
     ]);
     const enablementMap: Record<string, any> = {};
     svcRes.rows.forEach((r: any) => { enablementMap[r.service_id] = { status: r.status, required: r.required, visible: r.visible, enabledAt: r.enabled_at, enabledBy: r.enabled_by, reason: r.reason }; });
+    const proposedMap: Record<string, any> = {};
+    engSvcRes.rows.forEach((r: any) => { proposedMap[r.service_id] = { engagementId: r.engagement_id, engagementName: r.engagement_name, engagementStatus: r.engagement_status }; });
 
-    const services = capsRes.rows.map((c: any) => ({
-      serviceId: c.id, name: c.name, category: c.category, domain: c.domain,
-      platformStatus: c.status, maturity: c.maturity, description: c.description,
-      businessValue: c.business_value, roadmapPhase: c.roadmap_phase, dependencies: c.dependencies || [],
-      clientStatus: enablementMap[c.id]?.status || (c.status === 'operational' ? 'enabled' : 'not_applicable'),
-      required: enablementMap[c.id]?.required || false,
-      visible: enablementMap[c.id]?.visible !== false,
-      enabledAt: enablementMap[c.id]?.enabledAt,
-      enabledBy: enablementMap[c.id]?.enabledBy,
-    }));
+    const services = capsRes.rows.map((c: any) => {
+      const explicit = enablementMap[c.id]?.status;
+      const proposal = proposedMap[c.id];
+      // "This capability is operational on the platform" is NOT the same as "this client
+      // receives it" — a client with no explicit oc_client_services row for an operational
+      // capability has NOT_CONFIRMED status (or PROPOSED, if a real commercial engagement
+      // named it), never a fabricated 'enabled'. Only a real, explicit row (written via
+      // POST .../enable — Path B, or confirming a proposal — Path A) can produce 'enabled'.
+      // A real engagement service selection alone is evidence of intent, not confirmation —
+      // it never auto-activates. Capabilities that aren't operational yet remain
+      // 'not_applicable' — the platform doesn't offer them to any client yet.
+      let clientStatus: string;
+      if (explicit) clientStatus = explicit;
+      else if (proposal) clientStatus = 'proposed';
+      else clientStatus = c.status === 'operational' ? 'not_confirmed' : 'not_applicable';
 
-    return { clientId, services, summary: { total: services.length, enabled: services.filter(s => s.clientStatus === 'enabled').length, disabled: services.filter(s => s.clientStatus === 'disabled').length, notApplicable: services.filter(s => s.clientStatus === 'not_applicable').length } };
+      return {
+        serviceId: c.id, name: c.name, category: c.category, domain: c.domain,
+        platformStatus: c.status, maturity: c.maturity, description: c.description,
+        businessValue: c.business_value, roadmapPhase: c.roadmap_phase, dependencies: c.dependencies || [],
+        externalDependencies: c.external_dependencies || [],
+        clientStatus,
+        required: enablementMap[c.id]?.required || false,
+        visible: enablementMap[c.id]?.visible !== false,
+        enabledAt: enablementMap[c.id]?.enabledAt,
+        enabledBy: enablementMap[c.id]?.enabledBy,
+        proposalSource: proposal ? { engagementId: proposal.engagementId, engagementName: proposal.engagementName, engagementStatus: proposal.engagementStatus } : null,
+      };
+    });
+
+    return { clientId, services, summary: { total: services.length, enabled: services.filter(s => s.clientStatus === 'enabled').length, disabled: services.filter(s => s.clientStatus === 'disabled').length, proposed: services.filter(s => s.clientStatus === 'proposed').length, notConfirmed: services.filter(s => s.clientStatus === 'not_confirmed').length, notApplicable: services.filter(s => s.clientStatus === 'not_applicable').length } };
+  });
+
+  // Service-driven onboarding requirements — "what do we need from this client?" answered
+  // once, authoritatively, from real explicit service selection + the real connector
+  // catalog mapping + the real onboarding requirement engine. See
+  // service-requirement-matrix-service.ts for the evidence behind every mapping.
+  const serviceRequirementMatrix = new ServiceRequirementMatrixService();
+  server.get('/oc/clients/:clientId/onboarding/requirements', async (req) => {
+    const { clientId } = req.params as any;
+    return serviceRequirementMatrix.getClientOnboardingRequirements(clientId);
   });
 
   server.post('/oc/clients/:clientId/services/:serviceId/enable', async (req, reply) => {
@@ -1963,7 +2042,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const recommendations: any[] = [];
 
     // Get client problems + gaps for evidence
-    const [probRes, gapRes, compRes, svcRes] = await Promise.all([
+    const [probRes, , compRes, svcRes] = await Promise.all([
       routePool.query(`SELECT domain, category, severity, title FROM oc_problems WHERE client_id = $1 AND status NOT IN ('resolved','rejected') ORDER BY severity DESC LIMIT 20`, [clientId]),
       routePool.query(`SELECT domain, category, severity FROM oc_gaps WHERE client_id = $1 AND status NOT IN ('resolved','closed') LIMIT 20`, [clientId]),
       routePool.query(`SELECT status, count(*) as cnt FROM oc_client_compliance WHERE client_id = $1 GROUP BY status`, [clientId]),
@@ -1973,7 +2052,6 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const enabledServices = new Set(svcRes.rows.filter((r: any) => r.status === 'enabled').map((r: any) => r.service_id));
     const disabledServices = new Set(svcRes.rows.filter((r: any) => r.status === 'disabled').map((r: any) => r.service_id));
     const problems = probRes.rows;
-    const gaps = gapRes.rows;
 
     // Rule-based recommendations
     const hasLegacy = problems.some((p: any) => p.domain === 'database' || p.title?.toLowerCase().includes('legacy'));
@@ -2026,9 +2104,9 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     // Category coverage
     const categories: Record<string, { total: number; enabled: number }> = {};
     for (const cap of operational) {
-      if (!categories[cap.category]) categories[cap.category] = { total: 0, enabled: 0 };
-      categories[cap.category].total++;
-      if (enabled.has(cap.id)) categories[cap.category].enabled++;
+      const bucket = (categories[cap.category] ??= { total: 0, enabled: 0 });
+      bucket.total++;
+      if (enabled.has(cap.id)) bucket.enabled++;
     }
     const categoryCoverage = Object.entries(categories).map(([cat, v]) => ({ category: cat, total: v.total, enabled: v.enabled, coverage: v.total > 0 ? Math.round((v.enabled / v.total) * 100) : 0 }));
 
@@ -2052,13 +2130,12 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
 
   server.get('/oc/clients/:clientId/service-bundles/recommended', async (req) => {
     const { clientId } = req.params as any;
-    const [bundlesRes, svcRes, lcRes] = await Promise.all([
+    const [bundlesRes, svcRes] = await Promise.all([
       routePool.query(`SELECT * FROM oc_service_bundles WHERE status = 'active'`),
       routePool.query(`SELECT service_id, status FROM oc_client_services WHERE client_id = $1`, [clientId]),
       routePool.query(`SELECT status FROM oc_lifecycle WHERE client_id = $1 ORDER BY updated_at DESC LIMIT 1`, [clientId]),
     ]);
     const enabled = new Set(svcRes.rows.filter((r: any) => r.status === 'enabled').map((r: any) => r.service_id));
-    const lcStatus = lcRes.rows[0]?.status || '';
     const recommendations: any[] = [];
 
     for (const b of bundlesRes.rows) {
@@ -2517,6 +2594,14 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     return { defects, total: defects.length };
   });
 
+  // Get a single defect by id — real oc_defects row, no fabricated fields added.
+  server.get('/oc/defects/:defectId', async (req, reply) => {
+    const { defectId } = req.params as any;
+    const res = await routePool.query('SELECT * FROM oc_defects WHERE id = $1', [defectId]);
+    if (res.rows.length === 0) { reply.status(404).send({ error: 'Defect not found' }); return; }
+    return { defect: res.rows[0] };
+  });
+
   // ─── INCIDENTS ──────────────────────────────────────────────────────────────
 
   server.get('/oc/incidents', async (req) => {
@@ -2550,7 +2635,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
   const detectionService = new DefectDetectionService();
 
   // Run automated defect detection sweep
-  server.post('/oc/defects/detect', async (req, reply) => {
+  server.post('/oc/defects/detect', async (_req, reply) => {
     const result = await detectionService.runDetection();
 
     ocService.createAuditEntry({
@@ -2594,6 +2679,27 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const { clientId } = req.params as any;
     const snapshot = await healthScoreService.getLatestSnapshot(clientId);
     return snapshot || { clientId, overallScore: null, message: 'No health snapshot available. Compute health score first.' };
+  });
+
+  /**
+   * Bulk health summary for list views (dashboard, client directory).
+   * Reads the last PERSISTED snapshot per client (via the same ClientHealthService
+   * used by the single-client health-score endpoint) rather than recomputing live —
+   * one HTTP round trip instead of one per client, and does not write a new snapshot
+   * row on every directory page view. A client with no snapshot yet (health-score
+   * never computed for them) is reported honestly as overallScore: null, not zero.
+   */
+  server.get('/oc/clients/health-summary', async () => {
+    const { clients } = { clients: await ocService.listClients({}) };
+    const summaries = await Promise.all(clients.map(async (c: any) => {
+      const snapshot = await healthScoreService.getLatestSnapshot(c.id);
+      return {
+        clientId: c.id,
+        overallScore: snapshot ? snapshot.overall_score : null,
+        computedAt: snapshot ? snapshot.computed_at : null,
+      };
+    }));
+    return { summaries };
   });
 
   // ─── JIRA WEBHOOK & SYNC ────────────────────────────────────────────────────

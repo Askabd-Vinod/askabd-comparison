@@ -234,6 +234,7 @@ export default function CapabilitiesPage() {
     const sorted = [...capabilities].sort((a, b) => b.maturity - a.maturity);
     return (
       <div style={{ background: '#1e293b', borderRadius: 8, padding: 16 }}>
+        <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ borderBottom: '1px solid #334155' }}>
@@ -256,6 +257,7 @@ export default function CapabilitiesPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     );
   };

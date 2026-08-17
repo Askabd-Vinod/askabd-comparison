@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Breadcrumb } from '../components/breadcrumb';
 import { getLifecycleState, persistLifecycleState, requestLifecycleTransition, fetchServerLifecycle, type LifecycleState } from '../lib/onboarding-lifecycle';
 import { logAuditEvent } from '../lib/operations-api';
+import { getEnvConfig } from '../lib/env';
 
 interface OnboardedClient {
   id: string; name: string; industry: string; country: string; timezone: string;
@@ -124,11 +125,18 @@ function VerifyPage() {
         return;
       }
     } catch {
-      // API unreachable — allow demo OTP '123456' as fallback for local dev
-      if (entered !== '123456') {
-        setError('Verification service unavailable. Please try again or use demo OTP 123456.');
-        return;
-      }
+      // Found during the final QA/UAT pass: this previously treated ANY network-level
+      // fetch failure — not just local dev, any environment, including a real production
+      // deployment — as a pass if the entered code was "123456", regardless of whether the
+      // server-side demo-OTP gate (`NODE_ENV !== 'production'`, in
+      // operations-center-routes.ts) would have allowed it. A transient API outage would
+      // have silently let anyone in who knew the hint text on this same page. Verification
+      // must never succeed without the server actually confirming it — fails closed here
+      // instead, matching this platform's own "never bypass security to make functionality
+      // work" principle. The server-side demo-OTP path is unaffected: it still exists (see
+      // above) and still requires a reachable API to be used, exactly as it should.
+      setError('Verification service unavailable. Please check your connection and try again.');
+      return;
     }
 
     // OTP verified — progress lifecycle to OTP Verified, then auto-advance to identity-verified
@@ -373,10 +381,19 @@ function VerifyPage() {
           </div>
         </div>
 
-        {/* Demo hint */}
-        <div className="mt-5 pt-4 border-t text-[10px] text-gray-400 text-center">
-          <p>For demo: use OTP <span className="font-mono font-bold">123456</span> | Check Mailpit at <a href="http://localhost:8025" target="_blank" rel="noopener noreferrer" className="underline hover:text-purple-500">localhost:8025</a></p>
-        </div>
+        {/* Demo hint — found during the final QA/UAT pass: this was rendered unconditionally
+            to every visitor, in every environment. The magic OTP "123456" itself is already
+            correctly gated server-side (see operations-center-routes.ts — `NODE_ENV !==
+            'production'` only), but advertising it in the UI regardless of environment meant
+            a staging/demo deployment shown to a real prospective client (or one accidentally
+            misconfigured with NODE_ENV=development — an already-documented risk, see
+            security-auth-guard.test.ts) would print a working bypass code on screen. Now
+            shown only when this app itself is genuinely running in development. */}
+        {getEnvConfig().environment === 'development' && (
+          <div className="mt-5 pt-4 border-t text-[10px] text-gray-400 text-center">
+            <p>For demo: use OTP <span className="font-mono font-bold">123456</span> | Check Mailpit at <a href="http://localhost:8025" target="_blank" rel="noopener noreferrer" className="underline hover:text-purple-500">localhost:8025</a></p>
+          </div>
+        )}
       </div>
 
       {/* Onboarding Confirmation Details (collapsible) */}

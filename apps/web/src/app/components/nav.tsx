@@ -31,11 +31,14 @@ export function NavBar() {
       {/* Main heading — Logo + Title centred on top with gradient */}
       <div className="bg-gradient-to-r from-[#1E1B4B] via-[#312E81] to-[#4C1D95] py-4 px-4">
         <div className="flex items-center justify-center gap-3">
+          {/* Site wordmark, not a page heading — every page below supplies its own single
+              <h1>, so this being an <h1> too was giving every page in the app two level-1
+              headings, which breaks heading-hierarchy navigation for screen reader users. */}
           <Link href="/" className="flex items-center gap-3">
             <Image src="/logo.png" alt="AskABD Logo" width={44} height={44} className="object-contain drop-shadow-lg" />
-            <h1 className="text-xl font-bold text-white tracking-wide drop-shadow-sm">
+            <span className="text-xl font-bold text-white tracking-wide drop-shadow-sm">
               AskABD Enterprise Operations Centre
-            </h1>
+            </span>
           </Link>
           <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold text-white ${envColor(env.environment)} shadow-sm`}>
             {envLabel(env.environment)}

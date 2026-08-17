@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
+import { Action } from './button';
 
 interface Field { key: string; label: string; description?: string; fieldType: string; required: boolean; placeholder?: string; helpText?: string; options?: string[]; securityClassification?: string; validationRules?: string[] }
 interface DocReq { key: string; name: string; description: string; required: boolean; acceptedTypes: string[]; maxSizeMb: number; expiryRequired: boolean }
@@ -390,7 +391,7 @@ export function RequirementWorkspace({ clientId, serviceId, serviceName, onSaveC
           return (
             <div key={req.requirementKey} className={`rounded-lg border transition-all ${isComplete ? 'border-green-200 bg-green-50/20' : req.required ? 'border-amber-200' : 'border-gray-200'}`}>
               {/* Collapsed header */}
-              <button onClick={() => setExpandedReq(isExpanded ? null : req.requirementKey)} className="w-full flex items-center gap-2 p-3 text-left hover:bg-gray-50/50 transition">
+              <button onClick={() => setExpandedReq(isExpanded ? null : req.requirementKey)} aria-expanded={isExpanded} aria-controls={`req-panel-${req.requirementKey}`} className="w-full flex items-center gap-2 p-3 text-left hover:bg-gray-50/50 transition">
                 <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0 ${isComplete ? 'bg-green-500 text-white' : req.status === 'in_progress' ? 'bg-amber-400 text-white' : req.required ? 'bg-red-400 text-white' : 'bg-gray-300 text-white'}`}>
                   {isComplete ? '✓' : filledCount > 0 ? `${filledCount}` : '!'}
                 </span>
@@ -407,7 +408,7 @@ export function RequirementWorkspace({ clientId, serviceId, serviceName, onSaveC
 
               {/* Expanded content */}
               {isExpanded && (
-                <div className="px-3 pb-3 border-t border-gray-100 pt-3">
+                <div id={`req-panel-${req.requirementKey}`} className="px-3 pb-3 border-t border-gray-100 pt-3">
                   {/* Why required */}
                   {req.whyRequired && (
                     <div className="bg-purple-50 border border-purple-100 rounded p-2 mb-3">
@@ -422,12 +423,14 @@ export function RequirementWorkspace({ clientId, serviceId, serviceName, onSaveC
                       {req.fields!.map(field => {
                         const known = knownData[field.key] || knownData[req.requirementKey];
                         const isKnown = known && known.value && !vals[field.key];
+                        const fieldId = `${req.requirementKey}-${field.key}`;
                         return (
                         <div key={field.key}>
-                          <label className="text-[10px] font-medium text-gray-700">
-                            {field.label}{field.required && <span className="text-red-500 ml-0.5">*</span>}
+                          <label htmlFor={fieldId} className="text-[10px] font-medium text-gray-700">
+                            {field.label}
+                            {field.required ? <span className="text-red-500 ml-0.5" aria-label="required">*</span> : <span className="text-gray-400 ml-1 font-normal">(optional)</span>}
                           </label>
-                          {field.helpText && <p className="text-[8px] text-gray-400">{field.helpText}</p>}
+                          {field.helpText && <p className="text-[8px] text-gray-400" id={`${fieldId}-help`}>{field.helpText}</p>}
                           {isKnown ? (
                             <div className={`mt-1 p-2 rounded-md border ${known.status === 'conflicting' ? 'bg-amber-50 border-amber-300' : known.status === 'discovered' ? 'bg-blue-50 border-blue-200' : known.status === 'verified' ? 'bg-green-50 border-green-300' : 'bg-emerald-50 border-emerald-200'}`}>
                               <div className="text-xs font-medium text-gray-800">{known.value}</div>
@@ -458,8 +461,8 @@ export function RequirementWorkspace({ clientId, serviceId, serviceName, onSaveC
                                 )}
                               </div>
                             </div>
-                          ) : renderField(field, vals[field.key] || '', v => updateField(req.requirementKey, field.key, v))}
-                          {errors[`${req.requirementKey}.${field.label}`] && <p className="text-[8px] text-red-500 mt-0.5">{errors[`${req.requirementKey}.${field.label}`]}</p>}
+                          ) : renderField(field, vals[field.key] || '', v => updateField(req.requirementKey, field.key, v), fieldId, !!errors[`${req.requirementKey}.${field.label}`])}
+                          {errors[`${req.requirementKey}.${field.label}`] && <p className="text-[8px] text-red-500 mt-0.5" role="alert" id={`${fieldId}-error`}>{errors[`${req.requirementKey}.${field.label}`]}</p>}
                         </div>
                         );
                       })}
@@ -473,10 +476,15 @@ export function RequirementWorkspace({ clientId, serviceId, serviceName, onSaveC
                     </div>
                   )}
 
-                  {/* Save button */}
-                  <button onClick={() => saveRequirement(req.requirementKey)} disabled={saving === req.requirementKey} className="text-[10px] font-semibold bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white px-3 py-1.5 rounded transition">
+                  {/* Save button — canonical primary Action, sized to match this panel's compact density */}
+                  <Action
+                    variant="primary"
+                    onClick={() => saveRequirement(req.requirementKey)}
+                    loading={saving === req.requirementKey}
+                    className="!text-[10px] !px-3 !py-1.5 !bg-purple-600 hover:!bg-purple-700 disabled:!bg-gray-300 !rounded"
+                  >
                     {saving === req.requirementKey ? 'Saving...' : 'Save Information'}
-                  </button>
+                  </Action>
                   {errors[req.requirementKey] && (() => {
                     const errMsg = errors[req.requirementKey];
                     const detail = explainSaveError(errMsg);
@@ -573,22 +581,25 @@ export function RequirementWorkspace({ clientId, serviceId, serviceName, onSaveC
   );
 }
 
-function renderField(field: Field, value: string, onChange: (v: string) => void) {
+function renderField(field: Field, value: string, onChange: (v: string) => void, id?: string, invalid?: boolean) {
   const base = "w-full border rounded px-2 py-1.5 text-[11px] focus:ring-1 focus:ring-purple-500 focus:border-purple-500 transition";
+  // aria-describedby links the input to its help text and/or error message, when present in the DOM.
+  const describedBy = [field.helpText && id ? `${id}-help` : null, invalid && id ? `${id}-error` : null].filter(Boolean).join(' ') || undefined;
+  const aria = { id, 'aria-describedby': describedBy, 'aria-invalid': invalid || undefined };
   switch (field.fieldType) {
-    case 'textarea': return <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={field.placeholder} className={`${base} min-h-[60px]`} />;
+    case 'textarea': return <textarea {...aria} value={value} onChange={e => onChange(e.target.value)} placeholder={field.placeholder} className={`${base} min-h-[60px]`} />;
     case 'select': return (
-      <select value={value} onChange={e => onChange(e.target.value)} className={`${base} bg-white`}>
+      <select {...aria} value={value} onChange={e => onChange(e.target.value)} className={`${base} bg-white`}>
         <option value="">Select...</option>
         {(field.options || []).map(o => <option key={o} value={o}>{o}</option>)}
       </select>
     );
     case 'checkbox': return (
-      <label className="flex items-center gap-2 text-[11px] mt-1"><input type="checkbox" checked={value === 'true'} onChange={e => onChange(e.target.checked ? 'true' : 'false')} className="rounded border-gray-300" /> Confirmed</label>
+      <label className="flex items-center gap-2 text-[11px] mt-1"><input {...aria} type="checkbox" checked={value === 'true'} onChange={e => onChange(e.target.checked ? 'true' : 'false')} className="rounded border-gray-300" /> Confirmed</label>
     );
-    case 'secret': return <input type="password" value={value} onChange={e => onChange(e.target.value)} placeholder={field.placeholder || '••••••••'} className={base} />;
-    case 'date': return <input type="date" value={value} onChange={e => onChange(e.target.value)} className={base} />;
-    case 'number': return <input type="number" value={value} onChange={e => onChange(e.target.value)} placeholder={field.placeholder} className={base} />;
-    default: return <input type={field.fieldType === 'email' ? 'email' : field.fieldType === 'url' ? 'url' : field.fieldType === 'phone' ? 'tel' : 'text'} value={value} onChange={e => onChange(e.target.value)} placeholder={field.placeholder} className={base} />;
+    case 'secret': return <input {...aria} type="password" value={value} onChange={e => onChange(e.target.value)} placeholder={field.placeholder || '••••••••'} className={base} />;
+    case 'date': return <input {...aria} type="date" value={value} onChange={e => onChange(e.target.value)} className={base} />;
+    case 'number': return <input {...aria} type="number" value={value} onChange={e => onChange(e.target.value)} placeholder={field.placeholder} className={base} />;
+    default: return <input {...aria} type={field.fieldType === 'email' ? 'email' : field.fieldType === 'url' ? 'url' : field.fieldType === 'phone' ? 'tel' : 'text'} value={value} onChange={e => onChange(e.target.value)} placeholder={field.placeholder} className={base} />;
   }
 }

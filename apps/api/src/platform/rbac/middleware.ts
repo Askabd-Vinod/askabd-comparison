@@ -205,6 +205,12 @@ function matchPath(actual: string, pattern: string): boolean {
 
 /**
  * Sends a structured 403 response.
+ *
+ * `reasonCode: 'forbidden'` is a stable, safe, non-leaking discriminator distinguishing
+ * this (a real RBAC permission denial) from `tenant-access.ts`'s `'tenant_not_resolved'`
+ * (a client-scope denial) — both are 403s, but a real frontend should be able to render
+ * "You don't have permission to access this resource." vs. "Your organization access
+ * could not be determined." without guessing from the human-readable `message` alone.
  */
 function denyAccess(
   _request: FastifyRequest,
@@ -215,6 +221,7 @@ function denyAccess(
     error: {
       category: 'authorization',
       code: 'SHARED.AUTHORIZATION_ERROR',
+      reasonCode: 'forbidden',
       message: 'You do not have permission to perform this action.',
       statusCode: 403,
       ...(process.env.NODE_ENV !== 'production' && reason ? { detail: reason } : {}),

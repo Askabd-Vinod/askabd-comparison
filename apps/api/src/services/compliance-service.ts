@@ -313,7 +313,7 @@ export class ComplianceService {
     return rows.map(this.mapException);
   }
 
-  async transitionException(exceptionId: string, newStatus: string, actor: string, data?: any): Promise<any> {
+  async transitionException(exceptionId: string, newStatus: string, actor: string, _data?: any): Promise<any> {
     const validTransitions: Record<string, string[]> = {
       'requested': ['under_review', 'rejected'],
       'under_review': ['approved', 'rejected'],

@@ -64,3 +64,15 @@ body {
 .animate-in {
   animation: fadeIn 0.4s ease-out;
 }
+
+/* Respect the user's OS-level reduced-motion preference — applies to every
+   animation/transition in the app (page fade-in, skeleton shimmer, card
+   hover-lift, spinner), not just ones added this pass. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

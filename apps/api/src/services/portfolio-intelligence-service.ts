@@ -426,9 +426,9 @@ export class PortfolioIntelligenceService {
     if (health.financial.missedSavings > 10000) {
       recommendations.push({ priority: 'high', type: 'financial', title: `Recover $${(health.financial.missedSavings / 1000).toFixed(0)}K in missed savings`, reason: 'Benefit realization below target indicates optimization opportunities', impact: 'high', confidence: 'medium' });
     }
-    if (patterns.problems.length > 0 && patterns.problems[0].frequency > 2) {
-      const top = patterns.problems[0];
-      recommendations.push({ priority: 'medium', type: 'pattern', title: `Standardize ${top.label} remediation (${top.frequency} instances)`, reason: 'Repeated problems suggest reusable solution opportunity', impact: 'medium', confidence: 'medium' });
+    const topProblem = patterns.problems[0];
+    if (topProblem && topProblem.frequency > 2) {
+      recommendations.push({ priority: 'medium', type: 'pattern', title: `Standardize ${topProblem.label} remediation (${topProblem.frequency} instances)`, reason: 'Repeated problems suggest reusable solution opportunity', impact: 'medium', confidence: 'medium' });
     }
     if (health.gaps.open > 5) {
       recommendations.push({ priority: 'medium', type: 'gaps', title: `Prioritize ${health.gaps.open} open gaps`, reason: 'High gap count increases accumulated technical debt', impact: 'medium', confidence: 'high' });

@@ -69,12 +69,18 @@ describe('Health vs Readiness — database semantics', () => {
     countSpy.mockRestore();
   });
 
-  it('DB unavailable: /ready correctly reports degraded/disconnected', async () => {
+  it('DB unavailable: /ready correctly reports degraded/disconnected with a 503 status code', async () => {
+    // Found during the final QA/UAT chaos test (Postgres actually stopped, endpoint hit
+    // live): this handler previously always returned HTTP 200 regardless of the body's
+    // `status` field. A readiness probe/load balancer only looks at the HTTP status code,
+    // not the JSON body, so a degraded instance with a 200 would have stayed in traffic
+    // rotation. Fixed in server.ts's /ready handler — this test now asserts the fix, not
+    // the bug it replaced.
     const prisma = getPrisma();
     const countSpy = vi.spyOn(prisma.category, 'count').mockRejectedValue(new Error('simulated DB outage'));
 
     const ready = await server.inject({ method: 'GET', url: '/ready' });
-    expect(ready.statusCode).toBe(200);
+    expect(ready.statusCode).toBe(503);
     expect(ready.json()).toEqual({ status: 'degraded', database: 'disconnected' });
 
     countSpy.mockRestore();

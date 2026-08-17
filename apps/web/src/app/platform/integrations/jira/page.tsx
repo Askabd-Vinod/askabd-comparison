@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { Action } from '../../../components/button';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4200';
 
@@ -145,13 +146,9 @@ export default function JiraIntegrationPage() {
             </span>
           )}
         </div>
-        <button
-          onClick={handleTest}
-          disabled={testing || !config?.baseUrl}
-          className="px-3 py-1.5 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 disabled:opacity-50"
-        >
-          {testing ? 'Testing...' : 'Test Connection'}
-        </button>
+        <Action variant="secondary" onClick={handleTest} disabled={!config?.baseUrl} loading={testing}>
+          Test Connection
+        </Action>
       </div>
 
       {/* Health Result */}
@@ -179,34 +176,34 @@ export default function JiraIntegrationPage() {
         
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Jira URL</label>
-            <input type="url" value={baseUrl} onChange={e => setBaseUrl(e.target.value)}
-              placeholder="https://company.atlassian.net"
+            <label htmlFor="jira-base-url" className="block text-sm font-medium text-gray-700 mb-1">Jira URL<span className="text-red-500 ml-0.5" aria-label="required">*</span></label>
+            <input id="jira-base-url" type="url" value={baseUrl} onChange={e => setBaseUrl(e.target.value)}
+              placeholder="https://company.atlassian.net" aria-describedby="jira-base-url-help"
               className="w-full px-3 py-2 border rounded-md text-sm focus:ring-purple-500 focus:border-purple-500" />
-            <p className="text-xs text-gray-400 mt-1">Your Jira Cloud instance URL</p>
+            <p className="text-xs text-gray-400 mt-1" id="jira-base-url-help">Your Jira Cloud instance URL</p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Project Key</label>
-            <input type="text" value={projectKey} onChange={e => setProjectKey(e.target.value)}
-              placeholder="ABD"
+            <label htmlFor="jira-project-key" className="block text-sm font-medium text-gray-700 mb-1">Project Key<span className="text-red-500 ml-0.5" aria-label="required">*</span></label>
+            <input id="jira-project-key" type="text" value={projectKey} onChange={e => setProjectKey(e.target.value)}
+              placeholder="ABD" aria-describedby="jira-project-key-help"
               className="w-full px-3 py-2 border rounded-md text-sm focus:ring-purple-500 focus:border-purple-500" />
-            <p className="text-xs text-gray-400 mt-1">Jira project key for issue creation</p>
+            <p className="text-xs text-gray-400 mt-1" id="jira-project-key-help">Jira project key for issue creation</p>
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Auth Email</label>
-            <input type="email" value={authEmail} onChange={e => setAuthEmail(e.target.value)}
+            <label htmlFor="jira-auth-email" className="block text-sm font-medium text-gray-700 mb-1">Auth Email<span className="text-gray-400 ml-1 font-normal text-xs">(optional)</span></label>
+            <input id="jira-auth-email" type="email" value={authEmail} onChange={e => setAuthEmail(e.target.value)}
               placeholder="user@company.com"
               className="w-full px-3 py-2 border rounded-md text-sm focus:ring-purple-500 focus:border-purple-500" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">API Token</label>
-            <input type="password" value={authToken} onChange={e => setAuthToken(e.target.value)}
-              placeholder={config?.authToken ? '••••••••' : 'Enter Jira API token'}
+            <label htmlFor="jira-auth-token" className="block text-sm font-medium text-gray-700 mb-1">API Token<span className="text-gray-400 ml-1 font-normal text-xs">(optional)</span></label>
+            <input id="jira-auth-token" type="password" value={authToken} onChange={e => setAuthToken(e.target.value)}
+              placeholder={config?.authToken ? '••••••••' : 'Enter Jira API token'} aria-describedby="jira-auth-token-help"
               className="w-full px-3 py-2 border rounded-md text-sm focus:ring-purple-500 focus:border-purple-500" />
-            <p className="text-xs text-gray-400 mt-1">Never displayed after save. Generate at id.atlassian.com.</p>
+            <p className="text-xs text-gray-400 mt-1" id="jira-auth-token-help">Never displayed after save. Generate at id.atlassian.com.</p>
           </div>
         </div>
 
@@ -235,10 +232,9 @@ export default function JiraIntegrationPage() {
         </div>
 
         <div className="flex justify-end pt-2">
-          <button onClick={handleSave} disabled={saving || !baseUrl || !projectKey}
-            className="px-4 py-2 bg-purple-600 text-white rounded-md text-sm hover:bg-purple-700 disabled:opacity-50">
-            {saving ? 'Saving...' : 'Save Configuration'}
-          </button>
+          <Action variant="primary" onClick={handleSave} disabled={!baseUrl || !projectKey} loading={saving} className="!bg-purple-600 hover:!bg-purple-700">
+            Save Configuration
+          </Action>
         </div>
       </div>
 
@@ -250,7 +246,7 @@ export default function JiraIntegrationPage() {
           <li>Issues can be created in Jira for tracking and remediation.</li>
           <li>Deduplication prevents duplicate Jira issues for the same finding.</li>
           <li>When Jira marks an issue Done, AskABD re-verifies using real evidence.</li>
-          <li>Tokens are stored encrypted and never displayed after configuration.</li>
+          <li>Tokens are never returned by the API or shown in the UI after configuration. In this development environment they are not yet encrypted at rest — production deployments require secure secret storage before real credentials are entered here.</li>
         </ul>
       </div>
     </div>

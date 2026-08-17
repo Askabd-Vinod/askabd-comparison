@@ -9,7 +9,7 @@ import { platformServicesRoutes } from './routes/platform-services-routes.js';
 import { registerAuthMiddleware } from './middleware/auth.js';
 import { registerRateLimitMiddleware } from './middleware/rate-limit.js';
 import { registerErrorHandler } from './middleware/error-handler.js';
-import { registerAuthorizationMiddleware, COMPARISON_API_RULES } from './platform/rbac/index.js';
+import { registerAuthorizationMiddleware, registerTenantAccessMiddleware, COMPARISON_API_RULES } from './platform/rbac/index.js';
 import { registerAuditEngine } from './platform/audit/index.js';
 import { registerMonitoring } from './platform/monitoring/index.js';
 import { registerOpenAPI } from './platform/openapi/index.js';
@@ -65,6 +65,14 @@ export async function createServer(): Promise<FastifyInstance> {
     devBypass: config.NODE_ENV !== 'production',
   });
 
+  // Tenant/client access boundary — the third independent security question
+  // ("which client's data"), enforced after authentication and RBAC. See
+  // platform/rbac/tenant-access.ts for the full rationale and evidence trail.
+  registerTenantAccessMiddleware(server, {
+    pathPrefix: '/api/v1/oc/',
+    devBypass: config.NODE_ENV !== 'production',
+  });
+
   // Rate limiting middleware (after auth so authenticated users get higher limits)
   registerRateLimitMiddleware(server);
 
@@ -106,13 +114,24 @@ export async function createServer(): Promise<FastifyInstance> {
       database: liveDatabase, // live, current — never stale
     };
   });
-  server.get('/ready', async () => {
-    // Readiness: verify database connectivity
+  server.get('/ready', async (_request, reply) => {
+    // Readiness: verify database connectivity.
+    //
+    // Found during the final QA/UAT pass (chaos test — DB stopped, endpoint hit live):
+    // this handler correctly detected and reported `status: 'degraded'` when the
+    // database was down, but never called `reply.status()`, so Fastify defaulted to
+    // HTTP 200 either way. A Kubernetes readiness probe (or any load balancer health
+    // check) only looks at the HTTP status code, not the JSON body — a 200 response
+    // means "keep sending traffic here," so a degraded instance with an honest body
+    // but a 200 status would have stayed in rotation, receiving real traffic it
+    // cannot serve. Fixed: 503 whenever the database is not reachable, 200 only when
+    // it genuinely is. The JSON body's `status`/`database` fields are unchanged.
     try {
       const { getPrisma } = await import('./services/prisma-client.js');
       await getPrisma().category.count();
       return { status: 'ready', database: 'connected' };
     } catch {
+      reply.status(503);
       return { status: 'degraded', database: 'disconnected' };
     }
   });

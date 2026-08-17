@@ -129,7 +129,8 @@ export class GapAnalysisService {
         title: `Gap: ${prob.title}`,
         description: prob.description,
         currentState: prob.technical_impact || prob.description || 'Current state identified via assessment',
-        targetState: null, // Requires client input or recommendation
+        // targetState intentionally omitted — requires client input or recommendation;
+        // createGap()'s DB write already does `data.targetState || null`.
         gapDescription: `Problem "${prob.title}" indicates a gap between current and target state.`,
         businessImpact: prob.business_impact,
         technicalImpact: prob.technical_impact,
@@ -170,7 +171,7 @@ export class GapAnalysisService {
   }
 
   /** Define target state for a gap */
-  async defineTargetState(gapId: string, data: { targetState: string; targetMaturity?: number; targetDate?: string; owner?: string }, actor: string): Promise<Gap | null> {
+  async defineTargetState(gapId: string, data: { targetState: string; targetMaturity?: number; targetDate?: string; owner?: string }, _actor: string): Promise<Gap | null> {
     const { rows } = await sharedPool.query(`
       UPDATE oc_gaps SET target_state = $1, target_maturity = COALESCE($2, target_maturity),
         target_date = $3, owner = COALESCE($4, owner), status = 'target_defined', updated_at = NOW()
@@ -202,10 +203,6 @@ export class GapAnalysisService {
     let generated = 0, existing = 0;
 
     for (const gap of gaps) {
-      // Simple recommendation: describe the gap closure action
-      const recTitle = gap.target_state ? `Close gap: ${gap.title}` : `Investigate and resolve: ${gap.title}`;
-      const recAction = gap.target_state || 'Define target state and implement remediation plan';
-
       // Store as a lightweight recommendation record in gap metadata
       await sharedPool.query(`
         UPDATE oc_gaps SET

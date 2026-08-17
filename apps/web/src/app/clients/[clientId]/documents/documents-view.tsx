@@ -48,6 +48,7 @@ export function DocumentsView({ documents, clientId, clientName }: { documents: 
       </div>
 
       <div className="bg-white rounded-xl border overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
             <tr>
@@ -79,6 +80,7 @@ export function DocumentsView({ documents, clientId, clientName }: { documents: 
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

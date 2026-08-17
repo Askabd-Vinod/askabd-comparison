@@ -21,8 +21,12 @@
  * NEVER returns overallStatus=READY when mandatory items are unverified.
  */
 
+import * as dns from 'dns';
+import { promisify } from 'util';
 import { config } from '../config/env.js';
 import { getDatabaseStatus } from './db-pool.js';
+
+const dnsResolve = promisify(dns.resolve);
 
 export type DependencyStatus = 'verified' | 'ready_to_connect' | 'not_configured' | 'missing' | 'failed' | 'blocked' | 'optional' | 'not_required' | 'not_verified' | 'expired';
 
@@ -111,10 +115,10 @@ export class ProductionPreflightService {
     items.push(this.checkTls(isProd));
 
     // ═══ EMAIL (DEP-011) ═══
-    items.push(this.checkEmail(isProd));
+    items.push(await this.checkEmail(isProd));
 
     // ═══ DNS & NETWORKING (DEP-012 to DEP-014) ═══
-    items.push(this.checkDns(isProd));
+    items.push(await this.checkDns(isProd));
     items.push(this.checkLoadBalancer(isProd));
     items.push(this.checkContainerRegistry(isProd));
 
@@ -203,10 +207,10 @@ export class ProductionPreflightService {
     const categories: Record<string, { status: string; verified: number; total: number; blockers: string[] }> = {};
     const allItems = [...report.blockingItems, ...report.requiredItems, ...report.verifiedItems, ...report.optionalItems];
     for (const item of allItems) {
-      if (!categories[item.category]) categories[item.category] = { status: 'pending', verified: 0, total: 0, blockers: [] };
-      categories[item.category].total++;
-      if (item.status === 'verified') categories[item.category].verified++;
-      if (item.blocking) categories[item.category].blockers.push(item.name);
+      const cat = (categories[item.category] ??= { status: 'pending', verified: 0, total: 0, blockers: [] });
+      cat.total++;
+      if (item.status === 'verified') cat.verified++;
+      if (item.blocking) cat.blockers.push(item.name);
     }
     for (const [, cat] of Object.entries(categories)) {
       cat.status = cat.verified === cat.total ? 'verified' : cat.blockers.length > 0 ? 'blocked' : 'pending';
@@ -281,17 +285,53 @@ export class ProductionPreflightService {
     return this.build('DEP-010', 'Security', 'TLS/HTTPS', true, isProd ? 'missing' : 'ready_to_connect', 'HTTP only (DEV)', 'SSL certificate + ALB/reverse proxy', 'Encrypt all data in transit', 'Data in plaintext on network', 'Critical — tokens visible', 'Request ACM cert, configure HTTPS listener on ALB', 'DevOps', false, isProd, false, true, true, undefined);
   }
 
-  private checkEmail(isProd: boolean): PreflightItem {
+  /**
+   * SMTP/Email — performs a REAL transport.verify() SMTP handshake (email-transport.ts,
+   * already used by the real OTP send path) rather than only checking that SMTP_HOST is set.
+   * verify() authenticates against the SMTP server without sending an email, so it's safe to
+   * run automatically as part of a status check.
+   */
+  private async checkEmail(isProd: boolean): Promise<PreflightItem> {
     const hasSmtp = !!config.SMTP_HOST;
-    if (hasSmtp) return this.build('DEP-011', 'Email', 'SMTP/SES Provider', true, 'ready_to_connect', `SMTP: ${config.SMTP_HOST}`, 'Delivery verification test', 'OTP, notifications', 'Onboarding blocked', 'None', 'Send test email, verify delivery', 'Platform', true, false, true, false, true, undefined);
-    return this.build('DEP-011', 'Email', 'SMTP/SES Provider', true, isProd ? 'missing' : 'ready_to_connect', 'Mailpit (DEV only)', 'Production SMTP/SES credentials', 'OTP delivery, notifications', 'Client onboarding impossible', 'None', 'Configure SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS', 'Platform', true, isProd, true, false, true, undefined);
+    let healthResult: { available: boolean; provider: string; error?: string };
+    try {
+      const { checkEmailHealth } = await import('./email-transport.js');
+      healthResult = await checkEmailHealth();
+    } catch (err) {
+      healthResult = { available: false, provider: 'unknown', error: (err as Error).message };
+    }
+
+    if (healthResult.available) {
+      return this.build('DEP-011', 'Email', 'SMTP/SES Provider', true, 'verified', `${healthResult.provider} — SMTP handshake succeeded`, 'None', 'OTP, notifications', 'None', 'None', 'Configured and verified', 'Platform', true, false, true, false, true, `SMTP verify() succeeded via ${healthResult.provider} at ${new Date().toISOString()}`);
+    }
+    if (hasSmtp) return this.build('DEP-011', 'Email', 'SMTP/SES Provider', true, 'failed', `SMTP_HOST=${config.SMTP_HOST} configured but handshake failed`, 'Working SMTP credentials', 'OTP, notifications', 'Onboarding blocked', 'None', `Fix SMTP configuration: ${healthResult.error || 'verify() failed'}`, 'Platform', true, isProd, true, false, true, undefined);
+    return this.build('DEP-011', 'Email', 'SMTP/SES Provider', true, isProd ? 'missing' : (healthResult.available ? 'verified' : 'not_verified'), healthResult.provider === 'mailpit' ? `Mailpit (DEV) — handshake ${healthResult.available ? 'succeeded' : 'failed'}` : 'Not configured', 'Production SMTP/SES credentials', 'OTP delivery, notifications', 'Client onboarding impossible', 'None', 'Configure SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS', 'Platform', true, isProd, true, false, true, healthResult.available ? `SMTP verify() succeeded via ${healthResult.provider}` : undefined);
   }
 
-  private checkDns(isProd: boolean): PreflightItem {
+  /**
+   * DNS Configuration — performs a REAL dns.resolve() against API_PUBLIC_URL's hostname
+   * rather than merely checking the string doesn't say "localhost". A hostname that fails
+   * to resolve is reported as 'failed' with evidence, never as 'ready_to_connect'.
+   */
+  private async checkDns(isProd: boolean): Promise<PreflightItem> {
     const apiUrl = process.env.API_PUBLIC_URL || '';
-    const hasReal = apiUrl && !apiUrl.includes('localhost');
-    if (hasReal) return this.build('DEP-012', 'Networking', 'DNS Configuration', true, 'ready_to_connect', `URL: ${apiUrl}`, 'DNS propagation verification', 'Public access', 'API not reachable', 'None', 'Verify DNS resolves', 'DevOps', false, false, false, true, true, undefined);
-    return this.build('DEP-012', 'Networking', 'DNS Configuration', true, isProd ? 'missing' : 'ready_to_connect', 'localhost only', 'Production domain records', 'Public API/web access', 'Platform inaccessible', 'None', 'Configure A/CNAME records', 'DevOps', false, isProd, false, true, true, undefined);
+    if (!apiUrl || apiUrl.includes('localhost') || apiUrl.includes('127.0.0.1')) {
+      return this.build('DEP-012', 'Networking', 'DNS Configuration', true, isProd ? 'missing' : 'ready_to_connect', 'localhost only', 'Production domain records', 'Public API/web access', 'Platform inaccessible', 'None', 'Configure A/CNAME records', 'DevOps', false, isProd, false, true, true, undefined);
+    }
+
+    let hostname: string;
+    try {
+      hostname = new URL(apiUrl).hostname;
+    } catch {
+      return this.build('DEP-012', 'Networking', 'DNS Configuration', true, 'failed', `API_PUBLIC_URL is not a valid URL: ${apiUrl}`, 'A valid API_PUBLIC_URL', 'Public API/web access', 'Platform inaccessible', 'None', 'Fix API_PUBLIC_URL format', 'DevOps', false, isProd, true, false, true, undefined);
+    }
+
+    try {
+      const addresses = await dnsResolve(hostname);
+      return this.build('DEP-012', 'Networking', 'DNS Configuration', true, 'verified', `${hostname} resolves`, 'None', 'Public API/web access', 'None', 'None', 'Configured', 'DevOps', false, false, true, false, true, `DNS resolved: ${hostname} → ${addresses.join(', ')} at ${new Date().toISOString()}`);
+    } catch (err) {
+      return this.build('DEP-012', 'Networking', 'DNS Configuration', true, 'failed', `${hostname} does not resolve`, 'A working DNS A/CNAME record for this hostname', 'Public API/web access', 'API not reachable', 'None', `Verify DNS record for ${hostname}: ${(err as Error).message}`, 'DevOps', false, isProd, true, false, true, undefined);
+    }
   }
 
   private checkLoadBalancer(isProd: boolean): PreflightItem {
@@ -330,7 +370,7 @@ export class ProductionPreflightService {
     return this.build('DEP-019', 'Integration', 'Kubernetes Connector', false, 'not_configured', 'Endpoint reachability only', 'Kubeconfig or SA token', 'K8s resource discovery', 'Limited discovery', 'None', 'Provide kubeconfig or service account', 'Platform', true, false, false, false, true, undefined);
   }
 
-  private checkMonitoring(isProd: boolean): PreflightItem {
+  private checkMonitoring(_isProd: boolean): PreflightItem {
     return this.build('DEP-020', 'Observability', 'Monitoring & Logging', true, 'ready_to_connect', 'Structured JSON logs (pino) + /health + /metrics', 'Log aggregation destination', 'Production visibility', 'Blind to issues', 'None', 'Configure CloudWatch/Datadog', 'DevOps', false, false, true, false, true, 'Structured logging active');
   }
 
@@ -338,7 +378,7 @@ export class ProductionPreflightService {
     return this.build('DEP-021', 'Observability', 'Alerting & On-Call', true, isProd ? 'not_verified' : 'ready_to_connect', 'No alerting configured', 'Alert rules + notification channel + on-call', 'Incident detection', 'Incidents undetected', 'None', 'Configure alert rules for health/error/latency thresholds', 'DevOps', false, isProd, false, true, true, undefined);
   }
 
-  private checkCiCd(isProd: boolean): PreflightItem {
+  private checkCiCd(_isProd: boolean): PreflightItem {
     return this.build('DEP-022', 'Infrastructure', 'CI/CD Pipeline', true, 'ready_to_connect', 'GitHub Actions workflows exist', 'Runner configuration + end-to-end test', 'Automated deployment', 'Manual deployment required', 'None', 'Configure GitHub Actions runner, test full pipeline', 'DevOps', false, false, true, true, false, 'Workflow files present in .github/workflows/');
   }
 

@@ -1,5 +1,3 @@
-import { config } from '../config/env.js';
-
 export type EmailStatus = 'queued' | 'sending' | 'sent' | 'delivered' | 'failed' | 'retrying' | 'not_configured';
 
 export interface EmailResult {
@@ -54,7 +52,7 @@ export class EmailService {
       });
 
       if (response.ok) {
-        const data = await response.json().catch(() => ({}));
+        const data = await response.json().catch(() => ({})) as { ID?: string };
         return { status: 'sent', messageId: data.ID || `msg-${Date.now()}`, timestamp: new Date().toISOString() };
       }
 
@@ -85,8 +83,14 @@ export class EmailService {
         ];
         let idx = 0;
         socket.on('data', () => {
-          if (idx < commands.length) { socket.write(commands[idx++]); }
-          else { socket.end(); resolve({ status: 'sent', messageId: `smtp-${Date.now()}`, timestamp: new Date().toISOString() }); }
+          if (idx < commands.length) {
+            const command = commands[idx];
+            idx++;
+            if (command !== undefined) socket.write(command);
+          } else {
+            socket.end();
+            resolve({ status: 'sent', messageId: `smtp-${Date.now()}`, timestamp: new Date().toISOString() });
+          }
         });
       });
       socket.on('error', (err) => { resolve({ status: 'failed', error: err.message, timestamp: new Date().toISOString() }); });

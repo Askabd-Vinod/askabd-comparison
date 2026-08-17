@@ -58,7 +58,7 @@ export function KpiCard({ href, label, value, color, description, criteria, warn
   );
 
   const tooltip = description ? (
-    <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-gray-900 text-white text-[11px] rounded-lg p-3 shadow-xl opacity-0 invisible group-hover/card:opacity-100 group-hover/card:visible transition-all duration-200 pointer-events-none">
+    <div className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-44 sm:w-64 max-w-[calc(100vw-2rem)] bg-gray-900 text-white text-[11px] rounded-lg p-3 shadow-xl opacity-0 invisible group-hover/card:opacity-100 group-hover/card:visible transition-all duration-200 pointer-events-none">
       <p className="font-semibold text-white/90 mb-1.5">{label}</p>
       <p className="text-gray-300 leading-relaxed">{description}</p>
       {criteria && (

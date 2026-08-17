@@ -30,7 +30,6 @@ export interface CreateTransactionInput {
 }
 
 const VALID_TXN_TYPES = ['invoice', 'payment', 'refund', 'credit', 'adjustment', 'fee'];
-const VALID_TXN_STATUSES = ['pending', 'authorized', 'captured', 'settled', 'failed', 'refunded', 'cancelled', 'disputed'];
 
 const RECON_TRANSITIONS: Record<string, string[]> = {
   draft: ['running'],

@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { healthTierLabel, healthTierColor } from '../../../lib/health-tier';
+import { ErrorState } from '../../../components/error-state';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4200';
 
@@ -59,17 +61,20 @@ export default function ClientScorecardPage({ params }: PageProps) {
   if (loading) return <div className="p-6 text-gray-400">Computing health score...</div>;
   if (error) return (
     <div className="p-6">
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <p className="text-red-700 font-medium">Health Score Unavailable</p>
-        <p className="text-sm text-red-600 mt-1">{error}</p>
-        <button onClick={() => loadHealth(clientId)} className="mt-2 px-3 py-1 bg-red-100 text-red-700 rounded text-sm hover:bg-red-200">Retry</button>
-      </div>
+      <ErrorState
+        what="Health score could not be computed"
+        why="The AskABD API did not return a valid response."
+        actions={['Confirm the API is reachable', 'Retry the computation']}
+        technicalDetail={error}
+        onRetry={() => loadHealth(clientId)}
+      />
     </div>
   );
   if (!health) return <div className="p-6 text-gray-400">No health data available.</div>;
 
-  const overallLabel = health.overallScore >= 90 ? 'Excellent' : health.overallScore >= 75 ? 'Good' : health.overallScore >= 60 ? 'Needs Improvement' : health.overallScore >= 40 ? 'At Risk' : 'Critical';
-  const overallColor = health.overallScore >= 80 ? 'text-green-600' : health.overallScore >= 60 ? 'text-orange-600' : 'text-red-600';
+  // Single authoritative tier mapping — shared with the dashboard and client directory (apps/web/src/app/lib/health-tier.ts) so the same score never shows a different label in different places.
+  const overallLabel = healthTierLabel(health.overallScore);
+  const overallColor = healthTierColor(health.overallScore);
 
   return (
     <div className="space-y-6">

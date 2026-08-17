@@ -228,7 +228,7 @@ export class JiraIntegrationService {
       });
 
       if (!res.ok) {
-        const errBody = await res.json().catch(() => ({}));
+        const errBody = await res.json().catch(() => ({})) as { errors?: unknown; errorMessages?: unknown };
         return { success: false, error: `Jira API ${res.status}: ${JSON.stringify(errBody.errors || errBody.errorMessages || 'Unknown error')}` };
       }
 
@@ -279,7 +279,6 @@ export class JiraIntegrationService {
    */
   async updateLinkStatus(linkId: string, jiraStatus: string, askabdStatus?: string): Promise<void> {
     const updates = ['jira_status = $2', 'last_synced_at = NOW()', 'sync_status = $4', 'updated_at = NOW()'];
-    const params: any[] = [linkId, jiraStatus, askabdStatus || undefined, 'synced'];
 
     if (askabdStatus) {
       updates.push('askabd_status = $3');

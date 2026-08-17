@@ -113,6 +113,7 @@ export default function PortfolioPage() {
       {/* Clients Tab */}
       {tab === 'clients' && (
         <div style={{ background: '#1e293b', borderRadius: 8, overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead><tr style={{ borderBottom: '1px solid #334155' }}>
               <th style={{ textAlign: 'left', padding: '10px 12px', color: '#94a3b8' }}>Client</th>
@@ -135,6 +136,7 @@ export default function PortfolioPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -148,6 +150,7 @@ export default function PortfolioPage() {
             <div style={{ background: '#1e293b', padding: 12, borderRadius: 8, textAlign: 'center' }}><div style={{ fontSize: 20, fontWeight: 700, color: '#ef4444' }}>{fmt(financial.totals.missedSavings)}</div><div style={{ fontSize: 11, color: '#94a3b8' }}>Missed</div></div>
           </div>
           <div style={{ background: '#1e293b', borderRadius: 8, overflow: 'hidden' }}>
+            <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead><tr style={{ borderBottom: '1px solid #334155' }}>
                 <th style={{ textAlign: 'left', padding: '8px 12px', color: '#94a3b8' }}>Client</th>
@@ -168,6 +171,7 @@ export default function PortfolioPage() {
                 </tr>
               ))}</tbody>
             </table>
+            </div>
           </div>
         </div>
       )}

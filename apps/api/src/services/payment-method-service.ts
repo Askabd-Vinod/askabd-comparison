@@ -30,11 +30,6 @@ export interface AddPaymentMethodInput {
   metadata?: Record<string, unknown>;
 }
 
-const PAYMENT_METHOD_TRANSITIONS: Record<string, string[]> = {
-  pending: ['active', 'disabled'],
-  active: ['disabled'],
-  disabled: ['active'],
-};
 
 const VALID_TYPES = [
   'bank_transfer', 'ach', 'wire_transfer', 'credit_card', 'debit_card',

@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Breadcrumb } from '../../components/breadcrumb';
+import { getEnvConfig } from '../../lib/env';
 
 type AppEnvironment = 'development' | 'staging' | 'production';
 type ServiceStatus = 'RUNNING' | 'STARTING' | 'STOPPED' | 'UNHEALTHY' | 'NOT_CONFIGURED' | 'UNKNOWN' | 'RECOVERING' | 'RECOVERY_FAILED';
@@ -362,13 +363,24 @@ export default function PlatformServicesPage() {
         </section>
       )}
 
-      {/* Quick Links */}
+      {/* Quick Links — found during the final QA/UAT pass: these were unconditionally
+          hardcoded to http://localhost, which is only ever correct on the machine running
+          the DEV stack itself. On any real staging/production deployment, a viewer's own
+          browser would try to reach "localhost" on their OWN machine, not the server —
+          always failing, and confusing for exactly the enterprise reviewers this platform
+          targets. The API Health link now uses the real configured API URL; the Mailpit
+          link (a DEV-only tool that doesn't exist outside local development) is now shown
+          only when this app is actually running in development. */}
       <div className="mt-6 flex items-center gap-3 text-xs text-gray-500">
         <Link href="/platform" className="hover:text-purple-600 underline">← Platform Overview</Link>
+        {getEnvConfig().environment === 'development' && (
+          <>
+            <span>•</span>
+            <a href="http://localhost:8025" target="_blank" rel="noopener noreferrer" className="hover:text-purple-600 underline">Open Mailpit</a>
+          </>
+        )}
         <span>•</span>
-        <a href="http://localhost:8025" target="_blank" rel="noopener noreferrer" className="hover:text-purple-600 underline">Open Mailpit</a>
-        <span>•</span>
-        <a href="http://localhost:4200/health" target="_blank" rel="noopener noreferrer" className="hover:text-purple-600 underline">API Health</a>
+        <a href={`${getEnvConfig().apiUrl}/health`} target="_blank" rel="noopener noreferrer" className="hover:text-purple-600 underline">API Health</a>
       </div>
     </div>
   );

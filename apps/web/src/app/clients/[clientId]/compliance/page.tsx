@@ -70,6 +70,7 @@ export default function CompliancePage() {
       {/* Controls */}
       {controls.length > 0 && (
         <div style={{ background: '#1e293b', borderRadius: 8, overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead><tr style={{ borderBottom: '1px solid #334155' }}>
               <th style={{ textAlign: 'left', padding: '8px 12px', color: '#94a3b8' }}>Control</th>
@@ -86,6 +87,7 @@ export default function CompliancePage() {
               </tr>
             ))}</tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

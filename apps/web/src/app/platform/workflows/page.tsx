@@ -97,6 +97,7 @@ export default function WorkflowsPage() {
           </details>
 
           <div style={{ background: '#1e293b', borderRadius: 8, overflow: 'hidden' }}>
+          <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead><tr style={{ borderBottom: '1px solid #334155' }}>
               <th style={{ textAlign: 'left', padding: '10px 12px', color: '#94a3b8' }}>Rule</th>
@@ -119,6 +120,7 @@ export default function WorkflowsPage() {
               </tr>
             ))}</tbody>
           </table>
+          </div>
         </div>
         </div>
       )}
@@ -126,6 +128,7 @@ export default function WorkflowsPage() {
       {tab === 'executions' && (
         <div style={{ background: '#1e293b', borderRadius: 8, overflow: 'hidden' }}>
           {executions.length === 0 ? <div style={{ padding: 20, color: '#64748b', textAlign: 'center' }}>No executions yet</div> : (
+            <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead><tr style={{ borderBottom: '1px solid #334155' }}>
                 <th style={{ textAlign: 'left', padding: '8px 12px', color: '#94a3b8' }}>Rule</th>
@@ -144,6 +147,7 @@ export default function WorkflowsPage() {
                 </tr>
               ))}</tbody>
             </table>
+            </div>
           )}
         </div>
       )}

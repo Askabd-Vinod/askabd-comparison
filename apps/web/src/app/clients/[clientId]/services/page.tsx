@@ -35,16 +35,21 @@ export default function ClientServicesPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const toggleService = async (serviceId: string, enable: boolean) => {
+  const toggleService = async (serviceId: string, enable: boolean, reason?: string) => {
     const url = `${API}/api/v1/oc/clients/${clientId}/services/${serviceId}/${enable ? 'enable' : 'disable'}`;
-    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actor: 'admin' }) });
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actor: 'admin', reason }) });
     const result = await r.json();
     if (!r.ok) { alert(result.message || result.error || 'Operation failed'); }
     loadData();
   };
 
+  // Confirming a proposal reuses the exact same enable action — the reason records where
+  // the confirmation came from (Path A: commercial engagement) for the audit trail.
+  const confirmProposal = (s: any) => toggleService(s.serviceId, true, `Confirmed from commercial engagement ${s.proposalSource?.engagementName || s.proposalSource?.engagementId}`);
+
   const sc = (s: string) => s === 'operational' ? '#22c55e' : s === 'foundation' ? '#8b5cf6' : s === 'planned' ? '#6b7280' : s === 'concept' ? '#475569' : '#3b82f6';
-  const csc = (s: string) => s === 'enabled' ? '#22c55e' : s === 'disabled' ? '#ef4444' : s === 'blocked' ? '#f59e0b' : '#6b7280';
+  const csc = (s: string) => s === 'enabled' ? '#22c55e' : s === 'disabled' ? '#ef4444' : s === 'blocked' ? '#f59e0b' : s === 'not_confirmed' ? '#f59e0b' : s === 'proposed' ? '#3b82f6' : '#6b7280';
+  const csLabel = (s: string) => s === 'enabled' ? 'confirmed' : s === 'not_confirmed' ? 'not yet confirmed' : s === 'proposed' ? 'proposed — from commercial engagement' : s === 'not_applicable' ? 'not applicable' : s;
 
   const categories = [...new Set(services.map(s => s.category))].sort();
   const filtered = services.filter(s => {
@@ -66,11 +71,28 @@ export default function ClientServicesPage() {
         <button onClick={loadData} style={{ background: '#334155', border: 'none', color: '#94a3b8', borderRadius: 6, padding: '6px 12px', cursor: 'pointer', fontSize: 12 }}>↻</button>
       </div>
 
+      {/* Services must be explicitly confirmed — an operational capability existing on the
+          platform is never treated as "this client receives it" until a real row exists. */}
+      {summary && summary.enabled === 0 && summary.proposed === 0 && (
+        <div style={{ background: '#422006', border: '1px solid #f59e0b', borderRadius: 8, padding: 14, marginBottom: 16 }}>
+          <p style={{ fontSize: 13, fontWeight: 600, color: '#fbbf24', margin: 0 }}>Services have not yet been confirmed for this client</p>
+          <p style={{ fontSize: 12, color: '#fcd34d', margin: '4px 0 0' }}>AskABD will not ask for connections or requirements until you confirm which services this client is actually receiving. {summary.notConfirmed} platform capabilities are available below — select "Enable" on each one that applies, or confirm services from a signed commercial engagement if one exists.</p>
+        </div>
+      )}
+      {summary && summary.proposed > 0 && (
+        <div style={{ background: '#1e3a5f', border: '1px solid #3b82f6', borderRadius: 8, padding: 14, marginBottom: 16 }}>
+          <p style={{ fontSize: 13, fontWeight: 600, color: '#93c5fd', margin: 0 }}>{summary.proposed} service{summary.proposed === 1 ? '' : 's'} proposed from a commercial engagement</p>
+          <p style={{ fontSize: 12, color: '#bfdbfe', margin: '4px 0 0' }}>These were selected on a real engagement but are not yet confirmed — review and confirm each one below before AskABD requests any related information.</p>
+        </div>
+      )}
+
       {/* Summary + Coverage */}
       {summary && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10, marginBottom: 16 }}>
           <div style={{ background: '#1e293b', padding: 12, borderRadius: 8, textAlign: 'center' }}><div style={{ fontSize: 22, fontWeight: 700 }}>{summary.total}</div><div style={{ fontSize: 10, color: '#94a3b8' }}>Total</div></div>
-          <div style={{ background: '#1e293b', padding: 12, borderRadius: 8, textAlign: 'center' }}><div style={{ fontSize: 22, fontWeight: 700, color: '#22c55e' }}>{summary.enabled}</div><div style={{ fontSize: 10, color: '#94a3b8' }}>Enabled</div></div>
+          <div style={{ background: '#1e293b', padding: 12, borderRadius: 8, textAlign: 'center' }}><div style={{ fontSize: 22, fontWeight: 700, color: '#22c55e' }}>{summary.enabled}</div><div style={{ fontSize: 10, color: '#94a3b8' }}>Confirmed</div></div>
+          <div style={{ background: '#1e293b', padding: 12, borderRadius: 8, textAlign: 'center' }}><div style={{ fontSize: 22, fontWeight: 700, color: '#3b82f6' }}>{summary.proposed || 0}</div><div style={{ fontSize: 10, color: '#94a3b8' }}>Proposed</div></div>
+          <div style={{ background: '#1e293b', padding: 12, borderRadius: 8, textAlign: 'center' }}><div style={{ fontSize: 22, fontWeight: 700, color: '#f59e0b' }}>{summary.notConfirmed}</div><div style={{ fontSize: 10, color: '#94a3b8' }}>Not Confirmed</div></div>
           <div style={{ background: '#1e293b', padding: 12, borderRadius: 8, textAlign: 'center' }}><div style={{ fontSize: 22, fontWeight: 700, color: '#3b82f6' }}>{recommendations.length}</div><div style={{ fontSize: 10, color: '#94a3b8' }}>Recommended</div></div>
           <div style={{ background: '#1e293b', padding: 12, borderRadius: 8, textAlign: 'center' }}><div style={{ fontSize: 22, fontWeight: 700, color: '#ef4444' }}>{summary.disabled}</div><div style={{ fontSize: 10, color: '#94a3b8' }}>Disabled</div></div>
           <div style={{ background: '#1e293b', padding: 12, borderRadius: 8, textAlign: 'center' }}><div style={{ fontSize: 22, fontWeight: 700, color: coverage?.overall?.coverage >= 50 ? '#22c55e' : '#f59e0b' }}>{coverage?.overall?.coverage || 0}%</div><div style={{ fontSize: 10, color: '#94a3b8' }}>Coverage</div></div>
@@ -147,8 +169,14 @@ export default function ClientServicesPage() {
             <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>{s.category} • {s.domain}</div>
             <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 8, lineHeight: 1.4 }}>{s.description?.substring(0, 80)}</div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 10, color: csc(s.clientStatus) }}>● {s.clientStatus}</span>
-              {s.platformStatus === 'operational' && (
+              <span style={{ fontSize: 10, color: csc(s.clientStatus) }}>● {csLabel(s.clientStatus)}</span>
+              {s.platformStatus === 'operational' && s.clientStatus === 'proposed' && (
+                <button onClick={(e) => { e.stopPropagation(); confirmProposal(s); }}
+                  style={{ fontSize: 10, padding: '3px 10px', borderRadius: 12, border: 'none', cursor: 'pointer', background: '#1d4ed8', color: '#fff' }}>
+                  Confirm
+                </button>
+              )}
+              {s.platformStatus === 'operational' && s.clientStatus !== 'proposed' && (
                 <button onClick={(e) => { e.stopPropagation(); toggleService(s.serviceId, s.clientStatus !== 'enabled'); }}
                   style={{ fontSize: 10, padding: '3px 10px', borderRadius: 12, border: 'none', cursor: 'pointer', background: s.clientStatus === 'enabled' ? '#334155' : '#1e40af', color: s.clientStatus === 'enabled' ? '#94a3b8' : '#fff' }}>
                   {s.clientStatus === 'enabled' ? 'Disable' : 'Enable'}
@@ -169,9 +197,25 @@ export default function ClientServicesPage() {
           </div>
           <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 12, background: sc(selected.platformStatus), color: '#fff' }}>{selected.platformStatus}</span>
-            <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 12, background: csc(selected.clientStatus), color: '#fff' }}>Client: {selected.clientStatus}</span>
+            <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 12, background: csc(selected.clientStatus), color: '#fff' }}>Client: {csLabel(selected.clientStatus)}</span>
             <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 12, background: '#1e293b', color: '#94a3b8' }}>{selected.roadmapPhase}</span>
           </div>
+          {/* Confirmation evidence — Phase 7: source, confirmed-by, confirmed-at, all real */}
+          {selected.clientStatus === 'proposed' && selected.proposalSource && (
+            <div style={{ marginBottom: 12, background: '#1e3a5f', border: '1px solid #3b82f6', borderRadius: 8, padding: 10 }}>
+              <div style={{ fontSize: 11, color: '#93c5fd', fontWeight: 600 }}>Source: Commercial Engagement</div>
+              <div style={{ fontSize: 11, color: '#bfdbfe', marginTop: 2 }}>{selected.proposalSource.engagementName} (status: {selected.proposalSource.engagementStatus})</div>
+              <button onClick={() => confirmProposal(selected)} style={{ marginTop: 8, fontSize: 10, padding: '4px 10px', borderRadius: 12, border: 'none', cursor: 'pointer', background: '#1d4ed8', color: '#fff' }}>Confirm Service</button>
+            </div>
+          )}
+          {selected.clientStatus === 'enabled' && (
+            <div style={{ marginBottom: 12, background: '#052e16', border: '1px solid #22c55e', borderRadius: 8, padding: 10 }}>
+              <div style={{ fontSize: 11, color: '#86efac', fontWeight: 600 }}>Confirmed</div>
+              {selected.enabledBy && <div style={{ fontSize: 11, color: '#bbf7d0', marginTop: 2 }}>Confirmed by: {selected.enabledBy}</div>}
+              {selected.enabledAt && <div style={{ fontSize: 11, color: '#bbf7d0', marginTop: 2 }}>Confirmed: {new Date(selected.enabledAt).toLocaleString()}</div>}
+              <div style={{ fontSize: 10, color: '#86efac', marginTop: 2 }}>Source: {selected.proposalSource ? 'Commercial Engagement' : 'Manual Confirmation'}</div>
+            </div>
+          )}
           {selected.description && <div style={{ marginBottom: 12 }}><div style={{ fontSize: 11, color: '#64748b' }}>Description</div><div style={{ fontSize: 12, color: '#cbd5e1' }}>{selected.description}</div></div>}
           {selected.businessValue && <div style={{ marginBottom: 12 }}><div style={{ fontSize: 11, color: '#64748b' }}>Business Value</div><div style={{ fontSize: 12, color: '#cbd5e1' }}>{selected.businessValue}</div></div>}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12, fontSize: 11 }}>
@@ -180,7 +224,14 @@ export default function ClientServicesPage() {
             <div><span style={{ color: '#64748b' }}>Maturity:</span> <span>{selected.maturity}/5</span></div>
             <div><span style={{ color: '#64748b' }}>Required:</span> <span>{selected.required ? 'Yes' : 'No'}</span></div>
           </div>
-          {selected.dependencies?.length > 0 && <div style={{ marginBottom: 12 }}><div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Dependencies</div><div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>{selected.dependencies.map((d: string) => <span key={d} style={{ fontSize: 10, padding: '2px 6px', background: '#1e293b', borderRadius: 4, color: '#94a3b8' }}>{d}</span>)}</div></div>}
+          {selected.dependencies?.length > 0 && <div style={{ marginBottom: 12 }}><div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Depends on other capabilities</div><div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>{selected.dependencies.map((d: string) => <span key={d} style={{ fontSize: 10, padding: '2px 6px', background: '#1e293b', borderRadius: 4, color: '#94a3b8' }}>{d}</span>)}</div></div>}
+          {selected.externalDependencies?.length > 0 && (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>What we'll need from you if enabled</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>{selected.externalDependencies.map((d: string) => <span key={d} style={{ fontSize: 11, padding: '4px 8px', background: '#1e293b', borderRadius: 4, color: '#cbd5e1', borderLeft: '2px solid #f59e0b' }}>{d}</span>)}</div>
+              <p style={{ fontSize: 10, color: '#64748b', marginTop: 4 }}>Enabling this service will add relevant connectors to this client's Connectors page.</p>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -36,6 +36,7 @@ export default function TechnicalDebtPage() {
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <div className="bg-white rounded-xl border overflow-hidden">
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
                 <tr><th className="text-left px-5 py-3">Category</th><th className="text-center px-4 py-3">Items</th><th className="text-left px-4 py-3">Severity</th><th className="text-left px-4 py-3">Business Impact</th></tr>
@@ -51,6 +52,7 @@ export default function TechnicalDebtPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
 

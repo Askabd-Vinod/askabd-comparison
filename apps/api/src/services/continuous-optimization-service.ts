@@ -378,7 +378,7 @@ export class ContinuousOptimizationService {
 
   /** Promote finding → Problem → Gap (full chain, idempotent) */
   async promoteToGap(findingId: string): Promise<{ problemId: string; gapId: string; alreadyExists: boolean }> {
-    const { problemId, alreadyExists: probExists } = await this.promoteToProlem(findingId);
+    const { problemId } = await this.promoteToProlem(findingId);
 
     // Check if gap already exists for this problem
     const dupGap = await sharedPool.query(
@@ -419,13 +419,13 @@ export class ContinuousOptimizationService {
     return rows.length > 0 ? this.mapFinding(rows[0]) : null;
   }
 
-  async acknowledgeFinding(findingId: string, actor: string): Promise<OptimizationFinding | null> {
+  async acknowledgeFinding(findingId: string, _actor: string): Promise<OptimizationFinding | null> {
     const { rows } = await sharedPool.query(
       `UPDATE oc_optimization_findings SET status = 'acknowledged', acknowledged_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING *`, [findingId]);
     return rows.length > 0 ? this.mapFinding(rows[0]) : null;
   }
 
-  async resolveFinding(findingId: string, actor: string): Promise<OptimizationFinding | null> {
+  async resolveFinding(findingId: string, _actor: string): Promise<OptimizationFinding | null> {
     const { rows } = await sharedPool.query(
       `UPDATE oc_optimization_findings SET status = 'resolved', resolved_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING *`, [findingId]);
     return rows.length > 0 ? this.mapFinding(rows[0]) : null;

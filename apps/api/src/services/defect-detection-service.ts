@@ -233,13 +233,7 @@ export class DefectDetectionService {
 
     switch (defect.category) {
       case 'connector': {
-        // Re-check connector status
-        const conn = await dbPool.query(
-          "SELECT status FROM oc_connectors WHERE client_id = $1 AND provider = (SELECT substring($2 from 'Connector (\\w+)'))",
-          [defect.client_id, defect.title]
-        ).catch(() => ({ rows: [] }));
-        
-        // Fallback: check if any connector for this client is now connected
+        // Check if any connector for this client is now connected
         const anyConnected = await dbPool.query(
           "SELECT count(*) as cnt FROM oc_connectors WHERE client_id = $1 AND status = 'connected'",
           [defect.client_id]
@@ -285,7 +279,6 @@ export class DefectDetectionService {
     }
 
     // Update defect status based on verification
-    const newStatus = verified ? 'verified' : defect.status;
     if (verified) {
       await dbPool.query(
         "UPDATE oc_defects SET status = 'verified', resolved_at = NOW(), updated_at = NOW() WHERE id = $1",

@@ -70,7 +70,6 @@ export interface EffortEstimate {
 // ─── Valid Transitions ────────────────────────────────────────────────────────
 
 const VALID_STATUSES = ['identified', 'validated', 'accepted', 'in_analysis', 'recommended', 'planned', 'in_progress', 'resolved', 'rejected', 'deferred', 'monitored'];
-const VALID_DOMAINS = ['legacy', 'cloud', 'application', 'database', 'data', 'infrastructure', 'security', 'compliance', 'finops', 'vendor', 'license', 'process', 'devops', 'ai', 'digital_transformation', 'performance', 'reliability', 'disaster_recovery', 'observability', 'cost_optimization', 'other'];
 
 // ─── Service ──────────────────────────────────────────────────────────────────
 
@@ -120,7 +119,7 @@ export class ProblemUniverseService {
     return rows.length > 0 ? this.mapProblem(rows[0]) : null;
   }
 
-  async updateProblem(problemId: string, data: Partial<Problem>, actor: string): Promise<Problem | null> {
+  async updateProblem(problemId: string, data: Partial<Problem>, _actor: string): Promise<Problem | null> {
     const existing = await this.getProblem(problemId);
     if (!existing) return null;
 
@@ -137,7 +136,7 @@ export class ProblemUniverseService {
     return rows.length > 0 ? this.mapProblem(rows[0]) : null;
   }
 
-  async updateStatus(problemId: string, newStatus: string, actor: string): Promise<{ success: boolean; error?: string }> {
+  async updateStatus(problemId: string, newStatus: string, _actor: string): Promise<{ success: boolean; error?: string }> {
     if (!VALID_STATUSES.includes(newStatus)) return { success: false, error: `Invalid status: ${newStatus}` };
     await sharedPool.query('UPDATE oc_problems SET status = $1, updated_at = NOW() WHERE id = $2', [newStatus, problemId]);
     return { success: true };

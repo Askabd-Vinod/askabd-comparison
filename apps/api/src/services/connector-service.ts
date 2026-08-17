@@ -48,7 +48,6 @@ export class ConnectorService {
    * Persists results to database for audit trail.
    */
   async testConnection(config: ConnectorConfig): Promise<ConnectionTestResult> {
-    const start = Date.now();
     const { provider, clientId, fields } = config;
 
     let result: ConnectionTestResult;
@@ -90,6 +89,22 @@ export class ConnectorService {
   }
 
   /**
+   * Real connection-test history for a client — every row is a genuine, previously-executed
+   * verification attempt (see `persistResult()` below, called after every real `testConnection()`
+   * outcome). Never fabricated; an empty result means no test has been run yet, and callers
+   * must present that honestly rather than inventing placeholder rows.
+   */
+  async getConnectionTests(clientId: string, limit = 50): Promise<any[]> {
+    try {
+      const res = await dbPool.query(
+        'SELECT id, provider, status, mode, duration_ms, steps, error_message, tested_at FROM oc_connection_tests WHERE client_id = $1 ORDER BY tested_at DESC LIMIT $2',
+        [clientId, limit],
+      );
+      return res.rows;
+    } catch { return []; }
+  }
+
+  /**
    * Save connector configuration (non-secret fields only)
    */
   async saveConfiguration(clientId: string, provider: string, fields: Record<string, string>, securityLevel: string = 'read-only'): Promise<void> {
@@ -111,7 +126,7 @@ export class ConnectorService {
     `, [clientId, provider, securityLevel, JSON.stringify(safeFields)]);
   }
 
-  private async persistResult(result: ConnectionTestResult, fields: Record<string, string>): Promise<void> {
+  private async persistResult(result: ConnectionTestResult, _fields: Record<string, string>): Promise<void> {
     const { provider, clientId, status, steps, totalDurationMs, error, mode } = result;
 
     // Update connector status
@@ -142,14 +157,10 @@ export class ConnectorService {
     const ssl = fields.ssl || 'disable';
 
     // Step 1: DNS Resolution
-    let dnsOk = false;
     const dnsStart = Date.now();
     try {
-      if (host === 'localhost' || host === '127.0.0.1') {
-        dnsOk = true;
-      } else {
+      if (host !== 'localhost' && host !== '127.0.0.1') {
         await dnsResolve(host);
-        dnsOk = true;
       }
       steps.push({ step: 'DNS Resolution', pass: true, durationMs: Date.now() - dnsStart });
     } catch (err) {
@@ -210,7 +221,7 @@ export class ConnectorService {
       // Query Execution
       const queryStart = Date.now();
       try {
-        const res = await client.query("SELECT count(*) FROM information_schema.tables");
+        await client.query("SELECT count(*) FROM information_schema.tables");
         steps.push({ step: 'Query Execution', pass: true, durationMs: Date.now() - queryStart });
       } catch (err) {
         steps.push({ step: 'Query Execution', pass: false, durationMs: Date.now() - queryStart, error: (err as Error).message });

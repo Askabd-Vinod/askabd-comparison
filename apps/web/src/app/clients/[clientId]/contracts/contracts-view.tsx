@@ -86,6 +86,7 @@ export function ContractsView({ contracts, client, serviceCatalog }: { contracts
 
       {/* Contracts Table */}
       <div className="bg-white rounded-xl border overflow-hidden mb-6">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
             <tr>
@@ -127,6 +128,7 @@ export function ContractsView({ contracts, client, serviceCatalog }: { contracts
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Upload Signed Contracts */}

@@ -1,43 +1,86 @@
 'use client';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import type { MigrationProgram } from '../../lib/migration-intelligence';
+import type { MigrationRun } from '../../lib/real-migration';
+import { statusColors, stepStatusColors, formatDuration } from '../../lib/real-migration';
 import { DownloadButton } from '../../components/download-button';
 import { KpiCard } from '../../components/kpi-card';
-import { MigrationConnectionPanel } from '../../components/migration-connection';
 
-const statusColors: Record<string, string> = { planning: 'bg-gray-100 text-gray-700', assessing: 'bg-blue-100 text-blue-700', ready: 'bg-green-100 text-green-700', 'in-progress': 'bg-purple-100 text-purple-700', validating: 'bg-indigo-100 text-indigo-700', completed: 'bg-green-200 text-green-800', 'rolled-back': 'bg-orange-100 text-orange-700', paused: 'bg-yellow-100 text-yellow-700', cancelled: 'bg-red-100 text-red-700' };
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4200';
 
-type Tab = 'overview' | 'connect' | 'assessment' | 'plan' | 'gaps' | 'waves' | 'validation' | 'reports';
+type Tab = 'overview' | 'steps' | 'validation';
 
-export function MigrationDetailView({ migration: m }: { migration: MigrationProgram }) {
+export function MigrationDetailView({ migration: initial, clientName }: { migration: MigrationRun; clientName: string }) {
+  const router = useRouter();
+  const [m, setM] = useState(initial);
   const [tab, setTab] = useState<Tab>('overview');
-  const lastSync = new Date(m.lastSync).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  const [running, setRunning] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [validation, setValidation] = useState<{ status: string; checks: any[]; evidence: string[] } | null>(null);
+
   const tabs: Array<{ id: Tab; label: string }> = [
-    { id: 'overview', label: 'Overview' }, { id: 'connect', label: 'Connect & Transfer' },
-    { id: 'assessment', label: 'Assessment' },
-    { id: 'plan', label: 'Plan' }, { id: 'gaps', label: `Gaps (${m.gaps.length})` },
-    { id: 'waves', label: `Waves (${m.waves.length})` }, { id: 'validation', label: 'Validation' },
-    { id: 'reports', label: 'Reports' },
+    { id: 'overview', label: 'Overview' },
+    { id: 'steps', label: `Steps (${m.steps.length})` },
+    { id: 'validation', label: 'Validation' },
   ];
+
+  async function runAction(action: 'dry-run' | 'execute' | 'validate' | 'rollback') {
+    setRunning(action);
+    setError(null);
+    try {
+      if (action === 'dry-run') {
+        const res = await fetch(`${API}/api/v1/oc/migration/dry-run`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ migrationId: m.id }) });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || 'Dry run failed');
+        setM(data);
+      } else if (action === 'execute') {
+        const res = await fetch(`${API}/api/v1/oc/migration/execute`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ migrationId: m.id }) });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || 'Execution failed');
+        setM(data);
+      } else if (action === 'validate') {
+        const res = await fetch(`${API}/api/v1/oc/migration/${m.id}/validate`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || 'Validation failed');
+        setValidation(data);
+        setTab('validation');
+      } else if (action === 'rollback') {
+        const res = await fetch(`${API}/api/v1/oc/migration/${m.id}/rollback`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || 'Rollback failed');
+        router.refresh();
+      }
+    } catch (err) {
+      setError((err as Error).message);
+    }
+    setRunning(null);
+  }
 
   return (
     <div>
       {/* Header */}
       <div className="flex items-start justify-between mb-5">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">{m.name}</h1>
+          <h1 className="text-xl font-bold text-gray-900">{m.sourceSchema} → {m.targetSchema}</h1>
           <div className="flex items-center gap-2 mt-2">
-            <span className={`text-[10px] font-medium px-2 py-0.5 rounded ${statusColors[m.status]}`}>{m.status.replace('-', ' ')}</span>
-            <span className="text-[10px] text-gray-500 capitalize">{m.type.replace(/-/g, ' ')}</span>
-            <span className="text-[10px] text-gray-400">Phase: {m.phase}</span>
-            <span className="text-[10px] text-gray-400">Last sync: {lastSync}</span>
+            <span className={`text-[10px] font-medium px-2 py-0.5 rounded ${statusColors[m.status] || 'bg-gray-100 text-gray-600'}`}>{m.status.replace('-', ' ')}</span>
+            <Link href={`/clients/${m.clientId}`} className="text-[10px] text-purple-600 hover:underline">{clientName}</Link>
+            <span className="text-[10px] text-gray-400">Created: {new Date(m.createdAt).toLocaleString('en-AU')}</span>
           </div>
         </div>
-        <DownloadButton fileName={`Migration_${m.name}_Report`} format="pdf" entityId={m.id} entityName={m.name} clientName={m.clientName} data={{ type: m.type, status: m.status, readiness: m.readinessScore, risk: m.riskScore, confidence: m.confidenceScore, progress: m.progress }}>
-          Download Full Report
-        </DownloadButton>
+        <DownloadButton fileName={`Migration_${m.id}_Report`} format="pdf" entityId={m.id} entityName={`${m.sourceSchema} → ${m.targetSchema}`} clientName={clientName} data={{ status: m.status, plan: m.plan, progress: m.progress, evidence: m.evidence, error: m.error }}>Download Report</DownloadButton>
       </div>
+
+      {/* Real actions — call the actual MigrationExecutionService endpoints, no simulation */}
+      <div className="flex flex-wrap gap-2 mb-6">
+        <button onClick={() => runAction('dry-run')} disabled={running !== null || m.status === 'running'} className="text-xs font-semibold bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg transition">{running === 'dry-run' ? 'Running…' : 'Run Dry Run'}</button>
+        <button onClick={() => runAction('execute')} disabled={running !== null || m.status === 'running' || m.status === 'completed'} className="text-xs font-semibold bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg transition">{running === 'execute' ? 'Executing…' : 'Execute Migration'}</button>
+        <button onClick={() => runAction('validate')} disabled={running !== null} className="text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg transition">{running === 'validate' ? 'Validating…' : 'Validate'}</button>
+        <button onClick={() => runAction('rollback')} disabled={running !== null} className="text-xs font-semibold border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-40 px-4 py-2 rounded-lg transition">{running === 'rollback' ? 'Rolling back…' : 'Rollback'}</button>
+      </div>
+      {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-6 text-xs text-red-700">{error}</div>}
+      {m.error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-6 text-xs text-red-700">Run error: {m.error}</div>}
 
       {/* Tabs */}
       <div className="border-b border-gray-200 mb-6">
@@ -50,200 +93,93 @@ export function MigrationDetailView({ migration: m }: { migration: MigrationProg
       {tab === 'overview' && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-            <KpiCard label="Progress" value={`${m.progress}%`} color={m.progress >= 80 ? 'text-green-600' : undefined} description="Overall migration progress." criteria="Weighted completion of all waves." />
-            <KpiCard label="Readiness" value={`${m.readinessScore}%`} color={m.readinessScore >= 70 ? 'text-green-600' : 'text-orange-600'} description="Migration readiness score." criteria="Technical 60% + Business 40%." />
-            <KpiCard label="Risk" value={`${m.riskScore}/100`} color={m.riskScore > 50 ? 'text-red-600' : undefined} description="Risk score (lower = better)." criteria="Based on gaps, complexity, dependencies." />
-            <KpiCard label="Confidence" value={`${m.confidenceScore}%`} description="Assessment confidence." criteria="Evidence completeness." />
-            <KpiCard label="Open Gaps" value={m.gaps.filter(g => g.status === 'open').length} color={m.gaps.filter(g => g.status === 'open').length > 0 ? 'text-orange-600' : 'text-green-600'} description="Unresolved gaps." criteria="Status = 'open'." />
-            <KpiCard label="Waves" value={m.waves.length} description="Migration waves planned." criteria="Sequential execution groups." />
-          </div>
-          <div className="grid lg:grid-cols-2 gap-6">
-            <section className="bg-white rounded-xl border p-5">
-              <h3 className="font-semibold mb-3">Source Environment</h3>
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between"><span className="text-gray-500">Name</span><span className="font-medium">{m.source.name}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Type</span><span className="font-medium">{m.source.type}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Applications</span><span className="font-medium">{m.source.applications}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Databases</span><span className="font-medium">{m.source.databases}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Servers</span><span className="font-medium">{m.source.servers}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Storage</span><span className="font-medium">{m.source.storage}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Users</span><span className="font-medium">{m.source.users}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Status</span><span className={`font-medium ${m.source.status === 'connected' ? 'text-green-600' : 'text-orange-600'}`}>{m.source.status}</span></div>
-              </div>
-            </section>
-            <section className="bg-white rounded-xl border p-5">
-              <h3 className="font-semibold mb-3">Target Environment</h3>
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between"><span className="text-gray-500">Name</span><span className="font-medium">{m.target.name}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Type</span><span className="font-medium">{m.target.type}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Applications</span><span className="font-medium">{m.target.applications}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Databases</span><span className="font-medium">{m.target.databases}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Storage</span><span className="font-medium">{m.target.storage}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Users</span><span className="font-medium">{m.target.users}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Status</span><span className={`font-medium ${m.target.status === 'connected' ? 'text-green-600' : 'text-orange-600'}`}>{m.target.status}</span></div>
-              </div>
-            </section>
+            <KpiCard label="Mandatory Progress" value={`${m.progress?.percentage ?? 0}%`} color={(m.progress?.percentage ?? 0) === 100 ? 'text-green-600' : undefined} description="Mandatory steps completed." criteria="mandatoryCompleted / mandatory × 100." />
+            <KpiCard label="Tables" value={m.plan?.tables ?? 0} description="Tables discovered in source schema." criteria="pg_tables count at plan creation." />
+            <KpiCard label="Indexes" value={m.plan?.indexes ?? 0} description="Non-primary-key indexes discovered." criteria="pg_indexes count." />
+            <KpiCard label="Views" value={m.plan?.views ?? 0} description="Views discovered (optional — dependency ordering)." criteria="pg_views count." />
+            <KpiCard label="Failed Steps" value={m.progress?.failed ?? 0} color={(m.progress?.failed ?? 0) > 0 ? 'text-red-600' : 'text-green-600'} description="Steps that failed during execution." criteria="steps where status = 'failed'." />
+            <KpiCard label="Duration" value={formatDuration(m.durationMs)} description="Wall-clock execution duration." criteria="completedAt − startedAt." />
           </div>
           <section className="bg-white rounded-xl border p-5">
-            <h3 className="font-semibold mb-3">Quick Links</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-              <Link href={`/clients/${m.clientId}`} className="py-2 px-3 rounded-lg border hover:border-purple-200 hover:bg-purple-50 transition">→ {m.clientName}</Link>
-              <Link href={`/clients/${m.clientId}/infrastructure`} className="py-2 px-3 rounded-lg border hover:border-purple-200 hover:bg-purple-50 transition">→ Infrastructure</Link>
-              <Link href={`/clients/${m.clientId}/deployments`} className="py-2 px-3 rounded-lg border hover:border-purple-200 hover:bg-purple-50 transition">→ Deployments</Link>
-              <Link href={`/clients/${m.clientId}/contracts`} className="py-2 px-3 rounded-lg border hover:border-purple-200 hover:bg-purple-50 transition">→ Contracts</Link>
-            </div>
+            <h3 className="font-semibold mb-3">Evidence Log</h3>
+            {m.evidence.length === 0 ? <p className="text-xs text-gray-400">No evidence recorded yet.</p> : (
+              <ul className="space-y-1">{m.evidence.map((e, i) => <li key={i} className="text-xs text-gray-700 font-mono">{e}</li>)}</ul>
+            )}
           </section>
         </div>
       )}
 
-      {/* Connect & Transfer */}
-      {tab === 'connect' && (
-        <MigrationConnectionPanel />
-      )}
-
-      {/* Assessment */}
-      {tab === 'assessment' && (
-        <div className="space-y-6">
-          <section className="bg-white rounded-xl border p-5">
-            <h3 className="font-semibold mb-4">Migration Assessment</h3>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
-              <div><span className="text-gray-500">Complexity</span><p className={`font-bold capitalize ${m.assessment.complexity === 'critical' ? 'text-red-600' : m.assessment.complexity === 'high' ? 'text-orange-600' : 'text-green-600'}`}>{m.assessment.complexity}</p></div>
-              <div><span className="text-gray-500">Business Readiness</span><p className="font-bold">{m.assessment.businessReadiness}%</p></div>
-              <div><span className="text-gray-500">Technical Readiness</span><p className="font-bold">{m.assessment.technicalReadiness}%</p></div>
-              <div><span className="text-gray-500">Effort Estimate</span><p className="font-bold">{m.assessment.effortEstimate}</p></div>
-              <div><span className="text-gray-500">Timeline</span><p className="font-bold">{m.assessment.timeline}</p></div>
-              <div><span className="text-gray-500">Cost Estimate</span><p className="font-bold">{m.assessment.cost}</p></div>
-            </div>
-          </section>
-          <section className="bg-white rounded-xl border p-5">
-            <h3 className="font-semibold mb-3">Required Skills</h3>
-            <div className="flex flex-wrap gap-2">{m.assessment.requiredSkills.map((s, i) => <span key={i} className="text-[10px] bg-purple-50 text-purple-700 px-2 py-1 rounded">{s}</span>)}</div>
-          </section>
-          <section className="bg-white rounded-xl border p-5">
-            <h3 className="font-semibold mb-3">Recommendations</h3>
-            <ol className="space-y-2">{m.assessment.recommendations.map((r, i) => <li key={i} className="text-xs text-gray-700 flex items-start gap-2"><span className="w-5 h-5 rounded-full bg-green-100 text-green-700 flex items-center justify-center text-[10px] font-bold shrink-0">{i + 1}</span>{r}</li>)}</ol>
-          </section>
-        </div>
-      )}
-
-      {/* Plan */}
-      {tab === 'plan' && (
-        <div className="space-y-6">
-          <section className="bg-white rounded-xl border p-5">
-            <h3 className="font-semibold mb-4">Migration Plan</h3>
-            <div className="grid md:grid-cols-2 gap-4 text-xs">
-              <div><p className="text-[10px] text-gray-500 uppercase mb-1">Strategy</p><p className="text-gray-800 font-medium">{m.plan.strategy}</p></div>
-              <div><p className="text-[10px] text-gray-500 uppercase mb-1">Approach</p><p className="text-gray-800 font-medium">{m.plan.approach}</p></div>
-              <div><p className="text-[10px] text-gray-500 uppercase mb-1">Rollback Plan</p><p className="text-gray-800">{m.plan.rollbackPlan}</p></div>
-              <div><p className="text-[10px] text-gray-500 uppercase mb-1">Validation Plan</p><p className="text-gray-800">{m.plan.validationPlan}</p></div>
-              <div><p className="text-[10px] text-gray-500 uppercase mb-1">Testing Plan</p><p className="text-gray-800">{m.plan.testingPlan}</p></div>
-              <div><p className="text-[10px] text-gray-500 uppercase mb-1">Cutover Plan</p><p className="text-gray-800">{m.plan.cutoverPlan}</p></div>
-              <div><p className="text-[10px] text-gray-500 uppercase mb-1">Communication Plan</p><p className="text-gray-800">{m.plan.communicationPlan}</p></div>
-              <div><p className="text-[10px] text-gray-500 uppercase mb-1">Support Plan</p><p className="text-gray-800">{m.plan.supportPlan}</p></div>
-            </div>
-          </section>
-        </div>
-      )}
-
-      {/* Gaps */}
-      {tab === 'gaps' && (
+      {/* Steps */}
+      {tab === 'steps' && (
         <div className="bg-white rounded-xl border overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
               <tr>
-                <th className="text-left px-5 py-3">Gap</th>
-                <th className="text-left px-3 py-3">Category</th>
-                <th className="text-left px-3 py-3">Severity</th>
-                <th className="text-left px-3 py-3">Source</th>
-                <th className="text-left px-3 py-3">Target</th>
+                <th className="text-left px-5 py-3">Step</th>
+                <th className="text-left px-3 py-3">Type</th>
+                <th className="text-left px-3 py-3">Mandatory</th>
                 <th className="text-left px-3 py-3">Status</th>
-                <th className="text-left px-3 py-3">Effort</th>
+                <th className="text-center px-3 py-3">Rows</th>
+                <th className="text-left px-3 py-3">Duration</th>
+                <th className="text-left px-3 py-3">Error</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {m.gaps.map(g => (
-                <tr key={g.id} className="hover:bg-gray-50">
-                  <td className="px-5 py-3"><p className="text-xs font-medium">{g.title}</p><p className="text-[10px] text-gray-400 mt-0.5">{g.recommendation}</p></td>
-                  <td className="px-3 py-3 text-xs">{g.category}</td>
-                  <td className="px-3 py-3"><span className={`text-[10px] font-medium px-2 py-0.5 rounded ${g.severity === 'critical' ? 'bg-red-100 text-red-700' : g.severity === 'high' ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-700'}`}>{g.severity}</span></td>
-                  <td className="px-3 py-3 text-[10px] text-gray-600">{g.source}</td>
-                  <td className="px-3 py-3 text-[10px] text-gray-600">{g.target}</td>
-                  <td className="px-3 py-3"><span className={`text-[10px] font-medium px-2 py-0.5 rounded ${g.status === 'resolved' ? 'bg-green-100 text-green-700' : g.status === 'mitigated' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>{g.status}</span></td>
-                  <td className="px-3 py-3 text-[10px]">{g.effort}</td>
+              {m.steps.map(s => (
+                <tr key={s.id} className="hover:bg-gray-50">
+                  <td className="px-5 py-3"><p className="text-xs font-medium">{s.name}</p></td>
+                  <td className="px-3 py-3 text-xs capitalize">{s.type}</td>
+                  <td className="px-3 py-3 text-xs">{s.mandatory ? 'Yes' : 'No'}</td>
+                  <td className="px-3 py-3"><span className={`text-[10px] font-medium px-2 py-0.5 rounded ${stepStatusColors[s.status] || 'bg-gray-100 text-gray-600'}`}>{s.status.replace('_', ' ')}</span></td>
+                  <td className="px-3 py-3 text-center text-xs font-mono">{s.rowsProcessed ?? '—'}</td>
+                  <td className="px-3 py-3 text-[10px] text-gray-500">{formatDuration(s.durationMs)}</td>
+                  <td className="px-3 py-3 text-[10px] text-red-600">{s.error || (s.resolution ? <span className="text-gray-400">{s.resolution}</span> : '—')}</td>
                 </tr>
               ))}
-              {m.gaps.length === 0 && <tr><td colSpan={7} className="px-5 py-8 text-center text-xs text-gray-400">No gaps identified yet. Run assessment to detect gaps.</td></tr>}
+              {m.steps.length === 0 && <tr><td colSpan={7} className="px-5 py-8 text-center text-xs text-gray-400">No steps recorded.</td></tr>}
             </tbody>
           </table>
-        </div>
-      )}
-
-      {/* Waves */}
-      {tab === 'waves' && (
-        <div className="space-y-4">
-          {m.waves.map(w => (
-            <div key={w.id} className="bg-white rounded-xl border p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <span className="w-8 h-8 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-sm font-bold">{w.order}</span>
-                  <div><p className="text-sm font-semibold">{w.name}</p><p className="text-[10px] text-gray-500">{w.items} items • {w.startDate} → {w.endDate}</p></div>
-                </div>
-                <span className={`text-[10px] font-medium px-2 py-0.5 rounded ${statusColors[w.status]}`}>{w.status.replace('-', ' ')}</span>
-              </div>
-              <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full ${w.progress >= 100 ? 'bg-green-500' : w.progress > 0 ? 'bg-purple-500' : 'bg-gray-300'}`} style={{ width: `${w.progress}%` }} />
-              </div>
-              <p className="text-[10px] text-gray-400 mt-1.5">{w.progress}% complete{w.dependencies.length > 0 ? ` • Depends on: ${w.dependencies.join(', ')}` : ''}</p>
-            </div>
-          ))}
-          {m.waves.length === 0 && <div className="bg-gray-50 rounded-xl border p-8 text-center text-xs text-gray-400">No waves planned yet. Complete assessment and planning phase first.</div>}
+          </div>
         </div>
       )}
 
       {/* Validation */}
       {tab === 'validation' && (
         <div className="space-y-6">
-          <section className="bg-white rounded-xl border p-5">
-            <h3 className="font-semibold mb-4">Post-Migration Validation</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
-              <div className="text-center border rounded-lg p-3"><p className="text-lg font-bold">{m.validation.sourceCount.toLocaleString()}</p><p className="text-gray-500">Source Records</p></div>
-              <div className="text-center border rounded-lg p-3"><p className="text-lg font-bold">{m.validation.targetCount.toLocaleString()}</p><p className="text-gray-500">Target Records</p></div>
-              <div className="text-center border rounded-lg p-3"><p className="text-lg font-bold text-green-600">{m.validation.matched.toLocaleString()}</p><p className="text-gray-500">Matched</p></div>
-              <div className="text-center border rounded-lg p-3"><p className={`text-lg font-bold ${m.validation.missing > 0 ? 'text-red-600' : 'text-green-600'}`}>{m.validation.missing.toLocaleString()}</p><p className="text-gray-500">Missing</p></div>
+          {!validation ? (
+            <div className="bg-gray-50 rounded-xl border p-8 text-center">
+              <p className="text-sm text-gray-500">No validation has been run yet.</p>
+              <button onClick={() => runAction('validate')} disabled={running !== null} className="mt-3 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg transition">{running === 'validate' ? 'Validating…' : 'Run Validation'}</button>
             </div>
-          </section>
-          <section className="bg-white rounded-xl border p-5">
-            <h3 className="font-semibold mb-3">Validation Checks</h3>
-            <div className="grid md:grid-cols-2 gap-2">
-              {[
-                { label: 'Checksum Validation', pass: m.validation.checksumValid },
-                { label: 'Permissions Validation', pass: m.validation.permissionsValid },
-                { label: 'Performance Acceptable', pass: m.validation.performanceAcceptable },
-                { label: 'Business Validation', pass: m.validation.businessValidation },
-              ].map((v, i) => (
-                <div key={i} className="flex items-center justify-between py-2 px-3 border rounded-lg text-xs">
-                  <span>{v.label}</span>
-                  <span className={`font-bold ${v.pass ? 'text-green-600' : 'text-red-600'}`}>{v.pass ? '✓ PASS' : '✕ FAIL'}</span>
+          ) : (
+            <>
+              <section className="bg-white rounded-xl border p-5">
+                <h3 className="font-semibold mb-3">Validation Result: <span className={validation.status === 'passed' ? 'text-green-600' : validation.status.includes('drift') ? 'text-orange-600' : 'text-red-600'}>{validation.status.replace(/_/g, ' ')}</span></h3>
+                <ul className="space-y-1">{validation.evidence.map((e, i) => <li key={i} className="text-xs text-gray-700 font-mono">{e}</li>)}</ul>
+              </section>
+              <section className="bg-white rounded-xl border overflow-hidden">
+                <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                    <tr><th className="text-left px-5 py-3">Check</th><th className="text-center px-3 py-3">Expected</th><th className="text-center px-3 py-3">Actual</th><th className="text-center px-3 py-3">Mandatory</th><th className="text-center px-3 py-3">Result</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {validation.checks.map((c, i) => (
+                      <tr key={i} className="hover:bg-gray-50">
+                        <td className="px-5 py-3 text-xs">{c.name}{c.drift && <p className="text-[9px] text-orange-500 mt-0.5">{c.drift}</p>}</td>
+                        <td className="px-3 py-3 text-center text-xs font-mono">{c.expected}</td>
+                        <td className="px-3 py-3 text-center text-xs font-mono">{c.actual}</td>
+                        <td className="px-3 py-3 text-center text-xs">{c.mandatory ? 'Yes' : 'No'}</td>
+                        <td className="px-3 py-3 text-center"><span className={`text-[10px] font-bold ${c.match ? 'text-green-600' : 'text-red-600'}`}>{c.match ? '✓ MATCH' : '✕ MISMATCH'}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
                 </div>
-              ))}
-            </div>
-          </section>
-        </div>
-      )}
-
-      {/* Reports */}
-      {tab === 'reports' && (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {['Migration Assessment', 'Migration Readiness', 'Gap Analysis', 'Risk Report', 'Dependency Report', 'Execution Report', 'Validation Report', 'Exception Report', 'Lessons Learned', 'Executive Report'].map(name => (
-            <div key={name} className="bg-white rounded-xl border p-4">
-              <p className="text-xs font-semibold mb-2">{name}</p>
-              <div className="flex gap-1.5">
-                <DownloadButton fileName={`${m.name}_${name}`} format="pdf" entityId={m.id} entityName={name} clientName={m.clientName} data={{ migration: m.name, type: m.type, report: name }} />
-                <DownloadButton fileName={`${m.name}_${name}`} format="excel" entityId={m.id} entityName={name} clientName={m.clientName} data={{ migration: m.name, report: name }} />
-                <DownloadButton fileName={`${m.name}_${name}`} format="csv" entityId={m.id} entityName={name} clientName={m.clientName} data={{ migration: m.name, report: name }} />
-              </div>
-            </div>
-          ))}
+              </section>
+            </>
+          )}
         </div>
       )}
     </div>
