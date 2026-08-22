@@ -287,9 +287,9 @@ applied to the live DEV database, verified via `\d`).
 
 ## Last Verified Commit
 
-Pending this session's commit (Phase 1 Business Requirements Intelligence
-vertical slice) on `feature/reliability-hardening`. Prior verified commit:
-`fd5ff30` (pushed to origin). `main` at `b63f797` (unchanged).
+`58b994b` on `feature/reliability-hardening` (pushed to origin — confirmed
+`08217ad..58b994b`). `main` confirmed unchanged at `b63f797`, both locally
+and on origin, verified immediately before and after this push.
 
 ## Last Playwright Verification
 
