@@ -47,10 +47,32 @@ report's own "explicitly not done" list:
 
 Priority P1 items that unlock everything else:
 
-- **Evidence engine**: confirm whether existing per-feature evidence needs
-  unifying into one polymorphic `evidence` table/service (gap analysis
-  Section 3, item 9) — this is a genuine open question, not a given; audit
-  before building.
+- ✅ **AUDITED (2026-08-22) — concluded NOT to build a unifying table.**
+  Searched all 52 files referencing "evidence" across the API. Found three
+  genuinely distinct concepts, not one idea wearing different names:
+  1. **Compliance's evidence lifecycle** (`compliance-service.ts`,
+     migration 014) — `evidence_status` (missing/expired/met),
+     `evidence_required` (a checklist), `evidence_references` (the actual
+     artifacts), plus a real scheduled job (`COMPLIANCE_EVIDENCE_CHECK`,
+     daily) that alerts on expired/missing evidence. The richest, most
+     mature model here — built for a real regulatory need.
+  2. **Assessment/Gap-Analysis's citation string** (`assessment-service.ts`,
+     `gap-analysis-service.ts`) — a lightweight `evidence: string` or
+     `evidence: string[]` pointing at which discovery finding justified a
+     conclusion (e.g. `"Discovery: server X version Y"`). No lifecycle, no
+     status — just a citation.
+  3. **The frontend's `EvidenceBadge`/`EvidenceTrail`** (`evidence-status.tsx`)
+     — a real-time verification-status vocabulary (verified/action_required/
+     checking/failed/not_configured/not_yet_available) for connector tests.
+     Not stored evidence at all — a live claim-verification state.
+  Forcing these into one polymorphic table would either strip compliance's
+  real lifecycle down to nothing (its whole value is the missing/expired
+  distinction) or bloat a "generic" schema with fields only one caller
+  ever uses. **Decision: leave all three as they are.** New work (this
+  session's `business_requirements.quality_findings`) correctly followed
+  the existing precedent — a structured, real, explainable findings field
+  local to its own entity — rather than waiting on a shared engine that
+  would not have clearly helped. This item is closed, not deferred.
 - ✅ **DONE (2026-08-22)** — **Generic Versioning engine**: `entity_versions`
   table (migration 039) + `versioning-engine.ts` service, usable by any
   entity type via `entity_type`/`entity_id`. Real concurrency safety
@@ -62,9 +84,21 @@ Priority P1 items that unlock everything else:
   `oc_business_requirement_history`, ...) — those are real, working code;
   this engine is for new work going forward. 12 real tests, 12/12 passing.
   See `docs/enterprise-operations-progress.md` for full detail.
-- **Generic Approval Workflow engine**: `approval_workflows` +
-  `approval_steps`, DRAFT→IN_REVIEW→CHANGES_REQUESTED→APPROVED→REJECTED→
-  SUPERSEDED, polymorphic entity reference, real audit on every transition.
+- ✅ **DONE (2026-08-22)** — **Generic Approval Workflow engine**:
+  `approval_workflows` + `approval_workflow_steps` (migration 040) +
+  `approval-workflow-engine.ts`. Real, enforced state machine (DRAFT →
+  IN_REVIEW → APPROVED | REJECTED, IN_REVIEW → CHANGES_REQUESTED →
+  IN_REVIEW loop) — an attempted invalid transition (e.g. approving
+  directly from DRAFT) is rejected with a clear error, never silently
+  coerced. Two real DB-enforced guarantees, not just application-level
+  checks: a partial unique index allows at most one open (non-terminal)
+  workflow per entity at a time, and opening a new workflow for an entity
+  that already has an APPROVED one automatically (and visibly, via a real
+  logged step) transitions the old one to SUPERSEDED. Every transition
+  writes a real, attributed `approval_workflow_steps` row — the actual
+  audit trail, not inferred from current status alone. 11 real tests,
+  11/11 passing, including both DB-constraint proofs. See
+  `docs/enterprise-operations-progress.md` for full detail.
 - **Generic Traceability engine**: `traceability_links` table + service,
   supporting the BR→FR→TR→EWR→EWP→Task→TC→Defect→Deployment→UAT→Production
   chain from Part 8, but generic enough for any two linked entities.

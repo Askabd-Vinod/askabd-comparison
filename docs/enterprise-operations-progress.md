@@ -21,13 +21,15 @@ complete, tested, and committed.
 
 ## Current Task
 
-Phase 2 item 3's first vertical slice is done, and Phase 1's Generic
-Versioning Engine is now also done (see entry below). **Next session should
-continue Phase 1's remaining shared engines** — generic Approval Workflow,
-generic Traceability, and the Evidence-engine open question (needs an audit
-of existing per-feature evidence first, per the roadmap — not a given) —
-then return to the rest of Phase 2 (Universal Discovery, Current State
-Assessment, Gap Analysis extension). Re-read this
+Phase 2 item 3's first vertical slice is done. Phase 1's Generic Versioning
+Engine, the Evidence-engine audit (concluded: do not build — see roadmap),
+and the Generic Approval Workflow Engine are now also done (see entries
+below). **Next session should build Phase 1's last remaining item, the
+generic Traceability Engine** (`traceability_links` table + service,
+supporting the BR→FR→TR→EWR→EWP→Task→TC→Defect→Deployment→UAT→Production
+chain from Part 8, generic enough for any two linked entities), which
+closes out Phase 1 entirely — then move to the rest of Phase 2 (Universal
+Discovery, Current State Assessment, Gap Analysis extension). Re-read this
 file first and confirm `npm run health` is still green (services may need
 `npm run dev:all` again if the machine was restarted between sessions; the
 Web dev-server health check specifically needs `/staff/login` pre-warmed
@@ -216,6 +218,67 @@ inventing its own ad hoc mechanism"):
    and Web suites unaffected, not re-run this pass since nothing in either
    changed).
 
+## Completed This Session — Phase 1, Evidence-Engine Audit + Generic Approval Workflow Engine (2026-08-22, continued)
+
+**Evidence-engine audit** (roadmap: "genuine open question, not a given —
+audit before building"): searched all 52 files referencing "evidence"
+across the API. Found three genuinely distinct concepts wearing the same
+word, not one idea: (1) Compliance's real evidence lifecycle
+(`evidence_status` missing/expired/met, `evidence_required` checklist,
+`evidence_references` artifacts, plus a real daily scheduled check for
+expired/missing evidence) — the richest model, built for a real regulatory
+need; (2) Assessment/Gap-Analysis's lightweight citation string (`evidence:
+string[]` pointing at which discovery finding justified a conclusion, no
+lifecycle); (3) the frontend's `EvidenceBadge`/`EvidenceTrail` — a live
+connector-test verification-status vocabulary, not stored evidence at all.
+**Decision: do not build a unifying table.** Forcing these into one
+polymorphic schema would strip compliance's real lifecycle down to nothing
+or bloat a generic table with fields only one caller uses. This item is
+closed as investigated-and-declined, not deferred — full reasoning recorded
+in `docs/enterprise-operations-roadmap.md`.
+
+**Generic Approval Workflow Engine** — the other concrete Phase 1 item:
+
+1. **Migration 040** — `approval_workflows` (real, enforced status enum:
+   draft/in_review/changes_requested/approved/rejected/superseded) +
+   `approval_workflow_steps` (the real, attributed transition history).
+   Two real DB-level guarantees beyond application code: a partial unique
+   index (`idx_approval_workflows_one_open_per_entity`) blocks a second
+   open workflow for the same entity, and a foreign key cascades step
+   deletion. Applied to the live DEV database, verified via `\d`.
+2. **`approval-workflow-engine.ts`** — `openWorkflow`/`submit`/`approve`/
+   `reject`/`requestChanges`/`resubmit`/`getWorkflow`/`getSteps`/
+   `listForEntity`/`getOpenForEntity`. A real, enforced transition table
+   (`ALLOWED_TRANSITIONS`) rejects any invalid transition (e.g. approving
+   straight from draft, or transitioning out of a terminal state) with a
+   clear, real `InvalidTransitionError` — never silently coerced.
+   `requestChanges` requires a real, non-empty note explaining what needs
+   fixing — never a silent bounce-back. Opening a new workflow for an
+   entity that already has an APPROVED one automatically transitions the
+   old one to SUPERSEDED first, as a real logged step (not just a status
+   flip) — proven by a real test, not assumed.
+3. **Tests** — `approval-workflow-engine.test.ts`, 11 real tests against
+   real Postgres: the full happy path with real decision attribution,
+   rejection, the changes-requested loop, the required-note rule, the
+   enforced-state-machine rejections (both an invalid forward transition
+   and an attempted transition out of a terminal state), the real
+   unique-constraint rejection when two open workflows are attempted for
+   one entity, the real auto-supersede behavior, and history/lookup
+   correctness. **11/11 passing**, both standalone and as part of the full
+   suite, first try — no defects found or fixed.
+4. **Full regression**: API 444/444 on the first full run had 1 unrelated
+   failure (`customer-activity.test.ts`, "module/status filters and
+   pagination work on real data" — `expected 3 to be >= 5`); re-ran that
+   file alone — 6/6 passed, confirming the same self-inflicted
+   repeated-full-suite-rerun pattern already documented twice this session
+   (this test's assumption about recently-seeded activity-event counts is
+   sensitive to how many times the suite has run against the persistent
+   dev DB today), not a real regression, and genuinely unrelated to this
+   change (customer-activity has no relationship to approval workflows).
+   **Final clean count: API 444/444** (433 + 11 new). `npm run health`:
+   11/11. No UI/route surface yet — same as the Versioning Engine, this is
+   a backend-only shared engine with no consumer wired up this pass.
+
 ## Failed Tests
 
 **Session 1 (Phase 0)**: One transient failure, root-caused and closed, not
@@ -320,15 +383,17 @@ one. The one test failure above was correctly diagnosed as non-code.
 
 ## Database Migrations
 
-**39 applied** (see `docs/enterprise-operations-gap-analysis.md` Section 1
-for the full list through 037; `038_business_requirements.sql` and
-`039_entity_versioning_engine.sql` added this session, both applied to the
-live DEV database and verified via `\d`).
+**40 applied** (see `docs/enterprise-operations-gap-analysis.md` Section 1
+for the full list through 037; `038_business_requirements.sql`,
+`039_entity_versioning_engine.sql`, and `040_approval_workflow_engine.sql`
+added this session, all applied to the live DEV database and verified via
+`\d`).
 
 ## Last Verified Commit
 
-`78a0ee4` on `feature/reliability-hardening` (pushed to origin — confirmed
-`2415f82..78a0ee4`). `main` confirmed unchanged at `b63f797`.
+Pending this turn's commit (Generic Approval Workflow Engine + Evidence
+audit) on `feature/reliability-hardening`. Prior verified commit: `b8a4c0e`
+(pushed to origin). `main` confirmed unchanged at `b63f797`.
 
 ## Last Playwright Verification
 
@@ -351,13 +416,14 @@ recurring, harmless characteristic of this dev environment).
 
 ## Regression — final confirmed baseline this session
 
-- **API: 433/433 passing** (406 baseline → 421 with Business Requirements →
-  433 with the Versioning Engine; clean, fully isolated run each time — see
-  Failed Tests above for the self-inflicted-rerun story from one earlier
-  concurrent run this session, fully closed)
+- **API: 444/444 passing** (406 baseline → 421 Business Requirements → 433
+  Versioning Engine → 444 Approval Workflow Engine; every addition
+  confirmed via a clean, fully isolated full-suite run — see Failed Tests
+  above for two separate self-inflicted-rerun stories this session, both
+  fully investigated and closed as non-regressions unrelated to the new code)
 - **Identity: 219/219 passing** (clean, fully isolated run, no flakes)
-- **Web: 33/33 passing** (clean run, no flakes; unaffected by the
-  Versioning Engine addition, which has no UI/route surface yet)
+- **Web: 33/33 passing** (clean run, no flakes; unaffected — neither new
+  engine has a UI/route surface yet)
 - `npm run health`: 11/11 green
 - Both protected real clients confirmed intact via direct DB query,
   timestamps unchanged: `AskABD Manual UAT 2026` (created 2026-08-15) and
