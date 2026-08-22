@@ -9,13 +9,33 @@ import { Action } from '../../../../components/button';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4200';
 
-interface Gap { id: string; clientId: string; domain: string; category: string; title: string; description: string; currentState: string; targetState: string; gapDescription: string; businessImpact: string; technicalImpact: string; riskLevel: string; severity: string; priority: string; currentMaturity: number; targetMaturity: number; rootCause: string; relatedProblemId: string; confidence: string; sourceType: string; status: string; evidence: any[]; createdAt: string; }
-interface Summary { gaps: { total: number; critical: number; high: number; medium: number; low: number; open: number; resolved: number }; avgMaturityGap: number; }
+type ComplianceStatus = 'compliant' | 'partially_compliant' | 'non_compliant' | 'missing' | 'unknown' | 'needs_evidence' | 'not_applicable';
+type EvidenceSourceType = 'discovery' | 'document' | 'assessment' | 'requirement' | 'connector' | 'database' | 'api' | 'client_provided' | 'staff_assessment';
+type EvidenceVerificationStatus = 'verified' | 'client_provided' | 'staff_assessment' | 'needs_verification';
+
+interface Gap { id: string; clientId: string; domain: string; category: string; title: string; description: string; currentState: string; targetState: string; gapDescription: string; businessImpact: string; technicalImpact: string; riskLevel: string; severity: string; priority: string; currentMaturity: number; targetMaturity: number; rootCause: string; relatedProblemId: string; relatedRequirementId?: string; confidence: string; sourceType: string; status: string; evidence: any[]; createdAt: string; complianceStatus: ComplianceStatus; complianceStatusReason: string; complianceClassifiedBy?: string; customerVisible: boolean; constraints: string; createdBy?: string; }
+interface Summary { gaps: { total: number; critical: number; high: number; medium: number; low: number; open: number; resolved: number }; compliance?: Record<string, number>; avgMaturityGap: number; }
 interface GapOption { id: string; gapId: string; name: string; description?: string; solutionType: string; investment?: number; annualSavings?: number; roiPercentage?: number; personDays?: number; complexity: string; strategicFit: string; score?: number; selected: boolean; status: string; }
 interface Decision { id: string; gapId: string; selectedOptionId?: string; decisionMaker?: string; decisionDate: string; rationale?: string; status: string; }
+interface GapEvidence { id: string; text: string; sourceType: EvidenceSourceType; verificationStatus: EvidenceVerificationStatus; reference?: string; addedBy?: string; createdAt: string; }
 
 const severityColors: Record<string, string> = { critical: 'bg-red-100 text-red-700', high: 'bg-orange-100 text-orange-700', medium: 'bg-yellow-100 text-yellow-700', low: 'bg-blue-100 text-blue-700' };
 const domainLabels: Record<string, string> = { legacy: 'Legacy', cloud: 'Cloud', application: 'Application', database: 'Database', data: 'Data', infrastructure: 'Infrastructure', security: 'Security', compliance: 'Compliance', finops: 'FinOps', vendor: 'Vendor', performance: 'Performance', devops: 'DevOps', other: 'Other' };
+const complianceLabels: Record<ComplianceStatus, { label: string; className: string }> = {
+  compliant: { label: 'Compliant', className: 'bg-green-100 text-green-700' },
+  partially_compliant: { label: 'Partially Compliant', className: 'bg-blue-100 text-blue-700' },
+  non_compliant: { label: 'Non-Compliant', className: 'bg-red-100 text-red-700' },
+  missing: { label: 'Missing', className: 'bg-red-100 text-red-700' },
+  unknown: { label: 'Unknown', className: 'bg-gray-100 text-gray-500' },
+  needs_evidence: { label: 'Needs Evidence', className: 'bg-amber-100 text-amber-700' },
+  not_applicable: { label: 'Not Applicable', className: 'bg-gray-100 text-gray-400' },
+};
+const evidenceVerificationLabels: Record<EvidenceVerificationStatus, { label: string; className: string }> = {
+  verified: { label: 'Verified', className: 'bg-green-100 text-green-700' },
+  client_provided: { label: 'Client Provided', className: 'bg-blue-100 text-blue-700' },
+  staff_assessment: { label: 'Staff Assessment', className: 'bg-indigo-100 text-indigo-700' },
+  needs_verification: { label: 'Needs Verification', className: 'bg-amber-100 text-amber-700' },
+};
 
 export default function GapAnalysisPage() {
   const params = useParams();
@@ -49,6 +69,23 @@ export default function GapAnalysisPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const formId = useId();
 
+  // Gap Analysis extension state — compliance classification, structured
+  // evidence, risk acceptance (via the shared Approval Workflow Engine),
+  // and the customer-visibility toggle.
+  const [evidenceList, setEvidenceList] = useState<GapEvidence[] | null>(null);
+  const [showComplianceForm, setShowComplianceForm] = useState(false);
+  const [complianceDraft, setComplianceDraft] = useState<{ status: ComplianceStatus; reason: string }>({ status: 'unknown', reason: '' });
+  const [savingCompliance, setSavingCompliance] = useState(false);
+  const [showEvidenceForm, setShowEvidenceForm] = useState(false);
+  const [evidenceDraft, setEvidenceDraft] = useState<{ text: string; sourceType: EvidenceSourceType; confidence: EvidenceVerificationStatus; reference: string }>({ text: '', sourceType: 'staff_assessment', confidence: 'needs_verification', reference: '' });
+  const [savingEvidence, setSavingEvidence] = useState(false);
+  const [showRiskForm, setShowRiskForm] = useState(false);
+  const [riskRationale, setRiskRationale] = useState('');
+  const [riskWorkflow, setRiskWorkflow] = useState<{ workflowId: string; status: string } | null>(null);
+  const [requestingRisk, setRequestingRisk] = useState(false);
+  const [decidingRisk, setDecidingRisk] = useState(false);
+  const [togglingVisibility, setTogglingVisibility] = useState(false);
+
   useEffect(() => {
     if (!successMessage) return;
     const t = setTimeout(() => setSuccessMessage(null), 6000);
@@ -72,20 +109,91 @@ export default function GapAnalysisPage() {
 
   const loadGapExtras = useCallback(async (gapId: string) => {
     setOptions(null); setDecision(null); setCompareResult(null); setOptionForm(null); setDecidingOption(null); setRationaleDraft('');
+    setEvidenceList(null); setRiskWorkflow(null); setShowComplianceForm(false); setShowEvidenceForm(false); setShowRiskForm(false);
     try {
-      const [oRes, dRes] = await Promise.all([
+      const [oRes, dRes, eRes] = await Promise.all([
         fetch(`${API}/api/v1/oc/gaps/${gapId}/options`),
         fetch(`${API}/api/v1/oc/gaps/${gapId}/decision`),
+        fetch(`${API}/api/v1/oc/gaps/${gapId}/evidence`),
       ]);
       if (oRes.ok) { const d = await oRes.json(); setOptions(d.options || []); }
       if (dRes.ok) { const d = await dRes.json(); setDecision(d?.id ? d : null); }
-    } catch { setOptions([]); }
+      if (eRes.ok) { const d = await eRes.json(); setEvidenceList(d.evidence || []); }
+    } catch { setOptions([]); setEvidenceList([]); }
   }, []);
 
   function selectGap(g: Gap) {
     setSelected(g);
     setTargetDraft(g.targetState || '');
+    setComplianceDraft({ status: g.complianceStatus || 'unknown', reason: '' });
     loadGapExtras(g.id);
+  }
+
+  async function saveCompliance() {
+    if (!selected || !complianceDraft.reason.trim()) return;
+    setSavingCompliance(true);
+    try {
+      const res = await fetch(`${API}/api/v1/oc/gaps/${selected.id}/compliance`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: complianceDraft.status, reason: complianceDraft.reason }),
+      });
+      if (res.ok) { const g = await res.json(); setSelected(g); setGaps(prev => prev.map(x => x.id === g.id ? g : x)); setShowComplianceForm(false); setComplianceDraft({ status: g.complianceStatus, reason: '' }); }
+    } catch {}
+    setSavingCompliance(false);
+  }
+
+  async function addEvidence() {
+    if (!selected || !evidenceDraft.text.trim()) return;
+    setSavingEvidence(true);
+    try {
+      const res = await fetch(`${API}/api/v1/oc/gaps/${selected.id}/evidence`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: evidenceDraft.text, sourceType: evidenceDraft.sourceType, verificationStatus: evidenceDraft.confidence, reference: evidenceDraft.reference || undefined }),
+      });
+      if (res.ok) { setEvidenceDraft({ text: '', sourceType: 'staff_assessment', confidence: 'needs_verification', reference: '' }); setShowEvidenceForm(false); loadGapExtras(selected.id); }
+    } catch {}
+    setSavingEvidence(false);
+  }
+
+  async function requestRiskAcceptance() {
+    if (!selected || !riskRationale.trim()) return;
+    setRequestingRisk(true);
+    try {
+      const res = await fetch(`${API}/api/v1/oc/gaps/${selected.id}/risk-acceptance/request`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rationale: riskRationale }),
+      });
+      if (res.ok) { const w = await res.json(); setRiskWorkflow(w); setShowRiskForm(false); }
+    } catch {}
+    setRequestingRisk(false);
+  }
+
+  async function decideRisk(decision: 'approve' | 'reject') {
+    if (!riskWorkflow) return;
+    setDecidingRisk(true);
+    try {
+      const res = await fetch(`${API}/api/v1/oc/gaps/risk-acceptance/${riskWorkflow.workflowId}/decide`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decision }),
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setRiskWorkflow(null); setRiskRationale('');
+        if (d.gap) { setSelected(d.gap); setGaps(prev => prev.map((x: Gap) => x.id === d.gap.id ? d.gap : x)); }
+        setSuccessMessage(decision === 'approve' ? 'Risk acceptance approved — gap status updated.' : 'Risk acceptance rejected.');
+      }
+    } catch {}
+    setDecidingRisk(false);
+  }
+
+  async function toggleCustomerVisibility() {
+    if (!selected) return;
+    setTogglingVisibility(true);
+    try {
+      const res = await fetch(`${API}/api/v1/oc/gaps/${selected.id}/customer-visibility`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ visible: !selected.customerVisible }),
+      });
+      if (res.ok) { const g = await res.json(); setSelected(g); setGaps(prev => prev.map(x => x.id === g.id ? g : x)); }
+    } catch {}
+    setTogglingVisibility(false);
   }
 
   async function saveTarget() {
@@ -189,17 +297,30 @@ export default function GapAnalysisPage() {
         </div>
       )}
 
-      {/* Summary */}
+      {/* Summary — every number here comes from a real oc_gaps query, never fabricated. */}
       {summary && (
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-          <SC label="Total Gaps" value={summary.gaps.total} color="text-gray-900" />
-          <SC label="Critical" value={summary.gaps.critical} color="text-red-600" />
-          <SC label="High" value={summary.gaps.high} color="text-orange-600" />
-          <SC label="Open" value={summary.gaps.open} color="text-purple-600" />
-          <SC label="Resolved" value={summary.gaps.resolved} color="text-green-600" />
-          <SC label="Avg Maturity Gap" value={summary.avgMaturityGap.toFixed(1)} color="text-blue-600" />
-          <SC label="Medium" value={summary.gaps.medium} color="text-yellow-600" />
-        </div>
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+            <SC label="Total Gaps" value={summary.gaps.total} color="text-gray-900" />
+            <SC label="Critical" value={summary.gaps.critical} color="text-red-600" />
+            <SC label="High" value={summary.gaps.high} color="text-orange-600" />
+            <SC label="Open" value={summary.gaps.open} color="text-purple-600" />
+            <SC label="Resolved" value={summary.gaps.resolved} color="text-green-600" />
+            <SC label="Avg Maturity Gap" value={summary.avgMaturityGap.toFixed(1)} color="text-blue-600" />
+            <SC label="Medium" value={summary.gaps.medium} color="text-yellow-600" />
+          </div>
+          {summary.compliance && (
+            <div className="grid grid-cols-3 md:grid-cols-7 gap-2">
+              <SC label="Compliant" value={summary.compliance.compliant ?? 0} color="text-green-600" />
+              <SC label="Partial" value={summary.compliance.partiallyCompliant ?? 0} color="text-blue-600" />
+              <SC label="Non-Compliant" value={summary.compliance.nonCompliant ?? 0} color="text-red-600" />
+              <SC label="Missing" value={summary.compliance.missing ?? 0} color="text-red-500" />
+              <SC label="Needs Evidence" value={summary.compliance.needsEvidence ?? 0} color="text-amber-600" />
+              <SC label="Unknown" value={summary.compliance.unknown ?? 0} color="text-gray-500" />
+              <SC label="Not Applicable" value={summary.compliance.notApplicable ?? 0} color="text-gray-400" />
+            </div>
+          )}
+        </>
       )}
 
       {/* Filters */}
@@ -241,6 +362,10 @@ export default function GapAnalysisPage() {
                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${severityColors[g.severity] || 'bg-gray-100'}`}>{g.severity?.toUpperCase()}</span>
                     <span className="text-[9px] text-gray-400">{domainLabels[g.domain] || g.domain}</span>
                     <span className="text-[9px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded">Maturity: {g.currentMaturity}→{g.targetMaturity}</span>
+                    {g.complianceStatus && g.complianceStatus !== 'unknown' && (
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${complianceLabels[g.complianceStatus]?.className || 'bg-gray-100'}`}>{complianceLabels[g.complianceStatus]?.label}</span>
+                    )}
+                    {g.customerVisible && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">CUSTOMER</span>}
                   </div>
                   <p className="text-sm font-semibold text-gray-900 truncate">{g.title}</p>
                   {g.currentState && <p className="text-[10px] text-gray-500 mt-0.5 truncate">Current: {g.currentState}</p>}
@@ -295,18 +420,118 @@ export default function GapAnalysisPage() {
                   <R label="Confidence" value={selected.confidence} />
                   <R label="Source" value={selected.sourceType} />
                   <R label="Status" value={selected.status} />
+                  {selected.createdBy && <R label="Created By" value={selected.createdBy} />}
                 </div>
-                {selected.relatedProblemId && (
-                  <div className="pt-2 border-t">
-                    <Link href={`/clients/${clientId}/problems`} className="text-[10px] text-purple-600 font-medium hover:underline">View Related Problem →</Link>
+                {(selected.relatedProblemId || selected.relatedRequirementId) && (
+                  <div className="pt-2 border-t flex flex-wrap gap-3">
+                    {selected.relatedProblemId && <Link href={`/clients/${clientId}/problems`} className="text-[10px] text-purple-600 font-medium hover:underline">View Related Problem →</Link>}
+                    {selected.relatedRequirementId && <Link href={`/clients/${clientId}/business-requirements`} className="text-[10px] text-purple-600 font-medium hover:underline">View Related Requirement →</Link>}
                   </div>
                 )}
-                {selected.evidence?.length > 0 && (
-                  <div className="pt-2 border-t">
-                    <p className="text-[9px] text-gray-500 mb-1">Evidence:</p>
-                    {selected.evidence.slice(0, 3).map((e: any, i: number) => <p key={i} className="text-[9px] text-gray-600">• {typeof e === 'string' ? e : e.observation || e.finding || JSON.stringify(e).slice(0, 80)}</p>)}
+
+                {/* Compliance classification — real, staff-attributed, required reason. */}
+                <div className="pt-3 border-t">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[9px] font-bold text-gray-700 uppercase">Compliance</p>
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${complianceLabels[selected.complianceStatus]?.className || 'bg-gray-100'}`}>{complianceLabels[selected.complianceStatus]?.label || 'Unknown'}</span>
+                  </div>
+                  {selected.complianceStatusReason && (
+                    <p className="text-[10px] text-gray-600 mb-1.5">Why: {selected.complianceStatusReason}{selected.complianceClassifiedBy ? ` — ${selected.complianceClassifiedBy}` : ''}</p>
+                  )}
+                  {!showComplianceForm ? (
+                    <button onClick={() => setShowComplianceForm(true)} className="text-[10px] font-semibold text-purple-600 hover:text-purple-800">Reclassify →</button>
+                  ) : (
+                    <div className="space-y-1.5">
+                      <select value={complianceDraft.status} onChange={e => setComplianceDraft(d => ({ ...d, status: e.target.value as ComplianceStatus }))} className="w-full text-[10px] border rounded px-2 py-1">
+                        {Object.entries(complianceLabels).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                      </select>
+                      <textarea value={complianceDraft.reason} onChange={e => setComplianceDraft(d => ({ ...d, reason: e.target.value }))} placeholder="Why this status? (required)" className="w-full text-[10px] border rounded p-2" rows={2} />
+                      <div className="flex gap-2">
+                        <button onClick={saveCompliance} disabled={savingCompliance || !complianceDraft.reason.trim()} className="text-[9px] font-semibold text-white bg-purple-600 hover:bg-purple-700 px-2 py-1 rounded disabled:opacity-50">{savingCompliance ? 'Saving…' : 'Save Classification'}</button>
+                        <button onClick={() => setShowComplianceForm(false)} className="text-[9px] text-gray-500">Cancel</button>
+                      </div>
+                      {!complianceDraft.reason.trim() && <p className="text-[9px] text-amber-600">A reason is required — explain why this status applies.</p>}
+                    </div>
+                  )}
+                </div>
+
+                {/* Evidence — real, source-classified, never fabricated. */}
+                <div className="pt-3 border-t">
+                  <p className="text-[9px] font-bold text-gray-700 uppercase mb-2">Evidence</p>
+                  {evidenceList === null ? (
+                    <p className="text-[10px] text-gray-400">Loading…</p>
+                  ) : evidenceList.length === 0 ? (
+                    <p className="text-[10px] text-gray-400 mb-2">No evidence recorded yet.</p>
+                  ) : (
+                    <div className="space-y-1.5 mb-2">
+                      {evidenceList.map(e => (
+                        <div key={e.id} className="border rounded-lg p-2">
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <span className="text-[9px] text-gray-400">{e.sourceType.replace('_', ' ')}</span>
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${evidenceVerificationLabels[e.verificationStatus]?.className}`}>{evidenceVerificationLabels[e.verificationStatus]?.label}</span>
+                          </div>
+                          <p className="text-[10px] text-gray-700">{e.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {!showEvidenceForm ? (
+                    <button onClick={() => setShowEvidenceForm(true)} className="text-[10px] font-semibold text-purple-600 hover:text-purple-800">+ Add Evidence</button>
+                  ) : (
+                    <div className="space-y-1.5 border rounded-lg p-2.5 bg-gray-50">
+                      <textarea value={evidenceDraft.text} onChange={e => setEvidenceDraft(d => ({ ...d, text: e.target.value }))} placeholder="What is the evidence?" className="w-full text-[10px] border rounded p-2" rows={2} />
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <select value={evidenceDraft.sourceType} onChange={e => setEvidenceDraft(d => ({ ...d, sourceType: e.target.value as EvidenceSourceType }))} className="text-[10px] border rounded px-2 py-1">
+                          {(['discovery', 'document', 'assessment', 'requirement', 'connector', 'database', 'api', 'staff_assessment'] as EvidenceSourceType[]).map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+                        </select>
+                        <select value={evidenceDraft.confidence} onChange={e => setEvidenceDraft(d => ({ ...d, confidence: e.target.value as EvidenceVerificationStatus }))} className="text-[10px] border rounded px-2 py-1">
+                          {(['needs_verification', 'staff_assessment', 'verified'] as EvidenceVerificationStatus[]).map(v => <option key={v} value={v}>{evidenceVerificationLabels[v].label}</option>)}
+                        </select>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={addEvidence} disabled={savingEvidence || !evidenceDraft.text.trim()} className="text-[9px] font-semibold text-white bg-purple-600 hover:bg-purple-700 px-2 py-1 rounded disabled:opacity-50">{savingEvidence ? 'Saving…' : 'Save Evidence'}</button>
+                        <button onClick={() => setShowEvidenceForm(false)} className="text-[9px] text-gray-500">Cancel</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Risk acceptance — gated through the real Approval Workflow Engine, never a bare status flip. */}
+                {selected.status !== 'accepted_risk' && (
+                  <div className="pt-3 border-t">
+                    <p className="text-[9px] font-bold text-gray-700 uppercase mb-2">Risk Acceptance</p>
+                    {riskWorkflow ? (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5">
+                        <p className="text-[10px] text-amber-800 mb-2">A risk-acceptance request is pending approval.</p>
+                        <div className="flex gap-2">
+                          <button onClick={() => decideRisk('approve')} disabled={decidingRisk} className="text-[9px] font-semibold text-white bg-green-600 hover:bg-green-700 px-2 py-1 rounded disabled:opacity-50">Approve</button>
+                          <button onClick={() => decideRisk('reject')} disabled={decidingRisk} className="text-[9px] font-semibold text-white bg-red-600 hover:bg-red-700 px-2 py-1 rounded disabled:opacity-50">Reject</button>
+                        </div>
+                      </div>
+                    ) : !showRiskForm ? (
+                      <button onClick={() => setShowRiskForm(true)} className="text-[10px] font-semibold text-gray-600 hover:text-gray-800">Request Risk Acceptance →</button>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <textarea value={riskRationale} onChange={e => setRiskRationale(e.target.value)} placeholder="Rationale for accepting this risk (required)" className="w-full text-[10px] border rounded p-2" rows={2} />
+                        <div className="flex gap-2">
+                          <button onClick={requestRiskAcceptance} disabled={requestingRisk || !riskRationale.trim()} className="text-[9px] font-semibold text-white bg-purple-600 hover:bg-purple-700 px-2 py-1 rounded disabled:opacity-50">{requestingRisk ? 'Requesting…' : 'Submit Request'}</button>
+                          <button onClick={() => setShowRiskForm(false)} className="text-[9px] text-gray-500">Cancel</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
+
+                {/* Customer visibility toggle — default-closed. */}
+                <div className="pt-3 border-t flex items-center justify-between">
+                  <div>
+                    <p className="text-[9px] font-bold text-gray-700 uppercase">Customer Visibility</p>
+                    <p className="text-[9px] text-gray-400">{selected.customerVisible ? 'Visible in the client portal' : 'Internal only — staff-only'}</p>
+                  </div>
+                  <button onClick={toggleCustomerVisibility} disabled={togglingVisibility} className={`text-[9px] font-semibold px-2 py-1 rounded disabled:opacity-50 ${selected.customerVisible ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
+                    {togglingVisibility ? 'Saving…' : selected.customerVisible ? 'Make Internal' : 'Make Customer-Visible'}
+                  </button>
+                </div>
 
                 {/* Decision — real, backed by DecisionTransformationService.
                     Once a decision exists, this replaces Options/Compare with

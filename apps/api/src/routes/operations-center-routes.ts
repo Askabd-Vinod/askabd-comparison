@@ -12,7 +12,7 @@ import { MigrationValidationService } from '../services/migration-validation-ser
 import { MigrationExecutionService } from '../services/migration-execution-service.js';
 import { operationService } from '../services/operation-service.js';
 import { ProblemUniverseService } from '../services/problem-universe-service.js';
-import { GapAnalysisService } from '../services/gap-analysis-service.js';
+import { GapAnalysisService, RequirementNotReadyError, type ComplianceStatus, type EvidenceSourceType, type EvidenceVerificationStatus } from '../services/gap-analysis-service.js';
 import { DecisionTransformationService } from '../services/decision-transformation-service.js';
 import { CapabilityRegistryService } from '../services/capability-registry-service.js';
 import { ContinuousOptimizationService } from '../services/continuous-optimization-service.js';
@@ -1524,9 +1524,123 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const { clientId } = req.params as any;
     const data = req.body as any;
     if (!data.title) { reply.status(400).send({ error: 'title is required' }); return; }
-    const gap = await gapService.createGap(clientId, data);
-    ocService.createAuditEntry({ entityType: 'gap', entityId: clientId, entityName: gap.title, action: 'gap_created', actor: getAuth(req)?.userId || 'unknown-staff', details: { gapId: gap.id, domain: gap.domain, severity: gap.severity }, evidence: [`Gap "${gap.title}" created in domain ${gap.domain}`] }).catch(() => {});
+    const actor = getAuth(req)?.userId || 'unknown-staff';
+    let gap;
+    try {
+      gap = await gapService.createGap(clientId, data, actor);
+    } catch (err) {
+      if (err instanceof RequirementNotReadyError) {
+        reply.status(422).send({ error: { code: 'requirement_not_ready', message: err.message, requirementId: err.requirementId, qualityStatus: err.qualityStatus, findings: err.findings } });
+        return;
+      }
+      throw err;
+    }
+    ocService.createAuditEntry({ entityType: 'gap', entityId: clientId, entityName: gap.title, action: 'gap_created', actor, details: { gapId: gap.id, domain: gap.domain, severity: gap.severity }, evidence: [`Gap "${gap.title}" created in domain ${gap.domain}`] }).catch(() => {});
     reply.status(201).send(gap);
+  });
+
+  // Real, staff-attributed, required-reason compliance classification —
+  // never auto-inferred (Part 2's "Never fabricate severity" rule applied
+  // to compliance status too).
+  server.post('/oc/gaps/:gapId/compliance', async (req, reply) => {
+    const { gapId } = req.params as any;
+    const { status, reason } = req.body as { status?: ComplianceStatus; reason?: string };
+    if (!status) { reply.status(400).send({ error: 'status is required' }); return; }
+    const actor = getAuth(req)?.userId || 'unknown-staff';
+    try {
+      const gap = await gapService.classifyCompliance(gapId, status, reason || '', actor);
+      if (!gap) { reply.status(404).send({ error: 'Gap not found' }); return; }
+      ocService.createAuditEntry({ entityType: 'gap', entityId: gapId, entityName: gap.title, action: 'gap_compliance_classified', actor, details: { status, reason }, evidence: [`Compliance status set to ${status}: ${reason}`] }).catch(() => {});
+      reply.send(gap);
+    } catch (err) {
+      reply.status(400).send({ error: (err as Error).message });
+    }
+  });
+
+  // Real, structured evidence — Verified / Client Provided / Staff
+  // Assessment / Needs Verification.
+  server.get('/oc/gaps/:gapId/evidence', async (req) => {
+    const { gapId } = req.params as any;
+    return { gapId, evidence: await gapService.getEvidence(gapId) };
+  });
+
+  server.post('/oc/gaps/:gapId/evidence', async (req, reply) => {
+    const { gapId } = req.params as any;
+    const body = req.body as { text?: string; sourceType?: EvidenceSourceType; verificationStatus?: EvidenceVerificationStatus; reference?: string };
+    if (!body.text) { reply.status(400).send({ error: 'text is required' }); return; }
+    const actor = getAuth(req)?.userId || 'unknown-staff';
+    try {
+      const evidence = await gapService.addEvidence(gapId, { ...body, text: body.text }, actor);
+      ocService.createAuditEntry({ entityType: 'gap', entityId: gapId, entityName: '', action: 'gap_evidence_added', actor, details: { evidenceId: evidence.id, sourceType: evidence.sourceType }, evidence: [`Evidence added: ${evidence.text.slice(0, 100)}`] }).catch(() => {});
+      reply.status(201).send(evidence);
+    } catch (err) {
+      const status = (err as Error).message.includes('not found') ? 404 : 400;
+      reply.status(status).send({ error: (err as Error).message });
+    }
+  });
+
+  // Risk acceptance — a genuinely consequential decision, gated through the
+  // shared Approval Workflow Engine rather than a bare status write.
+  server.post('/oc/gaps/:gapId/risk-acceptance/request', async (req, reply) => {
+    const { gapId } = req.params as any;
+    const { rationale } = req.body as { rationale?: string };
+    const actor = getAuth(req)?.userId || 'unknown-staff';
+    try {
+      const result = await gapService.requestRiskAcceptance(gapId, actor, rationale || '');
+      ocService.createAuditEntry({ entityType: 'gap', entityId: gapId, entityName: '', action: 'gap_risk_acceptance_requested', actor, details: { workflowId: result.workflowId }, evidence: [`Risk acceptance requested: ${rationale}`] }).catch(() => {});
+      reply.status(201).send(result);
+    } catch (err) {
+      reply.status(400).send({ error: (err as Error).message });
+    }
+  });
+
+  server.post('/oc/gaps/risk-acceptance/:workflowId/decide', async (req, reply) => {
+    const { workflowId } = req.params as any;
+    const { decision, note } = req.body as { decision?: 'approve' | 'reject'; note?: string };
+    if (decision !== 'approve' && decision !== 'reject') { reply.status(400).send({ error: "decision must be 'approve' or 'reject'" }); return; }
+    const actor = getAuth(req)?.userId || 'unknown-staff';
+    try {
+      const result = await gapService.decideRiskAcceptance(workflowId, decision, actor, note);
+      ocService.createAuditEntry({ entityType: 'gap', entityId: result.gap?.id || workflowId, entityName: '', action: decision === 'approve' ? 'gap_risk_accepted' : 'gap_risk_acceptance_rejected', actor, details: { workflowId, note }, evidence: [`Risk acceptance ${decision}d`] }).catch(() => {});
+      reply.send(result);
+    } catch (err) {
+      reply.status(400).send({ error: (err as Error).message });
+    }
+  });
+
+  server.post('/oc/gaps/:gapId/customer-visibility', async (req, reply) => {
+    const { gapId } = req.params as any;
+    const { visible } = req.body as { visible?: boolean };
+    if (typeof visible !== 'boolean') { reply.status(400).send({ error: 'visible must be a boolean' }); return; }
+    const actor = getAuth(req)?.userId || 'unknown-staff';
+    const gap = await gapService.setCustomerVisibility(gapId, visible, actor);
+    if (!gap) { reply.status(404).send({ error: 'Gap not found' }); return; }
+    ocService.createAuditEntry({ entityType: 'gap', entityId: gapId, entityName: gap.title, action: visible ? 'gap_made_customer_visible' : 'gap_made_internal', actor, details: { visible }, evidence: [`Customer visibility set to ${visible}`] }).catch(() => {});
+    reply.send(gap);
+  });
+
+  // Customer-portal evidence submission. The customer-portal gap LIST route
+  // already exists (GET /oc/portal/:clientId/gaps, below, via
+  // ClientPortalService.getGaps — a real pre-existing route this pass found
+  // and fixed to actually filter by customer_visible, rather than adding a
+  // second, competing gaps-list route here).
+  server.post('/oc/portal/:clientId/gaps/:gapId/evidence', async (req, reply) => {
+    const { clientId, gapId } = req.params as any;
+    const body = req.body as { text?: string; reference?: string };
+    if (!body.text) { reply.status(400).send({ error: 'text is required' }); return; }
+    const gap = await gapService.getGap(gapId);
+    if (!gap || gap.clientId !== clientId || !gap.customerVisible) { reply.status(404).send({ error: 'Gap not found' }); return; }
+    const auth = getAuth(req);
+    try {
+      // sourceType is always 'client_provided' here — a customer can never
+      // submit evidence any other way; addEvidence() also enforces
+      // verificationStatus='client_provided' for this sourceType server-side.
+      const evidence = await gapService.addEvidence(gapId, { text: body.text, sourceType: 'client_provided', reference: body.reference }, auth?.userId || 'unknown-customer');
+      ocService.createAuditEntry({ entityType: 'gap', entityId: gapId, entityName: '', action: 'gap_evidence_added_by_customer', actor: auth?.userId || 'unknown-customer', details: { evidenceId: evidence.id }, evidence: [`Customer-submitted evidence: ${evidence.text.slice(0, 100)}`] }).catch(() => {});
+      reply.status(201).send(evidence);
+    } catch (err) {
+      reply.status(400).send({ error: (err as Error).message });
+    }
   });
 
   server.get('/oc/gaps/:gapId', async (req, reply) => {
@@ -1539,9 +1653,10 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
   server.post('/oc/gaps/:gapId/status', async (req, reply) => {
     const { gapId } = req.params as any;
     const { status } = req.body as any;
-    const result = await gapService.updateStatus(gapId, status);
+    const actor = getAuth(req)?.userId || 'unknown-staff';
+    const result = await gapService.updateStatus(gapId, status, actor);
     if (!result.success) { reply.status(400).send(result); return; }
-    ocService.createAuditEntry({ entityType: 'gap', entityId: gapId, entityName: '', action: 'gap_status_changed', actor: getAuth(req)?.userId || 'unknown-staff', details: { newStatus: status }, evidence: [`Gap status changed to ${status}`] }).catch(() => {});
+    ocService.createAuditEntry({ entityType: 'gap', entityId: gapId, entityName: '', action: 'gap_status_changed', actor, details: { newStatus: status }, evidence: [`Gap status changed to ${status}`] }).catch(() => {});
     reply.send(result);
   });
 
@@ -1637,8 +1752,9 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const { gapId } = req.params as any;
     const gap = await gapService.getGap(gapId);
     if (!gap) { reply.status(404).send({ error: 'Gap not found' }); return; }
-    const decision = await decisionService.createDecision(gapId, gap.clientId, req.body as any, getAuth(req)?.userId || 'unknown-staff');
-    await gapService.updateStatus(gapId, 'approved');
+    const decisionActor = getAuth(req)?.userId || 'unknown-staff';
+    const decision = await decisionService.createDecision(gapId, gap.clientId, req.body as any, decisionActor);
+    await gapService.updateStatus(gapId, 'approved', decisionActor);
     ocService.createAuditEntry({ entityType: 'decision', entityId: gapId, entityName: '', action: 'decision_made', actor: decision.decisionMaker || getAuth(req)?.userId || 'unknown-staff', details: { decisionId: decision.id, selectedOption: decision.selectedOptionId, rationale: decision.rationale }, evidence: [`Decision approved for gap ${gapId}`] }).catch(() => {});
     reply.status(201).send(decision);
   });

@@ -5,6 +5,7 @@
  * Domain-agnostic: supports all transformation types.
  */
 import { sharedPool } from './db-pool.js';
+import { TraceabilityEngine } from './traceability-engine.js';
 
 export interface GapOption {
   id: string; gapId: string; clientId: string; name: string; description?: string;
@@ -33,6 +34,7 @@ export interface Transformation {
 }
 
 export class DecisionTransformationService {
+  private traceability = new TraceabilityEngine();
 
   // ─── OPTIONS ────────────────────────────────────────────────────────────────
 
@@ -122,7 +124,15 @@ export class DecisionTransformationService {
       data.personDays, data.duration, data.teamSize, JSON.stringify(data.roles || []),
       JSON.stringify(data.risks || []), JSON.stringify(data.successCriteria || []),
       data.rollbackStrategy, data.expectedOutcome, 'planned', data.owner]);
-    return this.mapTransformation(rows[0]);
+    const transformation = this.mapTransformation(rows[0]);
+    // Real Traceability Engine link (gap -> transformation) — the shared
+    // Phase 1 engine, completing the Problem -> Requirement -> Gap ->
+    // Recommendation -> Transformation chain. Best-effort: never blocks
+    // the real transformation that was already created.
+    if (data.gapId) {
+      await this.traceability.link('gap', data.gapId, 'transformation', transformation.id, 'derives_from', null).catch(() => {});
+    }
+    return transformation;
   }
 
   async getTransformations(clientId: string): Promise<Transformation[]> {

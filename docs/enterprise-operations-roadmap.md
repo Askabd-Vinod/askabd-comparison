@@ -208,10 +208,23 @@ wire into as each capability needs them, not standalone features.
   vertical slice: service, routes, RBAC, 15 real tests, UI page following
   the canonical Connector-Configuration pattern. See
   `docs/enterprise-operations-progress.md`'s Phase 1/2 entry for full detail.
-- **Gap Analysis extension** (Part 4 + 6): the real `oc_gaps`/`oc_gap_options`
-  foundation (migration 037) already exists — extend with the full field
-  set the brief wants (Business Impact, Technical Impact, Risk, Recommended
-  Resolution, Owner, Priority) if not already present; verify before adding.
+- ✅ **DONE (2026-08-23)** — **Gap Analysis extension** (Part 4 + 6):
+  extended the real, already-mature `oc_gaps`/`oc_gap_options`/`oc_decisions`/
+  `oc_transformations` system (migration 037, gap-analysis-service.ts,
+  decision-transformation-service.ts, 21 existing routes, the existing
+  `clients/[clientId]/gaps` UI) — confirmed via full inspection first that
+  most of the brief's field list (Business Impact, Technical Impact,
+  Security Impact, Compliance Impact, Root Cause, Owner, Priority,
+  Dependencies, Assumptions, Version-via-`created_at`/`updated_at`) already
+  existed; the real gaps were compliance-status classification, structured
+  evidence, customer visibility, actor attribution on the row itself, and
+  genuine cross-engine wiring. Migration 044 (additive columns +
+  `oc_gap_evidence` table). Full detail, including two real defects found
+  and fixed along the way (a pre-existing customer-portal route that
+  exposed every gap with no visibility filter at all; a JSONB/TEXT type
+  collision against an undocumented pre-existing `constraints` column) and
+  the explicit Playwright/API-DB verification-level breakdown, in
+  `docs/enterprise-operations-progress.md`.
 
 ---
 

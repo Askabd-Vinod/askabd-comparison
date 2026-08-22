@@ -227,10 +227,21 @@ export class ClientPortalService {
   // GAPS (client-safe view)
   // ═══════════════════════════════════════════════════════════════════════════
 
+  /**
+   * Real defect fixed here (found during the Gap Analysis extension pass,
+   * migration 044): this previously returned EVERY gap for the client with
+   * no visibility filter at all — internal-only gaps (root cause, internal
+   * risk commentary excluded from the SELECT list, but the gap's very
+   * existence and business impact were still exposed) were visible to any
+   * genuinely-mapped customer. Gaps are internal by default
+   * (`customer_visible` defaults false) — a customer must now only ever
+   * see gaps staff explicitly opted in, same default-closed convention as
+   * CRM's contact/note/task visibility.
+   */
   async getGaps(clientId: string): Promise<any[]> {
     const { rows } = await sharedPool.query(
-      `SELECT id, domain, category, title, description, current_state, target_state, severity, priority, status, current_maturity, target_maturity, business_impact, created_at FROM oc_gaps WHERE client_id = $1 ORDER BY severity DESC, priority DESC LIMIT 50`, [clientId]);
-    return rows.map(r => ({ id: r.id, domain: r.domain, category: r.category, title: r.title, description: r.description, currentState: r.current_state, targetState: r.target_state, severity: r.severity, priority: r.priority, status: r.status, currentMaturity: r.current_maturity, targetMaturity: r.target_maturity, businessImpact: r.business_impact, createdAt: r.created_at }));
+      `SELECT id, domain, category, title, description, current_state, target_state, severity, priority, status, current_maturity, target_maturity, business_impact, compliance_status, compliance_status_reason, created_at FROM oc_gaps WHERE client_id = $1 AND customer_visible = true ORDER BY severity DESC, priority DESC LIMIT 50`, [clientId]);
+    return rows.map(r => ({ id: r.id, domain: r.domain, category: r.category, title: r.title, description: r.description, currentState: r.current_state, targetState: r.target_state, severity: r.severity, priority: r.priority, status: r.status, currentMaturity: r.current_maturity, targetMaturity: r.target_maturity, businessImpact: r.business_impact, complianceStatus: r.compliance_status, complianceStatusReason: r.compliance_status_reason, createdAt: r.created_at }));
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

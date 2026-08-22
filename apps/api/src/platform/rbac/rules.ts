@@ -218,6 +218,17 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   { method: 'POST', path: '/api/v1/oc/gaps/:gapId/effort', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/gaps/:gapId/options', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/gaps/:gapId/decide', permissions: ['Admin.Access'] },
+  // Gap Analysis extension (migration 044) — same opaque-ID staff-only
+  // pattern as the routes immediately above. The customer-portal
+  // equivalents (/oc/portal/:clientId/gaps, /oc/portal/:clientId/gaps/:gapId/evidence)
+  // are deliberately NOT listed here — same established pattern as every
+  // other customer-portal route in this file: defaultPolicy 'authenticated'
+  // + tenant-access.ts's real membership check.
+  { method: 'POST', path: '/api/v1/oc/gaps/:gapId/compliance', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/gaps/:gapId/evidence', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/gaps/:gapId/customer-visibility', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/gaps/:gapId/risk-acceptance/request', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/gaps/risk-acceptance/:workflowId/decide', permissions: ['Admin.Access'] },
   { method: 'PATCH', path: '/api/v1/oc/problems/:problemId', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/problems/:problemId/status', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/problems/:problemId/financial', permissions: ['Admin.Access'] },
@@ -274,6 +285,7 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   { method: 'GET', path: '/api/v1/oc/gaps/:gapId/options', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/gaps/:gapId/compare', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/gaps/:gapId/decision', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/gaps/:gapId/evidence', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/defects/:defectId', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/engagements/:id', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/engagements/:id/services', permissions: ['Admin.Access'] },
