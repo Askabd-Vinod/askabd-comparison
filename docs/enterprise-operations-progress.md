@@ -781,9 +781,8 @@ it — all applied to the live DEV database and verified via `\d`).
 
 ## Last Verified Commit
 
-Pending this turn's commit (Gap Analysis extension) on
-`feature/reliability-hardening`. Prior verified commit: `9d1a9d7` (pushed
-to origin). `main` confirmed unchanged at `b63f797`.
+`22e6755` on `feature/reliability-hardening` (pushed to origin — confirmed
+`9d1a9d7..22e6755`). `main` confirmed unchanged at `b63f797`.
 
 ## Last Playwright Verification
 
