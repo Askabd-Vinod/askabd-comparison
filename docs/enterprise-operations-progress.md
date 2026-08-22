@@ -1539,86 +1539,95 @@ one. The one test failure above was correctly diagnosed as non-code.
 
 ## Database Migrations
 
-**48 applied** (see `docs/enterprise-operations-gap-analysis.md` Section 1
+**49 applied** (see `docs/enterprise-operations-gap-analysis.md` Section 1
 for the full list through 037; `038_business_requirements.sql` through
 `045_discovery_document_ingestion.sql`, `046_document_generation_engine.sql`,
-`047_document_template_seed.sql`, and `048_universal_comparison_engine.sql`
-— all applied to the live DEV database and verified via `\d`).
+`047_document_template_seed.sql`, `048_universal_comparison_engine.sql`,
+and `049_universal_testing_engine.sql` — all applied to the live DEV
+database and verified via `\d`).
 
 ## Last Verified Commit
 
-`aa701ec` on `feature/reliability-hardening`, pushed to origin — confirmed
-`b3c87b3..aa701ec`. `main` confirmed unchanged at `b63f797`. Four commits
-this pass: `9434158` (Universal Comparison Engine backend), `41fc70c`
-(its UI), `b3c87b3` (docs follow-up), `aa701ec` (Requirements
-Traceability Matrix UI — `entity-label-resolver.ts`,
-`traceability-routes.ts`, `traceability-routes.test.ts`,
-`clients/[clientId]/traceability/page.tsx`, `traceability-manager.tsx`,
-the `client-tabs.tsx` entry). **Note**: the push after `9434158` was
-initially blocked by this session's sandbox permission classifier (an
-infrastructure restriction, not a judgment call) — reported to the user,
-work continued per the standing authorization since it isn't one of the
-five stop-and-ask conditions, and the retried push after `41fc70c`
-succeeded; every subsequent push this pass went through cleanly.
+`feebcb4` on `feature/reliability-hardening`, pushed to origin — confirmed
+`3c5c896..feebcb4`. `main` confirmed unchanged at `b63f797`. This
+session's commits, in order: `9434158`/`41fc70c` (Universal Comparison
+Engine, backend + UI), `b3c87b3` (docs), `aa701ec` (Requirements
+Traceability Matrix UI), `3c5c896` (docs), `feebcb4` (Universal Testing &
+Validation Engine — migration 049, `testing-engine.ts`,
+`test-execution-service.ts`, `test-defect-service.ts`,
+`test-report-service.ts`, `test-management-adapter.ts`,
+`testing-engine-routes.ts`, `testing-engine.test.ts`, the extended
+`clients/[clientId]/testing` page + `testing-engine-manager.tsx`).
+**Note**: the push after `9434158` was initially blocked by this
+session's sandbox permission classifier (an infrastructure restriction,
+not a judgment call) — reported to the user, work continued per the
+standing authorization since it isn't one of the five stop-and-ask
+conditions, and every push since has gone through cleanly.
 
 ## Last Playwright Verification
 
 Unauthenticated access to every new/extended page across this session,
-now including the new `/clients/:clientId/comparisons` and
-`/clients/:clientId/traceability`, was live-verified in the real browser
+now including the extended `/clients/:clientId/testing` (Universal
+Testing & Validation Engine), was live-verified in the real browser
 (against the real, protected `Test1` client ID) — clean redirect to
-`/staff/login`, zero console errors, no data exposed (the traceability
-check required a genuinely fresh browser tab — see Failed Tests). A full
-authenticated walkthrough was genuinely attempted earlier this session
-(not just deferred) — a real temporary staff identity was created and
-verified end-to-end via askabd-identity's API, but the final step
-(granting it a role) was blocked by the sandbox's permission classifier as
-a raw-SQL privilege grant, and the user's explicit decision was to proceed
-via the existing DB+HTTP test standard rather than any workaround. See the
-Gap Analysis extension entry's, the Universal Comparison Engine backend
-entry's, and this pass's Traceability entry's explicit per-capability
-verification-level tables (Playwright-verified vs API/DB-verified) for the
-exact format now used for every capability. The real DB+HTTP integration
-suites (`business-requirements.test.ts` 15, `discovery-intake.test.ts` 11,
+`/staff/login`, zero console errors, no data exposed (this pass, like the
+Traceability pass before it, required a genuinely fresh browser tab —
+see Failed Tests; this is now the third confirmed occurrence of that
+exact, reliably-diagnosable pattern). A full authenticated walkthrough
+was genuinely attempted earlier this session (not just deferred) — a
+real temporary staff identity was created and verified end-to-end via
+askabd-identity's API, but the final step (granting it a role) was
+blocked by the sandbox's permission classifier as a raw-SQL privilege
+grant, and the user's explicit decision was to proceed via the existing
+DB+HTTP test standard rather than any workaround; this is also why
+automated Playwright EXECUTION is not wired into the Testing Engine
+itself yet (see its own Definition-of-Done table). See the Gap Analysis
+extension entry's, the Universal Comparison Engine backend entry's, and
+the Traceability/Testing Engine entries' explicit per-capability
+verification-level tables/DoD breakdowns for the exact format used for
+every capability. The real DB+HTTP integration suites
+(`business-requirements.test.ts` 15, `discovery-intake.test.ts` 11,
 `discovery-document-ingestion.test.ts` 6, `assessment-domains.test.ts` 15,
 `gap-analysis-extension.test.ts` 25, `document-generation-engine.test.ts`
 22, `universal-comparison-engine.test.ts` 9, `traceability-routes.test.ts`
-5) are the substitute evidence for the backend half of all these
-capabilities.
+5, `testing-engine.test.ts` 14) are the substitute evidence for the
+backend half of all these capabilities.
 
 ## Last Health Check
 
 `npm run health`: **11/11 green**, confirmed at the end of this session's
-Requirements Traceability Matrix UI pass — this pass hit and fixed a
-FIFTH real Web dev-server runtime issue this session (see Failed Tests
-above: the stale-browser-tab variant this time, fixed by opening a fresh
-tab, not a server restart).
+Universal Testing & Validation Engine pass — this pass hit and fixed a
+SIXTH real Web dev-server runtime issue this session, both previously-
+documented variants occurring together (port-binding, then stale-tab) —
+see Failed Tests above.
 
 ## Regression — final confirmed baseline this session
 
-- **API: 548/548 passing** (406 baseline → 421 Business Requirements → 433
+- **API: 562/562 passing** (406 baseline → 421 Business Requirements → 433
   Versioning Engine → 444 Approval Workflow Engine → 455 Traceability
   Engine → 466 Discovery Intake → 481 Assessment Domains → 506 Gap
   Analysis extension → 512 Discovery document ingestion → 534 Document
   Generation Engine → 543 Universal Comparison Engine → 548 Requirements
-  Traceability Matrix routes; every addition confirmed via a clean, fully
-  isolated full-suite run; the pre-existing, unrelated
-  `tests/comparison.test.ts` — public product comparison — reconfirmed
-  passing untouched)
+  Traceability Matrix routes → 562 Universal Testing & Validation Engine;
+  every addition confirmed via a clean, fully isolated full-suite run;
+  the pre-existing, unrelated `tests/comparison.test.ts` — public product
+  comparison — reconfirmed passing untouched)
 - **Identity: 219/219 passing** (clean, fully isolated run earlier this
   session; not re-run this pass since no identity code changed — see
   Failed Tests above for two self-inflicted CPU-contention timeouts
   earlier in this session, both confirmed non-regressions via isolated
   re-runs)
-- **Web: 33/33 passing** (re-run after adding the Requirements
-  Traceability Matrix UI — clean, no flakes, no regression; includes the
+- **Web: 33/33 passing** (re-run after adding the Universal Testing &
+  Validation Engine UI — clean, no flakes, no regression; includes the
   extended Gap Analysis UI, the document-upload UI, the Document
-  Generation UI, the Comparisons UI, and the new Traceability UI)
-- `tsc --noEmit` and `npm run build` clean for both API and Web on both
-  this pass and the Universal Comparison Engine pass — genuine production
-  builds, not just typecheck; Identity unaffected, not re-built, no
-  identity files touched this session's final three passes
-- `npm run health`: 11/11 green after the fifth real, properly-diagnosed
+  Generation UI, the Comparisons UI, the Traceability UI, and the
+  extended Testing UI)
+- `tsc --noEmit` and `npm run build` clean for both API and Web across
+  the Universal Comparison Engine, Traceability, and Testing Engine
+  passes — genuine production builds, not just typecheck; Identity
+  unaffected, not re-built, no identity files touched this session's
+  final four passes
+- `npm run health`: 11/11 green after the sixth real, properly-diagnosed
   Web dev-server runtime issue this session (see Failed Tests above)
 - Both protected real clients confirmed intact via direct DB query,
   timestamps unchanged: `AskABD Manual UAT 2026` (created 2026-08-15) and
