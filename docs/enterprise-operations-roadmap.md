@@ -51,8 +51,17 @@ Priority P1 items that unlock everything else:
   unifying into one polymorphic `evidence` table/service (gap analysis
   Section 3, item 9) — this is a genuine open question, not a given; audit
   before building.
-- **Generic Versioning engine**: `entity_versions` table + service, usable
-  by any entity type via `entity_type`/`entity_id`.
+- ✅ **DONE (2026-08-22)** — **Generic Versioning engine**: `entity_versions`
+  table (migration 039) + `versioning-engine.ts` service, usable by any
+  entity type via `entity_type`/`entity_id`. Real concurrency safety
+  (`pg_advisory_xact_lock`, transaction-scoped, serializes version-number
+  assignment per entity — proven via a 10-concurrent-writer test producing
+  exactly versions 1-10 with zero duplicates/gaps) plus a real field-level
+  `diff()` helper. Deliberately NOT retrofitted onto the existing
+  per-entity history tables (`oc_client_service_requirement_history`,
+  `oc_business_requirement_history`, ...) — those are real, working code;
+  this engine is for new work going forward. 12 real tests, 12/12 passing.
+  See `docs/enterprise-operations-progress.md` for full detail.
 - **Generic Approval Workflow engine**: `approval_workflows` +
   `approval_steps`, DRAFT→IN_REVIEW→CHANGES_REQUESTED→APPROVED→REJECTED→
   SUPERSEDED, polymorphic entity reference, real audit on every transition.

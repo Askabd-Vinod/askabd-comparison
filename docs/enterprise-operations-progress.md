@@ -21,12 +21,13 @@ complete, tested, and committed.
 
 ## Current Task
 
-Phase 2 item 3's first vertical slice is done. **Next session should build
-Phase 1's shared engines** (Traceability, generic Versioning, generic
-Approval Workflow — genuinely still ahead in the roadmap's own priority
-order, and Phases 3–5 want them as foundations rather than each inventing
-an ad hoc mechanism), then return to the rest of Phase 2 (Universal
-Discovery, Current State Assessment, Gap Analysis extension). Re-read this
+Phase 2 item 3's first vertical slice is done, and Phase 1's Generic
+Versioning Engine is now also done (see entry below). **Next session should
+continue Phase 1's remaining shared engines** — generic Approval Workflow,
+generic Traceability, and the Evidence-engine open question (needs an audit
+of existing per-feature evidence first, per the roadmap — not a given) —
+then return to the rest of Phase 2 (Universal Discovery, Current State
+Assessment, Gap Analysis extension). Re-read this
 file first and confirm `npm run health` is still green (services may need
 `npm run dev:all` again if the machine was restarted between sessions; the
 Web dev-server health check specifically needs `/staff/login` pre-warmed
@@ -176,6 +177,45 @@ full reasoning). Full vertical slice, Definition-of-Done complete:
    (up from the 213 baseline the last report recorded — 6 new tests from
    this checkpoint's own work, all passing).
 
+## Completed This Session — Phase 1, Generic Versioning Engine (2026-08-22, continued)
+
+Real, reusable, entity-agnostic version-history mechanism for future work
+to build on, per the roadmap's own reasoning ("avoids each later phase
+inventing its own ad hoc mechanism"):
+
+1. **Migration 039** — `entity_versions` table (`entity_type`/`entity_id`/
+   `version`/`field_snapshot` JSONB/`changed_by`/`change_reason`/
+   `created_at`), `UNIQUE (entity_type, entity_id, version)` as a DB-enforced
+   backstop. Applied to the live DEV database, verified via `\d`.
+2. **`versioning-engine.ts`** — `recordVersion`/`getHistory`/`getVersion`/
+   `getCurrentVersionNumber`/`diff`. The real substance: version-number
+   assignment is serialized per `(entityType, entityId)` via a
+   transaction-scoped `pg_advisory_xact_lock`, so concurrent callers can
+   never race to compute the same next version — proven, not assumed, by a
+   real test firing 10 concurrent `recordVersion` calls at the same entity
+   and asserting the result is exactly versions 1–10 with zero duplicates.
+   `diff()` is a real field-by-field comparison between two recorded
+   snapshots, never a fabricated summary.
+3. **Deliberately NOT retrofitted onto existing per-entity history tables**
+   (`oc_client_service_requirement_history`, `oc_business_requirement_history`,
+   CRM's contact/note/task history) — those are real, working, already-tested
+   code; rewriting them onto a new engine mid-session would be exactly the
+   "rebuild what already works" the governing brief forbids. This engine is
+   for new work to reach for going forward, not a migration of old work.
+4. **Tests** — `versioning-engine.test.ts`, 12 real tests against real
+   Postgres: version sequencing (1, 2, 3, ... never skipped/reused),
+   per-entity independence, history ordering, exact-version lookup
+   (distinct from "latest"), honest `null`/`0`/`[]` returns for
+   nonexistent version/entity/diff (never a fabricated fallback), the
+   10-concurrent-writer race proof, and the diff helper (real changed-only
+   fields, zero-diff-for-identical-snapshots, empty-diff-for-missing-version).
+   **12/12 passing**, both standalone and as part of the full suite.
+5. **Full regression, clean isolated run**: API **433/433** (421 + 12 new).
+   `npm run health`: 11/11. No UI/route surface touched this pass (this is
+   a backend-only shared engine with no consumer wired up yet — Identity
+   and Web suites unaffected, not re-run this pass since nothing in either
+   changed).
+
 ## Failed Tests
 
 **Session 1 (Phase 0)**: One transient failure, root-caused and closed, not
@@ -280,16 +320,16 @@ one. The one test failure above was correctly diagnosed as non-code.
 
 ## Database Migrations
 
-**38 applied** (see `docs/enterprise-operations-gap-analysis.md` Section 1
-for the full list through 037; `038_business_requirements.sql` added this
-session — `oc_business_requirements` + `oc_business_requirement_history`,
-applied to the live DEV database, verified via `\d`).
+**39 applied** (see `docs/enterprise-operations-gap-analysis.md` Section 1
+for the full list through 037; `038_business_requirements.sql` and
+`039_entity_versioning_engine.sql` added this session, both applied to the
+live DEV database and verified via `\d`).
 
 ## Last Verified Commit
 
-`58b994b` on `feature/reliability-hardening` (pushed to origin — confirmed
-`08217ad..58b994b`). `main` confirmed unchanged at `b63f797`, both locally
-and on origin, verified immediately before and after this push.
+Pending this turn's commit (Generic Versioning Engine) on
+`feature/reliability-hardening`. Prior verified commit: `2415f82`
+(pushed to origin). `main` confirmed unchanged at `b63f797`.
 
 ## Last Playwright Verification
 
@@ -312,11 +352,13 @@ recurring, harmless characteristic of this dev environment).
 
 ## Regression — final confirmed baseline this session
 
-- **API: 421/421 passing** (up from 406 — 15 new `business-requirements`
-  tests; clean, fully isolated run — see Failed Tests above for the
-  self-inflicted-rerun story from an earlier concurrent run this session)
+- **API: 433/433 passing** (406 baseline → 421 with Business Requirements →
+  433 with the Versioning Engine; clean, fully isolated run each time — see
+  Failed Tests above for the self-inflicted-rerun story from one earlier
+  concurrent run this session, fully closed)
 - **Identity: 219/219 passing** (clean, fully isolated run, no flakes)
-- **Web: 33/33 passing** (clean run, no flakes)
+- **Web: 33/33 passing** (clean run, no flakes; unaffected by the
+  Versioning Engine addition, which has no UI/route surface yet)
 - `npm run health`: 11/11 green
 - Both protected real clients confirmed intact via direct DB query,
   timestamps unchanged: `AskABD Manual UAT 2026` (created 2026-08-15) and
