@@ -15,6 +15,7 @@ import { businessRequirementsRoutes } from './routes/business-requirements-route
 import { discoveryIntakeRoutes } from './routes/discovery-intake-routes.js';
 import { documentGenerationRoutes } from './routes/document-generation-routes.js';
 import { universalComparisonRoutes } from './routes/universal-comparison-routes.js';
+import { traceabilityRoutes } from './routes/traceability-routes.js';
 import { registerAuthMiddleware } from './middleware/auth.js';
 import { registerRateLimitMiddleware } from './middleware/rate-limit.js';
 import { registerErrorHandler } from './middleware/error-handler.js';
@@ -203,6 +204,7 @@ export async function createServer(): Promise<FastifyInstance> {
   await server.register(discoveryIntakeRoutes, { prefix: '/api/v1' });
   await server.register(documentGenerationRoutes, { prefix: '/api/v1' });
   await server.register(universalComparisonRoutes, { prefix: '/api/v1' });
+  await server.register(traceabilityRoutes, { prefix: '/api/v1' });
   await server.register(platformServicesRoutes);
   return server;
 }

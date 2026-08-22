@@ -286,8 +286,26 @@ wire into as each capability needs them, not standalone features.
   demo-client branch still renders its sample data exactly as before.
   22 real tests, 22/22 passing. See `docs/enterprise-operations-progress.md`
   for full detail.
-- **Requirements Traceability Matrix UI** (Part 8): built on the Phase-1
-  Traceability engine, surfacing the real chain for a given requirement.
+- ✅ **DONE (2026-08-23)** — **Requirements Traceability Matrix UI** (Part
+  8): built on the Phase-1 Traceability engine, surfacing the real chain
+  for a given requirement. **A real, honest finding made before writing
+  any resolver code**: `traceability_links` already carries TWO different
+  type-string vocabularies for the same real concepts (singular from
+  `gap-analysis-service.ts`/`decision-transformation-service.ts`, plural
+  data-source-registry-key form from `document-generation-engine.ts`) —
+  not normalized here (real, separate migration work), but the new
+  `entity-label-resolver.ts` defensively aliases both so the UI degrades
+  gracefully rather than mislabeling one convention. New
+  `GET /oc/traceability/:entityType/:entityId` route returns the real
+  chain enriched with real resolved labels (an honest `null`/"Label
+  unavailable" for anything unmappable, never a fabricated name). New
+  `clients/[clientId]/traceability` page reuses the existing Business
+  Requirements list as its entry point (no parallel picker invented),
+  rendering a real hop-by-hop chain view. 5 real tests, including a
+  genuine multi-hop chain (business_requirement → gap → transformation)
+  built entirely through the real, already-existing routes from prior
+  passes this session — 5/5 passing. See
+  `docs/enterprise-operations-progress.md` for full detail.
 
 ---
 

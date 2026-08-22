@@ -17,20 +17,22 @@ engineering decision and continue" rather than blocking on Phase 1 first).
 ## Current Task
 
 All of Phase 1 and Phase 2 are done. Phase 3's first vertical slice (the
-Document Generation Engine) is done. **Phase 4's first vertical slice —
-the Universal Comparison Engine — is now done end-to-end, backend AND UI**
-(see entries below). All three Phase 1 engines now have real consumers:
-Traceability (Discovery Intake, Gap Analysis, Document Generation),
-Approval Workflow (Gap Analysis risk-acceptance, Document Generation
-approval), Versioning (Document Generation content-history). Next session
-should pick from: the Requirements Traceability Matrix UI (Phase 3, Part
-8, surfacing the real chain the Traceability Engine already tracks),
+Document Generation Engine) is done, and **the Requirements Traceability
+Matrix UI (Phase 3, Part 8) is now also done**, closing out Phase 3's
+named items. **Phase 4's first vertical slice — the Universal Comparison
+Engine — is done end-to-end, backend AND UI.** All three Phase 1 engines
+now have real consumers AND, for Traceability, a real UI surfacing them:
+Traceability (Discovery Intake, Gap Analysis, Document Generation — all
+three now visible via the new Traceability tab), Approval Workflow (Gap
+Analysis risk-acceptance, Document Generation approval), Versioning
+(Document Generation content-history). Next session should pick from:
 genuinely new document templates for the ~44 other named document types
 (Phase 3, each only once a real data-fetcher exists for every section it
 needs), additional Universal Comparison types (API/config/infrastructure —
-a real, deliberate fast-follow, not yet built), or Phase 5+ (Risk/
-Decision/Dependency Management) per the roadmap's own next-priority
-ordering. Re-read this
+a real, deliberate fast-follow, not yet built), the real, pre-existing
+traceability-link type-vocabulary inconsistency found this pass (singular
+vs. plural — see Pending Tasks), or Phase 5+ (Risk/Decision/Dependency
+Management) per the roadmap's own next-priority ordering. Re-read this
 file first and confirm `npm run health` is still green (services may need
 `npm run dev:all` again if the machine was restarted between sessions; the
 Web dev-server health check specifically needs `/staff/login` pre-warmed
@@ -975,7 +977,108 @@ preserve).
 6. **API unchanged this pass** — no backend files touched, so the API
    regression baseline (543/543) is carried forward unchanged, not re-run.
 
+## Completed This Session — Requirements Traceability Matrix UI (2026-08-23, Phase 3 Part 8, continued)
+
+The other explicit next step named after the Universal Comparison Engine
+landed — surfacing the real chains the Traceability Engine (migration 041)
+has been recording since Phase 1, across Discovery Intake, Gap Analysis,
+and Document Generation, none of which had ever been visible anywhere in
+the UI before this pass.
+
+1. **A real, honest finding made before writing any resolver code**: the
+   traceability_links table already holds TWO different type-string
+   vocabularies for the same real concepts, from different services —
+   SINGULAR (`business_requirement`, `gap`, `transformation`, from
+   `gap-analysis-service.ts` / `decision-transformation-service.ts`) and
+   PLURAL, data-source-registry-key form (`business_requirements`, `gaps`,
+   `transformations`, `gap_options_decisions`, `discovery_sources`,
+   `assessments`, from `document-generation-engine.ts`). Not corrected
+   here — auditing/migrating already-recorded link rows across 3 services
+   is real, separate work — but explicitly designed around: the label
+   resolver treats both forms as aliases. `gap_options_decisions` is a
+   genuinely mixed source (its real IDs come from BOTH `oc_gap_options`
+   and `oc_decisions` under one type string, confirmed by reading the
+   fetcher itself) — its resolver tries both real tables in turn rather
+   than guessing which one an ID belongs to.
+2. **`entity-label-resolver.ts`** — a new, small, single-purpose module
+   (deliberately NOT added into `traceability-engine.ts` itself, to keep
+   that engine genuinely entity-agnostic per its own stated design):
+   `resolveEntityLabel(entityType, entityId)` does a real, direct lookup
+   against the one real table each known type maps to (requirements,
+   gaps, transformations, generated documents, discovery sources/
+   extractions, assessments, decisions, gap options, the client itself),
+   returning the real stored title/name — or an honest `null` for any
+   type/ID it cannot resolve, never a synthesized label.
+3. **`traceability-routes.ts`** — one route,
+   `GET /oc/traceability/:entityType/:entityId`, deliberately NOT
+   client-scoped in the URL (matches the engine's own "generic enough for
+   any two linked entities" design, and the existing pattern for other
+   opaque single-entity lookups elsewhere in this app). Returns the
+   starting entity's own resolved label, its direct outbound/inbound
+   links, and its full forward/backward chains — each chain link enriched
+   with real `sourceLabel`/`targetLabel` fields, never recomputed
+   client-side. Confirmed via `tenant-access.ts`'s own `extractClientId`
+   logic that a route with no `:clientId` param and no `clientId` body/
+   query field correctly falls through that middleware untouched (RBAC
+   `Admin.Access` is the only gate) — same as every other opaque,
+   non-client-scoped route in this app, not a new pattern.
+4. **RBAC** — 1 new `Admin.Access` rule in `rules.ts`. Registered in
+   `server.ts`.
+5. **Tests** — `traceability-routes.test.ts`, 5 real tests against real
+   Postgres + real Fastify routing + real RBAC/tenant-access middleware —
+   the real substance: a genuine multi-hop chain
+   (business_requirement → gap → transformation) built entirely through
+   the real, already-existing HTTP routes from prior passes this session
+   (not synthetic rows inserted directly), proving both the forward chain
+   from the requirement AND the backward chain from the transformation
+   resolve with the exact real, correct labels and depths at every hop.
+   Plus: an unknown entity type returns an honest `null` label: an
+   entity with zero links returns honest empty arrays everywhere; RBAC
+   denial; unauthenticated 401. **5/5 passing, first try** — no defects
+   found during this pass's own testing (the vocabulary inconsistency was
+   found and designed around BEFORE writing the resolver, not caught by a
+   failing test).
+6. **UI** — new `clients/[clientId]/traceability/page.tsx` +
+   `traceability-manager.tsx`: reuses the existing Business Requirements
+   list as the real entry-point picker (no parallel entity picker
+   invented), and a real chain view grouped by hop depth — each node a
+   real, color-coded entity-type chip showing its real resolved label, or
+   an honest "Label unavailable" for anything the resolver can't map,
+   never a blank or fabricated name. New "Traceability" tab added to
+   `client-tabs.tsx`.
+7. **Verification**: `tsc --noEmit` and `npm run build` clean for both API
+   and Web (the new `/clients/[clientId]/traceability` route confirmed in
+   the build output, 1.74 kB). Web test suite re-run: **33/33 passing**,
+   no regression. Unauthenticated access to the new page verified live
+   against the real, protected `Test1` client ID — clean redirect to
+   `/staff/login`, zero console errors, on a genuinely fresh browser tab
+   (see Failed Tests below for the fifth instance of the known
+   build-disrupts-dev-server pattern, this time manifesting as the
+   already-documented stale-tab variant, not the port-binding variant).
+   Full authenticated Playwright click-through **not performed** — same
+   pre-existing, already-documented credential constraint as every other
+   UI this session.
+8. **Full regression, clean isolated runs**: API **548/548** (543 + 5
+   new). Web **33/33**. `npm run health`: 11/11. Zero leftover
+   test-fixture clients; both protected real clients confirmed intact.
+
 ## Failed Tests
+
+**Requirements Traceability Matrix UI pass (2026-08-23)**: a fifth real
+instance of this session's known build-disrupts-dev-server pattern, this
+time the STALE-TAB variant rather than the port-binding variant (both
+already separately documented earlier this session) — diagnosed properly,
+not assumed. After the standard port-binding fix (kill real PID via
+`netstat`, clear `.next`, restart via `.claude/launch.json`), the first
+navigation to the new Traceability page in the SAME browser tab used for
+the pre-warm check showed the exact same `Cannot find module './4787.js'`
+signature already documented from the Document Generation Engine pass —
+confirmed as a stale tab holding pre-restart chunk-hash references, not a
+server problem, by opening a genuinely fresh tab against the same running
+server: zero console errors, clean redirect. No code changed. This
+confirms the process lesson recorded earlier this session (a dev-server
+restart needs a fresh tab, not just a reload) generalizes across passes,
+not a one-off.
 
 **Universal Comparison Engine UI pass (2026-08-23)**: a fourth real
 instance of this session's known runtime pattern, root-caused the same
@@ -1154,6 +1257,34 @@ one. The one test failure above was correctly diagnosed as non-code.
    (would require understanding/reworking this method's relationship to
    the separate, real `recommendation-service.ts` — its own scoped task,
    not a fly-by fix).
+6. **Out of scope, flagged not fixed, designed around not papered over**:
+   `traceability_links.source_type`/`target_type` has been recorded under
+   TWO different vocabularies for the same real concepts by different
+   services — singular (`business_requirement`, `gap`, `transformation`,
+   from `gap-analysis-service.ts` / `decision-transformation-service.ts`)
+   and plural, data-source-registry-key form (`business_requirements`,
+   `gaps`, `transformations`, `gap_options_decisions`,
+   `discovery_sources`, `assessments`, from
+   `document-generation-engine.ts`). Found while building the Requirements
+   Traceability Matrix UI. `entity-label-resolver.ts` defensively aliases
+   both forms so display degrades gracefully, but the underlying
+   `traceability_links` rows themselves are not normalized to one
+   vocabulary — that would mean auditing/migrating already-recorded link
+   rows across 3 services, real, separate work, out of scope for a
+   UI-surfacing task. A future pass should either (a) pick one
+   vocabulary and migrate existing rows plus the 3 call sites, or (b)
+   formalize the alias table as a permanent, documented part of the
+   Traceability Engine's own contract rather than a resolver-only
+   workaround.
+7. **Out of scope, flagged not fixed**: `entity-label-resolver.ts`'s
+   `recommendation` resolver currently points at `oc_gap_options` (the
+   only real, individually-addressable table close to that concept) —
+   real recommendation rows from `recommendation-service.ts`'s
+   `oc_recommendations` table are stored as a JSONB array per assessment
+   run, not individually addressable by the synthetic `rec-auto-` IDs
+   item 5 above describes. If a future pass resolves item 5 by making
+   real recommendation rows individually addressable, this resolver
+   should be revisited to point at the real table instead.
 
 ## Database Migrations
 
