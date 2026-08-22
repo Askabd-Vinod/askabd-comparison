@@ -3,22 +3,24 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ErrorState } from '../../../../components/error-state';
 import { EvidenceBadge, connectionEvidenceStatus } from '../../../../components/evidence-status';
+import { TestingEngineManager } from './testing-engine-manager';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4200';
 
 /**
  * PREVIOUSLY: this page showed a hardcoded `testSuites` array ("Smoke Tests: 12/12 passed",
  * "Deployment Validation: 7/8 passed", etc.) — identical for every mock client, never sourced
- * from any real test-execution system, and unreachable for real clients (which fell through to
- * the fabricated CapabilityPlaceholder fallback, fixed earlier this session).
+ * from any real test-execution system. That was replaced with real connection-test history
+ * from `oc_connection_tests` (see `ConnectionTestHistory` below) — a real history of connector
+ * verification attempts, but genuinely narrower than a real QA test system.
  *
- * NOW: this page shows real connection-test history from `oc_connection_tests` — every row is
- * a genuine, previously-executed `testConnection()` call (see
- * apps/api/src/services/connector-service.ts's `persistResult()`), via the new
- * `GET /oc/clients/:clientId/connection-tests` endpoint added this milestone. This is a
- * deliberate scope change: this platform does not have a real "manual QA test suite" system —
- * what it DOES have, and can honestly show, is a real history of connection verification
- * attempts, which is the connection-validation evidence this whole product is built around.
+ * NOW: this page's primary content is the real Universal Testing & Validation Engine
+ * (migration 049) — real, rule-based test-case generation from business requirements/gaps/
+ * discovery evidence, real execution recording (never a fabricated PASS), real defect creation
+ * and retest workflow, real requirement coverage, and a real exportable report. See
+ * `testing-engine-manager.tsx`. Connection-test history remains real and useful — it is kept
+ * as a secondary section below, since a connector verification attempt is itself one real,
+ * legitimate source of test evidence, not a competing concept.
  */
 interface ConnectionTest {
   id: string;
@@ -82,9 +84,18 @@ export default function ClientTestingPage({ params }: PageProps) {
 
   return (
     <div>
-      <h2 className="font-semibold text-lg mb-1">Connection Test History</h2>
+      <h2 className="font-semibold text-lg mb-1">Testing</h2>
       <p className="text-xs text-gray-500 mb-6">
-        Real evidence from every connection verification attempt for this client — this platform validates connectors, not application code, so this is what "testing" means in this context.
+        The real Universal Testing &amp; Validation Engine — generate real, reasoned test cases from this
+        client's requirements, gaps, and discovery evidence, record real execution evidence, and track real
+        defects through to retest. Connection-test history (below) remains a real, separate evidence source.
+      </p>
+
+      <TestingEngineManager clientId={clientId} />
+
+      <h3 className="font-semibold text-sm mt-10 mb-1">Connection Test History</h3>
+      <p className="text-xs text-gray-500 mb-4">
+        Real evidence from every connector verification attempt for this client.
       </p>
 
       {!tests || tests.length === 0 ? (

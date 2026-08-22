@@ -409,6 +409,25 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   // URL (see the route file's own doc comment); staff-only, same precedent.
   { method: 'GET', path: '/api/v1/oc/traceability/:entityType/:entityId', permissions: ['Admin.Access'] },
 
+  // ─── Universal Testing & Validation Engine (migration 049, testing-engine-routes.ts)
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/test-cases', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/test-cases', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/test-cases/:id', permissions: ['Admin.Access'] },
+  { method: 'PATCH', path: '/api/v1/oc/test-cases/:id/status', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/test-cases/generate/:sourceKind/:sourceId', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/test-cases/:id/executions', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/test-cases/:id/executions', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/test-executions', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/test-runs/:runIdA/compare/:runIdB', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/test-defects', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/test-defects/:id', permissions: ['Admin.Access'] },
+  { method: 'PATCH', path: '/api/v1/oc/test-defects/:id/status', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/test-defects/:id/retest', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/test-coverage', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/test-report', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/test-report/export', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/test-report/migration-validation', permissions: ['Admin.Access'] },
+
   // ─── Client Requests — staff management (real customer self-service backend,
   // 2026-08-20) ──────────────────────────────────────────────────────────────
   // Staff review/approve/reject is Admin.Access-gated, same as every other

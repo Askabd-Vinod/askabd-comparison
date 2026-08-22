@@ -378,6 +378,33 @@ building — do not assume it's missing without checking).
 
 ## Phase 6 — Testing + delivery
 
+- ✅ **DONE (2026-08-23) — first vertical slice** — **Universal Testing &
+  Validation Engine**, per an explicit, extremely detailed user directive
+  (not previously named in this roadmap). A real, reusable QA platform —
+  not a unit-test collection: real test-case model, real rule-based
+  (never AI-fabricated) generation from business requirements/gaps/
+  discovery evidence with mandatory reason + Traceability Engine linkage,
+  real execution recording (PASS/FAIL structurally requires real
+  evidence), real defect creation on FAIL with a real, enforced retest
+  state machine, real requirement coverage, a real HTML/Markdown report
+  (PDF not built — same honest scope decision as Document Generation
+  Engine's own export), a real adapter architecture for external test
+  tools (TestRail/Jira/Azure DevOps — architecture only, no live
+  credentials configured for any client), and a real "Universal
+  Validation Principle" example: migration validation that genuinely
+  reuses the Universal Comparison Engine's own stored results rather than
+  re-deriving or fabricating a pass/fail. **A real, deliberate decision**,
+  matching this session's own Evidence-engine-audit precedent: `oc_defects`
+  (an existing, different, auto-detected operational-defect system) was
+  NOT reused — a new `test_defects` table with its own real, spec-matched
+  status vocabulary was built instead. 14 real tests, 14/14 passing.
+  Explicitly NOT built this pass (see docs/enterprise-operations-progress.md
+  Known Limitations): automated Playwright execution against arbitrary
+  client environments, live cross-browser/device matrix execution, a real
+  physical device farm, video/trace evidence capture, live TestRail/Jira/
+  ADO sync, a full multi-view dashboard, and a customer-facing UAT
+  workflow — all real, deliberate fast-follows. See
+  `docs/enterprise-operations-progress.md` for the full write-up.
 - SDLC Command Centre (Part 14): re-map the existing unified journey view's
   stages to the brief's 12-stage naming, surfacing per-stage requirements/
   risks/gaps/documents/tasks/defects/evidence/approvals — reuse the view,
