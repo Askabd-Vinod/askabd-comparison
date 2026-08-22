@@ -1,13 +1,21 @@
-import { CapabilityPlaceholder } from '../capability-placeholder';
 import { mockClients } from '../../../../lib/mock-clients';
+import { apiSafe } from '../../../../lib/api';
 import { DocumentsView } from './documents-view';
+import { DocumentGenerationView, type DocumentTemplate, type GeneratedDocument } from './document-generation-view';
 
 interface PageProps { params: Promise<{ clientId: string }> }
 
 export default async function ClientDocumentsPage({ params }: PageProps) {
   const { clientId } = await params;
   const client = mockClients.find(c => c.id === clientId);
-  if (!client) return <CapabilityPlaceholder title="Documents" description="Documents management for this client." />;
+  if (!client) {
+    // Real client — real Document Generation Engine (migration 046,
+    // roadmap Phase 3), replacing what was previously a hardcoded
+    // placeholder. The mock/demo branch below is untouched.
+    const { templates } = await apiSafe<{ templates: DocumentTemplate[] }>('/api/v1/oc/document-templates', { templates: [] });
+    const { documents } = await apiSafe<{ documents: GeneratedDocument[] }>(`/api/v1/oc/clients/${clientId}/documents`, { documents: [] });
+    return <DocumentGenerationView clientId={clientId} initialTemplates={templates} initialDocuments={documents} />;
+  }
 
   const documents = [
     { id: 'doc-1', title: 'Service Level Agreement', category: 'Contracts', status: 'active', updated: '2026-07-01', owner: 'hello@askabd.com', version: '2.1' },

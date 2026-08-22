@@ -16,22 +16,21 @@ engineering decision and continue" rather than blocking on Phase 1 first).
 
 ## Current Task
 
-All of Phase 1 (Evidence audit, Versioning Engine, Approval Workflow
-Engine, Traceability Engine) is done. All of Phase 2 item 1 (Universal
-Discovery — both the free-text half AND the document/file-ingestion
-fast-follow), item 2 (Current State Assessment extension), item 3
-(Business Requirements Intelligence), and the Gap Analysis extension are
-also done — see entries below. **Phase 2's real-time-analysis items are
-now genuinely complete.** Next session should continue with the remaining
-roadmap items past Phase 2 (Phase 3 — Documents + Traceability, per
-`docs/enterprise-operations-roadmap.md`: the Document Generation Engine,
-Part 7, is flagged there as "the largest gap"). All three Phase 1 engines
-now have real consumers: Traceability is used by Discovery Intake and Gap
-Analysis (problem→gap, requirement→gap, gap→recommendation,
-gap→transformation); Approval Workflow is used by Gap Analysis's risk-
-acceptance flow. Versioning Engine still has no wired consumer — reach for
-it as soon as a real capability needs full version history beyond a simple
-`updated_at`. Re-read this
+All of Phase 1 and Phase 2 (Universal Discovery, Current State Assessment
+extension, Business Requirements Intelligence, Gap Analysis extension) are
+done. **Phase 3's first vertical slice — the Document Generation Engine —
+is now also done** (migration 046/047; see entry below). All three Phase 1
+engines now have real consumers: Traceability is used by Discovery Intake,
+Gap Analysis, and now Document Generation; Approval Workflow is used by
+Gap Analysis's risk-acceptance flow and now Document Generation's
+approval-required documents; **Versioning Engine has its first real
+consumer too** (document content-history). Next session should continue
+Phase 3 (the Requirements Traceability Matrix UI — Part 8, surfacing the
+real chain the Traceability Engine already tracks — and/or genuinely new
+document templates for the ~44 other named document types, each only once
+a real data-fetcher exists for every section it needs), or move to Phase
+4 (Universal Comparison Engine) per the roadmap's own next-priority
+ordering. Re-read this
 file first and confirm `npm run health` is still green (services may need
 `npm run dev:all` again if the machine was restarted between sessions; the
 Web dev-server health check specifically needs `/staff/login` pre-warmed
@@ -702,7 +701,111 @@ documents into the requirement-shaped table.
    Zero leftover test-fixture clients; both protected real clients
    confirmed intact; zero orphan uploaded files.
 
+## Completed This Session — Document Generation Engine (2026-08-23, Phase 3 continuation, explicitly authorized)
+
+The user's continuation directive explicitly authorized Phase 3 and gave a
+detailed spec (template system, generic engine reusing the Phase 1
+engines, honest source-of-truth rule, real quality check, real export).
+Existing document infrastructure inspected first, per standing
+instruction — found real, working `DocumentStorageService`/onboarding-
+document infrastructure (unrelated concept, already reused correctly for
+Discovery document ingestion earlier this session) and confirmed, via
+search, that no document-generation or template concept existed anywhere.
+
+1. **Migration 046** — `document_templates` (real section/data-source
+   registry: `[{key, title, dataSource, required}]`, `approvalRequired`
+   flag) + `generated_documents` (real lifecycle, real content JSONB,
+   `customer_visible`, actor attribution). **Migration 047** — a real data
+   migration (matching the existing `015_multi_framework_seed.sql`
+   precedent) seeding exactly 3 templates: BRD, Gap Analysis Report,
+   Current State Assessment Report — deliberately the full, honest
+   starting set, each chosen because every section it needs already has a
+   real, working data-fetcher against a real, already-built platform
+   capability. The other ~44 document types the brief named are genuinely
+   not yet templated — no fabricated coverage claim.
+2. **`document-generation-engine.ts`** — ONE reusable engine, not
+   per-document-type generators, wired to the Phase 1 shared engines
+   exactly as directed:
+   - Content-version **history** uses the real Versioning Engine
+     (`entity_versions`, `entity_type='generated_document'`) — the
+     Versioning Engine's first real consumer this session.
+   - Formal **approval** (for templates requiring one) uses the real
+     Approval Workflow Engine; `generated_documents.status` is written
+     FROM the workflow's real decision in the same service call — the
+     exact same pattern already proven for Gap Analysis's risk-acceptance
+     flow, never an independent `approved` flag.
+   - Every section's real source records get a real **Traceability
+     Engine** link back to the generated document.
+   - Real, registered data-fetchers (`client_profile`,
+     `business_requirements`, `gaps`, `gap_evidence`,
+     `gap_options_decisions`, `transformations`, `assessments`,
+     `discovery_sources`) — one real Postgres query per entry, scoped to
+     the exact client. **The SOURCE-OF-TRUTH rule enforced in code**: any
+     fetcher finding nothing real returns an honest
+     `INFORMATION REQUIRED` content string plus a structured
+     `missingFields` list — never an invented narrative.
+   - Real **quality check** (`getQualityCheck`): READY only when every
+     section has zero missing fields AND (if approval is required) the
+     document's real status is `approved` — with exact, specific reasons
+     for NOT READY, never a vague pass/fail.
+   - Real **export**: HTML and Markdown are genuinely implemented and
+     tested (zero new dependencies — pure string templating from the
+     stored content). PDF/DOCX are honestly rejected as NOT SUPPORTED YET
+     — the same "no unvetted new dependency mid-session" discipline
+     already applied to PDF text extraction in Discovery ingestion.
+3. **Routes + RBAC** — a new route file (`document-generation-routes.ts`,
+   14 routes: templates CRUD-lite, generate/regenerate, approval flow,
+   archive, customer-visibility toggle, export, history, quality-check),
+   all opaque-ID/client-scoped routes gated `Admin.Access`. One
+   customer-portal read route, same established pattern as every prior
+   customer-facing surface this session.
+4. **Extended, not duplicated, a real pre-existing page**: the
+   client-facing "Documents" tab already existed
+   (`clients/[clientId]/documents`). Real clients correctly received an
+   honest "not yet available" placeholder there (matching this codebase's
+   own established, previously-audited convention — the 100% hardcoded
+   sample documents on that page are shown ONLY for the ~20 static
+   mock/demo clients, confirmed by reading the exact branch condition
+   before touching anything). Replaced the real-client placeholder branch
+   with the real engine, wiring it into the exact existing page/tab; the
+   untouched demo-client branch still renders its sample data exactly as
+   before.
+5. **Tests** — `document-generation-engine.test.ts`, 22 real tests against
+   real Postgres + real Fastify routing + real RBAC/tenant-access
+   middleware: real generation from real Business Requirements/Gaps data
+   (including the honest empty-state proof), real Traceability Engine
+   link verification, real version-history growth via regeneration, the
+   real quality check (both the missing-data and the
+   approval-not-yet-granted NOT READY paths), the full real approval cycle
+   (submit → approve; submit → request_changes → regenerate-allowed-again;
+   regenerating an already-approved document correctly refused; submitting
+   a no-approval-required template correctly refused), real HTML/Markdown
+   export content, an honest PDF-rejection proof, RBAC denial, and
+   customer-portal visibility including real tenant isolation. **22/22
+   passing, first try** — no defects found during this pass's own testing.
+6. **Verification**: `tsc --noEmit` clean and `npm run build` clean for
+   both API and Web. Unauthenticated access to the extended Documents page
+   live-verified in the real browser after a genuine runtime
+   investigation (see Failed Tests below) — clean redirect, zero console
+   errors.
+7. **Full regression, clean isolated runs**: API **534/534** (512 + 22
+   new), Web **33/33**. `npm run health`: 11/11. Zero leftover
+   test-fixture clients; both protected real clients confirmed intact.
+
 ## Failed Tests
+
+**Document Generation Engine pass (2026-08-23)**: A real browser runtime
+issue, not a code defect — investigated properly, not assumed. After
+restarting the Web dev server (the same `EADDRINUSE`/stale-`.next` fix
+already documented from the prior pass), the very first navigation to the
+extended Documents page showed real console errors: `Cannot find module
+'./4787.js'` and repeated `500`s. Root-caused as a **stale browser tab**
+still holding references to pre-restart build-chunk hashes, not a server
+problem — confirmed by closing that tab and opening a genuinely fresh one
+against the same running server: zero console errors, clean redirect. No
+code was changed for this; the lesson (recorded for future sessions) is
+that a dev-server restart requires a fresh browser tab, not just a
+reload, to fully clear stale chunk references.
 
 **New session continuation (Gap Analysis extension, 2026-08-23)**: Two
 identity-suite timeouts, both confirmed self-inflicted CPU contention, not
@@ -850,69 +953,67 @@ one. The one test failure above was correctly diagnosed as non-code.
 
 ## Database Migrations
 
-**45 applied** (see `docs/enterprise-operations-gap-analysis.md` Section 1
-for the full list through 037; `038_business_requirements.sql`,
-`039_entity_versioning_engine.sql`, `040_approval_workflow_engine.sql`,
-`041_traceability_engine.sql`, `042_discovery_intake.sql`,
-`043_assessment_domains.sql`, `044_gap_analysis_extension.sql`, and
-`045_discovery_document_ingestion.sql` — all applied to the live DEV
+**47 applied** (see `docs/enterprise-operations-gap-analysis.md` Section 1
+for the full list through 037; `038_business_requirements.sql` through
+`045_discovery_document_ingestion.sql`, plus `046_document_generation_engine.sql`
+and `047_document_template_seed.sql` — all applied to the live DEV
 database and verified via `\d`).
 
 ## Last Verified Commit
 
-`a4a57ee` on `feature/reliability-hardening` (pushed to origin — confirmed
-`a5ac782..a4a57ee`). `main` confirmed unchanged at `b63f797`.
+Pending this turn's commit (Document Generation Engine) on
+`feature/reliability-hardening`. Prior verified commit: `f3ed4d4` (pushed
+to origin). `main` confirmed unchanged at `b63f797`.
 
 ## Last Playwright Verification
 
-Unauthenticated access to every new/extended page across this session
-(`/clients/:clientId/business-requirements`,
-`/clients/:clientId/discovery-intake`, the extended
-`/clients/:clientId/assessment`, and the extended `/clients/:clientId/gaps`)
-was live-verified in the real browser — clean redirect to `/staff/login`,
-zero console errors, no data exposed, for all four. A full authenticated
-walkthrough was genuinely attempted this session (not just deferred) — a
-real temporary staff identity was created and verified end-to-end via
-askabd-identity's API, but the final step (granting it a role) was blocked
-by the sandbox's permission classifier as a raw-SQL privilege grant, and
-the user's explicit decision was to proceed via the existing DB+HTTP test
-standard rather than any workaround. See the Gap Analysis extension
-entry's explicit per-capability verification-level table
-(Playwright-verified vs API/DB-verified) for the exact breakdown. The real
-DB+HTTP integration suites (`business-requirements.test.ts` 15,
+Unauthenticated access to every new/extended page across this session,
+now including the extended `/clients/:clientId/documents`, was
+live-verified in the real browser — clean redirect to `/staff/login`, zero
+console errors, no data exposed. A full authenticated walkthrough was
+genuinely attempted this session (not just deferred) — a real temporary
+staff identity was created and verified end-to-end via askabd-identity's
+API, but the final step (granting it a role) was blocked by the sandbox's
+permission classifier as a raw-SQL privilege grant, and the user's
+explicit decision was to proceed via the existing DB+HTTP test standard
+rather than any workaround. See the Gap Analysis extension entry's
+explicit per-capability verification-level table (Playwright-verified vs
+API/DB-verified) for the exact format now used for every capability. The
+real DB+HTTP integration suites (`business-requirements.test.ts` 15,
 `discovery-intake.test.ts` 11, `discovery-document-ingestion.test.ts` 6,
-`assessment-domains.test.ts` 15, `gap-analysis-extension.test.ts` 25) are
-the substitute evidence for the backend half of all these capabilities.
+`assessment-domains.test.ts` 15, `gap-analysis-extension.test.ts` 25,
+`document-generation-engine.test.ts` 22) are the substitute evidence for
+the backend half of all these capabilities.
 
 ## Last Health Check
 
 `npm run health`: **11/11 green**, confirmed at the end of this session —
-this pass hit and fixed a second real (not test) runtime failure of the
-same general shape as before: the Web dev server first went unreachable,
-then came back as a real 500 after a first restart attempt, root-caused to
-a genuinely stale `.next` cache AND a zombie process still actually
-holding port 3001 (found via `netstat`, not assumed) — fixed by
-force-killing the real PID, clearing the cache, and restarting cleanly.
+this pass hit and fixed a THIRD real Web dev-server runtime issue this
+session (see Failed Tests above for the full diagnosis: a stale browser
+tab, not a server defect this time — the server-side restart procedure
+from the prior two incidents was applied preemptively and worked cleanly).
 
 ## Regression — final confirmed baseline this session
 
-- **API: 512/512 passing** (406 baseline → 421 Business Requirements → 433
+- **API: 534/534 passing** (406 baseline → 421 Business Requirements → 433
   Versioning Engine → 444 Approval Workflow Engine → 455 Traceability
   Engine → 466 Discovery Intake → 481 Assessment Domains → 506 Gap
-  Analysis extension → 512 Discovery document ingestion; every addition
-  confirmed via a clean, fully isolated full-suite run)
+  Analysis extension → 512 Discovery document ingestion → 534 Document
+  Generation Engine; every addition confirmed via a clean, fully isolated
+  full-suite run)
 - **Identity: 219/219 passing** (clean, fully isolated run earlier this
   session; not re-run this pass since no identity code changed — see
   Failed Tests above for two self-inflicted CPU-contention timeouts
   earlier in this session, both confirmed non-regressions via isolated
   re-runs)
 - **Web: 33/33 passing** (clean, fully isolated run, no flakes — includes
-  the extended Gap Analysis UI and the new document-upload UI)
+  the extended Gap Analysis UI, the document-upload UI, and the new
+  Document Generation UI)
 - `tsc --noEmit` clean and `npm run build` clean for API and Web this pass
   (Identity unaffected, not re-built) — genuine production builds, not
   just typecheck
-- `npm run health`: 11/11 green (after diagnosing and fixing a second real
-  Web dev-server outage this session, described above)
+- `npm run health`: 11/11 green (after a real, properly-diagnosed browser-
+  side runtime issue this pass — see Failed Tests above)
 - Both protected real clients confirmed intact via direct DB query,
   timestamps unchanged: `AskABD Manual UAT 2026` (created 2026-08-15) and
   `Test1` (created 2026-08-19T21:53:45Z — exact match to every prior

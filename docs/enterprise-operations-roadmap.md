@@ -248,14 +248,44 @@ wire into as each capability needs them, not standalone features.
 
 ## Phase 3 — Documents + traceability
 
-- **Document Generation Engine** (Part 7 — the largest gap): template
-  registry (Part 37: name/version/category/required-inputs/
-  optional-inputs/sections/source-mappings/output-formats/approval-workflow)
-  first, then the generation pipeline for a small starting set (BRD, SRS,
-  EWR, EWP — the four the existing platform vocabulary already names in
-  `HANDOFF.md`) before the full ~50-document catalog in Part 7. Wire to the
-  Phase-1 Versioning and Approval engines, not a bespoke mechanism. Export:
-  Markdown first (cheapest, no new dependency), then PDF/DOCX.
+- ✅ **DONE (2026-08-23) — first vertical slice** — **Document Generation
+  Engine** (Part 7 — "the largest gap"): ONE reusable engine (migration
+  046), not per-document-type generators. `document_templates` (real
+  section/data-source registry, extensible by inserting new template rows
+  — no core-engine code change needed for a new document type as long as
+  its sections map to registered, real data-fetchers) + `generated_documents`.
+  Wired to the Phase-1 shared engines exactly as directed, not a bespoke
+  mechanism: content-version HISTORY uses the real Versioning Engine
+  (`entity_versions`, `entity_type='generated_document'`); formal APPROVAL
+  (for templates that require it) uses the real Approval Workflow Engine,
+  with `generated_documents.status` written FROM the workflow's real
+  decision in the same call — mirroring the exact pattern already proven
+  for Gap Analysis's risk-acceptance flow; every section's real source
+  records get a real Traceability Engine link back to the generated
+  document. **Real, honest starting set of 3 templates** (BRD, Gap
+  Analysis Report, Current State Assessment Report) — each one chosen
+  because every section it needs already has a real, working data-fetcher
+  against a real platform capability; the other ~44 named document types
+  are genuinely not yet templated (no fabricated coverage claim). The
+  SOURCE-OF-TRUTH rule is enforced in code, not just described: any
+  section with nothing real to report renders `INFORMATION REQUIRED` with
+  a structured, specific missing-fields list, which the real quality check
+  (READY/NOT READY with exact reasons) reads directly — proven by test,
+  not asserted. Export: HTML and Markdown are real and tested (zero new
+  dependencies); PDF/DOCX are honestly reported as not-yet-supported
+  rather than faked — the same "no unvetted new dependency mid-session"
+  discipline already applied to PDF text extraction in Discovery.
+  **Extended, not duplicated, a real pre-existing page**: the client-facing
+  "Documents" tab already existed (`clients/[clientId]/documents`). Real
+  clients correctly got an honest "not yet available" placeholder there
+  (per this codebase's own established, previously-audited convention —
+  100% hardcoded sample documents were shown only for the ~20 static
+  mock/demo clients, never for a real one). Replaced that real-client
+  placeholder with the real engine, wiring it into the exact existing
+  page/tab rather than creating a second Documents surface; the untouched
+  demo-client branch still renders its sample data exactly as before.
+  22 real tests, 22/22 passing. See `docs/enterprise-operations-progress.md`
+  for full detail.
 - **Requirements Traceability Matrix UI** (Part 8): built on the Phase-1
   Traceability engine, surfacing the real chain for a given requirement.
 

@@ -377,6 +377,28 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   { method: 'GET', path: '/api/v1/oc/discovery-sources/:id/extractions', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/discovery-sources/:id/extractions', permissions: ['Admin.Access'] },
 
+  // ─── Document Generation Engine (migration 046, document-generation-routes.ts)
+  // ───────────────────────────────────────────────────────────────────────────
+  // Staff-managed, same opaque-ID pattern as Gap Analysis/Business
+  // Requirements above. The customer-portal read route
+  // (/oc/portal/:clientId/documents) is deliberately NOT listed here — same
+  // established pattern as every other customer-portal route in this file:
+  // defaultPolicy 'authenticated' + tenant-access.ts's real membership check.
+  { method: 'GET', path: '/api/v1/oc/document-templates', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/document-templates/:id', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/document-templates', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/documents', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/documents', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/documents/:id', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/documents/:id/history', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/documents/:id/quality-check', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/documents/:id/regenerate', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/documents/:id/submit-for-approval', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/documents/:id/decide-approval', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/documents/:id/archive', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/documents/:id/customer-visibility', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/documents/:id/export', permissions: ['Admin.Access'] },
+
   // ─── Client Requests — staff management (real customer self-service backend,
   // 2026-08-20) ──────────────────────────────────────────────────────────────
   // Staff review/approve/reject is Admin.Access-gated, same as every other
