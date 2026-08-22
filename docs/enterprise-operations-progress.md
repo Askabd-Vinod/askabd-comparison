@@ -586,9 +586,8 @@ DEV database and verified via `\d`).
 
 ## Last Verified Commit
 
-Pending this turn's commit (Current State Assessment domain extension) on
-`feature/reliability-hardening`. Prior verified commit: `4b81d6a` (pushed
-to origin). `main` confirmed unchanged at `b63f797`.
+`52296a0` on `feature/reliability-hardening` (pushed to origin — confirmed
+`4b81d6a..52296a0`). `main` confirmed unchanged at `b63f797`.
 
 ## Last Playwright Verification
 
