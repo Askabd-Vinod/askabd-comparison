@@ -79,10 +79,27 @@ platform's one real ongoing hazard).
   `assessment-service.ts` shape (already Source/Evidence/Confidence/Status
   for infrastructure) to the other six categories (Business, Application,
   Data, Security, Quality, Operations) rather than a parallel schema.
-- **Requirement quality/completeness classification** (Part 3): add
-  COMPLETE/PARTIALLY COMPLETE/INCOMPLETE/AMBIGUOUS/CONFLICTING/DUPLICATE/
-  UNVERIFIED to the existing requirement model; a
-  `requirement_quality_findings` table for the *why*.
+- ✅ **DONE (2026-08-22)** — **Requirement quality/completeness
+  classification** (Part 3): COMPLETE/PARTIALLY_COMPLETE/INCOMPLETE/
+  AMBIGUOUS/CONFLICTING/DUPLICATE/UNVERIFIED, real rule-based classifier
+  with an evidence-carrying `quality_findings` JSONB column for the *why*
+  (not a separate table — kept inline on the requirement row, matching the
+  existing `oc_client_service_requirement_history` shape more directly and
+  avoiding an unnecessary join for the single most common read path).
+  **Real architecture refinement made here, not a literal "add to the
+  existing requirement model" as this line originally said**: built as a
+  NEW table, `oc_business_requirements` (migration 038), deliberately
+  separate from `oc_client_service_requirements`
+  (`requirements-service.ts`). Investigated first, documented in the
+  migration's own doc comment: the existing table is AskABD's own fixed,
+  well-specified ONBOARDING catalog (Database Host, Security Contact, ...)
+  — every field is authored by AskABD, not the client, so "is this
+  requirement ambiguous?" is not a meaningful question to ask of it. The
+  new table holds the CLIENT's own business/functional/technical
+  requirements, which genuinely can be incomplete/ambiguous/duplicate. Full
+  vertical slice: service, routes, RBAC, 15 real tests, UI page following
+  the canonical Connector-Configuration pattern. See
+  `docs/enterprise-operations-progress.md`'s Phase 1/2 entry for full detail.
 - **Gap Analysis extension** (Part 4 + 6): the real `oc_gaps`/`oc_gap_options`
   foundation (migration 037) already exists — extend with the full field
   set the brief wants (Business Impact, Technical Impact, Risk, Recommended

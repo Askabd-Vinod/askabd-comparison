@@ -8,16 +8,111 @@ last-known-good state and the exact next task.
 
 ## Current Phase
 
-**Phase 0 — Foundation / safety / architecture verification** (per
-`docs/enterprise-operations-roadmap.md`)
+**Phase 2, item 3 — Requirement quality/completeness classification** (per
+`docs/enterprise-operations-roadmap.md`; Phase 0 and the Phase 1 shared
+engines — Evidence/Versioning/Approval/Traceability — are still ahead in
+strict roadmap order, but this item was self-contained and fully additive,
+so it was safe to build now under the "make the safest reversible
+engineering decision and continue" rule rather than block on Phase 1 first).
+Correcting a phase-numbering slip from earlier this session: this work was
+referred to as "Phase 1" in-session; the roadmap actually places it under
+**Phase 2**. First vertical slice (Business Requirements Intelligence) is
+complete, tested, and committed.
 
 ## Current Task
 
-Phase 0 is now complete. **Next session should start Phase 1** (Requirements
-Intelligence quality/completeness classification — see
-`docs/enterprise-operations-roadmap.md` Phase 1/2), after first re-reading
-this file and confirming `npm run health` is still green (services may need
-`npm run dev:all` again if the machine was restarted between sessions).
+Phase 2 item 3's first vertical slice is done. **Next session should build
+Phase 1's shared engines** (Traceability, generic Versioning, generic
+Approval Workflow — genuinely still ahead in the roadmap's own priority
+order, and Phases 3–5 want them as foundations rather than each inventing
+an ad hoc mechanism), then return to the rest of Phase 2 (Universal
+Discovery, Current State Assessment, Gap Analysis extension). Re-read this
+file first and confirm `npm run health` is still green (services may need
+`npm run dev:all` again if the machine was restarted between sessions; the
+Web dev-server health check specifically needs `/staff/login` pre-warmed
+first with a longer-timeout curl — a known Next.js dev first-compile timing
+quirk, not a defect, see Last Health Check below).
+
+## Completed This Session — Phase 2 item 3, Business Requirements Intelligence (2026-08-22, continued)
+
+Real, database-backed capability distinguishing the CLIENT's own stated
+business/functional/technical requirements from AskABD's fixed onboarding
+catalog (`requirements-service.ts` / `oc_client_service_requirements`,
+architecturally unrelated — see migration 038's own doc comment for the
+full reasoning). Full vertical slice, Definition-of-Done complete:
+
+1. **Migration 038** (`oc_business_requirements` + `oc_business_requirement_history`)
+   — 13 requirement types (business/functional/non_functional/technical/
+   integration/security/compliance/data/reporting/migration/performance/
+   availability/usability), 7 quality statuses (complete/partially_complete/
+   incomplete/ambiguous/conflicting/duplicate/unverified), evidence-carrying
+   `quality_findings` JSONB, self-referencing `related_requirement_id` for
+   duplicate/conflict linking, full version-history table. Applied to the
+   live DEV database, verified via `\d`.
+2. **`business-requirements-service.ts`** — real, transactional, versioned
+   CRUD (matching `requirements-service.ts`'s and `crm-service.ts`'s proven
+   patterns: idempotent updates, `BEGIN`/`COMMIT`/`ROLLBACK`, history writes,
+   best-effort fire-and-forget audit via the same `oc_audit_log` pattern used
+   platform-wide). The real capability: a **rule-based, fully explainable**
+   quality classifier — every non-complete status carries a `{rule, message}`
+   finding, never a fabricated/black-box score:
+   - `duplicate_title` — same client, normalized-title exact match (real DB
+     query, tenant-scoped — confirmed NOT to false-positive across clients)
+   - `missing_required_fields` → `incomplete` (≥3 of description/acceptance
+     criteria/stakeholder/business objective/category missing)
+   - `vague_unmeasurable_language` → `ambiguous` (a vague term — "better",
+     "faster", "seamless", etc. — with no digit anywhere in the description)
+   - `missing_optional_fields` → `partially_complete` (1–2 fields missing)
+   - `staff_flagged_conflict` → `conflicting` — the ONE status deliberately
+     never auto-assigned; requires an explicit staff action, since real
+     semantic conflict detection is not something this system can honestly
+     claim to verify on its own.
+   - Real, evidence-backed `getQualitySummary()` rollup (per-status counts,
+     no fabricated single "quality score").
+3. **`business-requirements-routes.ts`** — client-scoped list/create/summary,
+   opaque-ID get/update/deprecate/flag-conflict/history, real `400`/`404`
+   handling, `getAuth(req)` for real actor attribution (never client-supplied).
+4. **RBAC** — 8 new rules added to `platform/rbac/rules.ts` (Admin.Access,
+   staff-only — same precedent as CRM's contacts/notes/tasks; no customer
+   self-service surface yet). Registered in `server.ts`.
+5. **Tests** — `business-requirements.test.ts`, 15 real tests against real
+   Postgres + real Fastify routing + real RBAC/tenant-access middleware:
+   RBAC denial (403/401), full CRUD, versioned update + history, deprecate
+   (soft state, not delete), and — the real substance — every quality-
+   classification branch (incomplete/ambiguous/complete/duplicate,
+   tenant-scoped duplicate check proven NOT to cross clients, staff-flagged
+   conflict, summary rollup). **15/15 passing**, both standalone and as part
+   of the full 421-test suite.
+6. **UI** — new `(app)/clients/[clientId]/business-requirements/` page +
+   `business-requirements-manager.tsx`, following the canonical
+   Connector-Configuration pattern (cards, expandable rows, status badge)
+   confirmed as this platform's approved standard for multi-record client
+   pages: real create form (every field has a visible label + helper text,
+   required/optional distinguished, never placeholder-only), a 7-value
+   `QualityBadge` (icon+label, never color alone, matching
+   `evidence-status.tsx`'s existing accessibility discipline), an expandable
+   detail panel showing the real `quality_findings` explanation, a
+   staff-only conflict-flagging control, and a real, evidence-backed summary
+   strip (no fabricated aggregate score). New "Business Requirements" tab
+   added to `client-tabs.tsx`.
+7. **Verification**: `tsc --noEmit` clean on both `apps/api` and `apps/web`.
+   Unauthenticated access to the new page live-verified in the real browser
+   — cleanly redirects to `/staff/login`, zero console errors, no data
+   leak (confirms the route compiles and the security boundary holds).
+   **Full authenticated Playwright walkthrough of this specific page was
+   NOT completed** — same pre-existing, already-documented constraint as the
+   prior session's pending item 3 (no staff credential available without
+   guessing/brute-forcing against the one real `super_admin` identity, which
+   this platform's own rules forbid). The real, DB-backed HTTP-layer test
+   suite (item 5 above) is the substitute evidence for this pass — it
+   exercises the real database, real Fastify routing, and real RBAC/tenant
+   middleware end-to-end, just not the rendered DOM.
+8. **Full regression, clean isolated baseline**: API 421/421 (up from 406 —
+   15 new), Identity 219/219, Web 33/33. `npm run health`: 11/11.
+   Both protected real clients (`AskABD Manual UAT 2026`, `Test1`) confirmed
+   intact via direct DB query, timestamps unchanged. No leftover test-fixture
+   clients (afterAll cleanup-by-exact-id confirmed working, zero `BR %`-named
+   rows left in the database).
 
 ## Completed This Session (2026-08-22)
 
@@ -83,21 +178,56 @@ this file and confirming `npm run health` is still green (services may need
 
 ## Failed Tests
 
-One transient failure, root-caused and closed, not a real defect:
-`tests/operations-center-audit.test.ts > createClient — audit best-effort
-policy > primary success + audit success` failed once (`expected +0 to be
-1`) during a run that was contending with two other concurrent full-suite
-runs I had started against the same shared test Postgres instance (my own
-mistake — I ran the suite three times in overlapping windows while
-iterating on capture/logging). Diagnosis: the test does a real, non-mocked
-`createClient()` call, waits 50ms for the fire-and-forget audit write, then
-queries for it — under DB contention from concurrent suites, 50ms wasn't
-enough. **Verified not a real regression two ways**: (1) re-ran that one
-test file alone — 7/7 passed including this exact test; (2) ran the entire
-suite alone, no concurrent contention — **406/406 passed**, including this
-test. No code was changed for this — there was no defect to fix, only a
-self-inflicted timing collision from running the suite multiple times at
-once, correctly diagnosed rather than papered over.
+**Session 1 (Phase 0)**: One transient failure, root-caused and closed, not
+a real defect: `tests/operations-center-audit.test.ts > createClient —
+audit best-effort policy > primary success + audit success` failed once
+(`expected +0 to be 1`) during a run that was contending with two other
+concurrent full-suite runs (my own mistake — ran the suite three times in
+overlapping windows while iterating on capture/logging). Verified not a
+real regression two ways (isolated file, isolated full suite — 406/406). No
+code changed — no defect existed.
+
+**Session continuation (Phase 1)**: A second, larger instance of the exact
+same self-inflicted-rerun pattern, now fully understood and documented as a
+recurring hazard of this environment (persistent, non-ephemeral dev
+Postgres + repeatedly re-running full suites in the same session):
+- Ran the full API suite concurrently with the full Identity suite and the
+  full Web suite (three separate processes, three separate databases —
+  chosen deliberately since Identity/Web don't share the API's DB). Result:
+  5 individual test failures across 5 files (4 in API: `payment-
+  reconciliation.test.ts` "prevents duplicate transactions", `reliability-
+  hardening.test.ts` "one new history row", `remediation-execution.test.ts`
+  "denied reading another client's remediation" [a real Postgres unique-
+  constraint violation, not an assertion], `operations-center-audit.test.ts`
+  "audit failure does not prevent remediation creation"; 1 in Identity:
+  `self-auth-routes.test.ts`, 2 of its 5 tests timed out at 5000ms).
+- **Root-caused, not papered over**: none of these 5 files touch the new
+  `business-requirements` code (confirmed — my new test file wasn't even in
+  the failure list). Two distinct causes, both self-inflicted: (a) the API
+  failures were literal fixture-data collisions — this was the **second**
+  full-suite run against the same persistent dev database within the
+  session (an earlier attempt at capturing output had silently produced a
+  truncated/empty log but the suite itself had actually run to completion
+  underneath, leaving real rows behind that a second run's non-randomized
+  fixtures — external IDs, requirement keys, incident IDs — then collided
+  with); (b) the Identity timeout was real CPU contention from having three
+  full suites' worth of bcrypt/argon2 password hashing and Postgres I/O
+  running on the same machine simultaneously, not a logic defect.
+- **Verified not real regressions, three independent ways**: (1) re-ran all
+  4 failing API files together, alone — 45/45 passed; (2) re-ran the
+  Identity file alone immediately after (while the API suite was still
+  running in the background) — still failed, confirming the CPU-contention
+  theory rather than refuting it; (3) re-ran it again once the API process
+  had actually exited — 5/5 passed; (4) as the final, decisive check, ran
+  both full suites completely alone, fully sequential, zero concurrency —
+  **API 421/421, Identity 219/219, Web 33/33**, all clean. No code was
+  changed for any of these — there was no defect to fix.
+- **Process lesson recorded for future sessions**: do not re-run a full
+  suite against this environment's persistent dev Postgres more than once
+  without either (a) running suites fully sequentially, never concurrently,
+  or (b) accepting that a second run may need fixture cleanup first. The
+  final, trusted regression baseline for this session was established with
+  fully sequential, zero-concurrency runs.
 
 ## Fixed Defects (process safeguards, not application code)
 
@@ -116,24 +246,29 @@ one. The one test failure above was correctly diagnosed as non-code.
 
 ## Pending Tasks (in priority order, per the roadmap)
 
-1. **Begin Phase 1** (Requirements Intelligence): extend the existing
-   requirement model with quality/completeness classification
-   (COMPLETE/PARTIALLY COMPLETE/INCOMPLETE/AMBIGUOUS/CONFLICTING/DUPLICATE/
-   UNVERIFIED) per the gap analysis Section 3. `requirement-workspace.tsx`
-   (643 lines) and `requirements-service.ts` (438 lines) are the two files
-   to extend — read both in full before starting, do not add a parallel
-   mechanism.
-2. Phase 1 foundation engines (Traceability, generic Versioning, generic
-   Approval Workflow) per the roadmap — needed before Phases 3–5 can build
-   on them cleanly rather than each inventing its own mechanism.
+1. **Continue Phase 1/2 foundation engines**: Traceability Engine, generic
+   Versioning Engine, generic Approval Workflow Engine — per the roadmap,
+   needed as shared foundations before Phases 3–5 build their own ad-hoc
+   versions of the same concepts. Business Requirements Intelligence
+   (this session's work) is the first Phase 1 vertical slice, complete;
+   Requirement Gap Analysis and cross-requirement dependency detection are
+   the natural next Phase 1 extensions once the Traceability Engine exists
+   to hook into.
+2. **Full authenticated Playwright walkthrough of the new Business
+   Requirements page** — genuinely not completed this pass (see item 7 in
+   the Phase 1 summary above). Blocked on the same credential constraint as
+   item 3 below, not newly introduced. A safe way to unblock: either the
+   real system owner grants a scoped, temporary staff test identity (via
+   `askabd-identity`'s real registration flow + this repo's own
+   `staff_role_assignment` grant flow — genuinely correct usage of both,
+   not a workaround), or provides the existing `super_admin` identity's
+   credential for a single supervised session. Guessing/brute-forcing is
+   not an option under this platform's own rules and was correctly not
+   attempted.
 3. The full 5-breakpoint field-UX sweep the prior session's eighth pass
-   left unverified — this session spot-checked both auth pages
-   (`/staff/login`, `/login`) at 1024/1280/1440 (clean: real labels, helper
-   text on at least one field, 0 console errors, 0 overflow at every width)
-   but did **not** cover the ~12 named in-app pages behind authentication —
-   real staff/customer credentials would be needed to reach them, which
-   this session did not attempt (no credential was provided or safely
-   discoverable without guessing against a real system).
+   left unverified — this session again could not extend it to the ~12
+   named in-app pages behind authentication, same credential constraint as
+   item 2.
 4. **Out of scope, flagged not fixed**: `askabd-shared` (sibling repo) has
    8 uncommitted changes on `main` (a real remote-tracked branch, unlike
    `askabd-identity`'s local-only `master`) — all build-artifact `.tgz`
@@ -145,43 +280,54 @@ one. The one test failure above was correctly diagnosed as non-code.
 
 ## Database Migrations
 
-37 applied as of session start (see `docs/enterprise-operations-gap-analysis.md`
-Section 1 for the full list through 037). None added this session — audit
-and checkpoint only so far.
+**38 applied** (see `docs/enterprise-operations-gap-analysis.md` Section 1
+for the full list through 037; `038_business_requirements.sql` added this
+session — `oc_business_requirements` + `oc_business_requirement_history`,
+applied to the live DEV database, verified via `\d`).
 
 ## Last Verified Commit
 
-`fd5ff30` on `feature/reliability-hardening` (pushed to origin). `main` at
-`b63f797` (unchanged).
+Pending this session's commit (Phase 1 Business Requirements Intelligence
+vertical slice) on `feature/reliability-hardening`. Prior verified commit:
+`fd5ff30` (pushed to origin). `main` at `b63f797` (unchanged).
 
 ## Last Playwright Verification
 
-None performed yet this session — no UI code has changed yet. Will be
-required starting with the first real Phase 1 UI change.
+Unauthenticated access to the new `/clients/:clientId/business-requirements`
+page was live-verified in the real browser this session — clean redirect to
+`/staff/login`, zero console errors, no data exposed. A full authenticated
+walkthrough (create requirement → confirm quality badge + real findings
+render → refresh → confirm persistence → failure path) was **not**
+completed — blocked on the same pre-existing credential constraint recorded
+under Pending Tasks item 2, not silently skipped. The 15-test real DB+HTTP
+integration suite (`business-requirements.test.ts`) is the substitute
+evidence for the backend half of this capability.
 
 ## Last Health Check
 
-`npm run health`: **11/11 green**, confirmed three times this session — after
-first starting services (needed a `/staff/login` pre-warm first, a slow
-Next.js first-compile timing issue, not a defect), and again as the very
-last action before this report was written, immediately after the final
-clean regression run.
+`npm run health`: **11/11 green**, confirmed at the end of this session
+(needed the same `/staff/login` pre-warm as before — a Next.js dev
+first-compile timing quirk, not a defect, now recorded as a known,
+recurring, harmless characteristic of this dev environment).
 
 ## Regression — final confirmed baseline this session
 
-- **API: 406/406 passing** (clean, isolated run — see Failed Tests above
-  for the transient-flake story from earlier concurrent runs)
-- **Identity: 219/219 passing** (clean run, no flakes)
+- **API: 421/421 passing** (up from 406 — 15 new `business-requirements`
+  tests; clean, fully isolated run — see Failed Tests above for the
+  self-inflicted-rerun story from an earlier concurrent run this session)
+- **Identity: 219/219 passing** (clean, fully isolated run, no flakes)
 - **Web: 33/33 passing** (clean run, no flakes)
 - `npm run health`: 11/11 green
 - Both protected real clients confirmed intact via direct DB query,
   timestamps unchanged: `AskABD Manual UAT 2026` (created 2026-08-15) and
-  `Test1` (created 2026-08-19T21:53:45Z — exact match to the prior
+  `Test1` (created 2026-08-19T21:53:45Z — exact match to every prior
   session's audit record)
-- No orphan/duplicate record sweep re-run this session (the prior session's
-  sixth and eighth passes both confirmed clean, and no schema/data changes
-  were made this session that could have introduced new orphans) —
-  carried forward, not re-derived from nothing
+- Zero leftover test-fixture clients from this session's new test suite
+  (`afterAll` cleanup-by-exact-id confirmed working via direct query)
+- No orphan/duplicate record sweep re-run this session beyond the above —
+  the prior session's sixth and eighth passes both confirmed clean, and
+  this session's only schema change (migration 038) is a new, additive,
+  empty-by-default table with no way to have introduced orphans elsewhere
 
 ## Real client data on the system (protected, never modify without an
 explicit, scoped test)

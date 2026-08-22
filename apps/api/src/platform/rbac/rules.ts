@@ -334,6 +334,25 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   { method: 'PUT', path: '/api/v1/oc/tasks/:id', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/tasks/:id/status', permissions: ['Admin.Access'] },
 
+  // ─── Business Requirements Intelligence (migration 038,
+  // business-requirements-routes.ts) ───────────────────────────────────────
+  // Staff-managed only, same as CRM above — this classifies the CLIENT's own
+  // stated business/functional/technical requirements (quality/completeness),
+  // not a customer self-service surface. The client-scoped routes (:clientId
+  // in the path) are also covered by tenant-access.ts; the opaque-ID routes
+  // (business-requirements/:id, .../deprecate, .../flag-conflict,
+  // .../history) carry no clientId param at all, so this Admin.Access gate
+  // is what restricts them to staff — same precedent as the CRM entity-scoped
+  // routes immediately below.
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/business-requirements', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/business-requirements/summary', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/business-requirements', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/business-requirements/:id', permissions: ['Admin.Access'] },
+  { method: 'PUT', path: '/api/v1/oc/business-requirements/:id', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/business-requirements/:id/deprecate', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/business-requirements/:id/flag-conflict', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/business-requirements/:id/history', permissions: ['Admin.Access'] },
+
   // ─── Client Requests — staff management (real customer self-service backend,
   // 2026-08-20) ──────────────────────────────────────────────────────────────
   // Staff review/approve/reject is Admin.Access-gated, same as every other

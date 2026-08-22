@@ -55,6 +55,7 @@ const tabs = [
   { label: 'Knowledge', segment: '/knowledge' },
   { label: 'Consulting', segment: '/consulting' },
   { label: 'Documents', segment: '/documents' },
+  { label: 'Business Requirements', segment: '/business-requirements' },
   { label: 'Contacts', segment: '/contacts' },
   { label: 'Notes', segment: '/notes' },
   { label: 'Tasks', segment: '/tasks' },
