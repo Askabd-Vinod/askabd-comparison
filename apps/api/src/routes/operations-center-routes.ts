@@ -6,7 +6,7 @@ import { OperationsCenterService } from '../services/operations-center-service.j
 import { NotificationService } from '../services/notification-service.js';
 import { ConnectorService } from '../services/connector-service.js';
 import { DiscoveryService } from '../services/discovery-service.js';
-import { AssessmentService } from '../services/assessment-service.js';
+import { AssessmentService, type AssessmentDomain } from '../services/assessment-service.js';
 import { RecommendationService } from '../services/recommendation-service.js';
 import { MigrationValidationService } from '../services/migration-validation-service.js';
 import { MigrationExecutionService } from '../services/migration-execution-service.js';
@@ -871,6 +871,38 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const { clientId } = req.params as any;
     const assessments = await assessmentService.getAssessments(clientId);
     return { clientId, assessments };
+  });
+
+  // ─── Current State Assessment — the six domains beyond Infrastructure
+  // (roadmap Phase 2 item 2: Business, Application, Data, Security,
+  // Quality, Operations). Same real-findings shape, same oc_assessments
+  // table (migration 043 added a `domain` column) — not a parallel schema.
+  // No discoveryRunId needed — these domains assess the client's own real
+  // onboarding record (and, for Data, the latest completed discovery run
+  // if one exists), not a technical discovery run's resource list.
+  const DOMAIN_VALUES = ['business', 'application', 'data', 'security', 'quality', 'operations'] as const;
+  server.post('/oc/assessment/domain/start', async (req, reply) => {
+    const { clientId, domain } = req.body as { clientId?: string; domain?: string };
+    if (!clientId || !domain) { reply.status(400).send({ error: 'clientId and domain required' }); return; }
+    if (!DOMAIN_VALUES.includes(domain as any)) {
+      reply.status(400).send({ error: `domain must be one of ${DOMAIN_VALUES.join(', ')}` });
+      return;
+    }
+    const result = await assessmentService.startDomainAssessment(clientId, domain as Exclude<AssessmentDomain, 'infrastructure'>);
+    ocService.createAuditEntry({
+      entityType: 'assessment', entityId: clientId, entityName: result.id,
+      action: result.status === 'completed' ? 'domain_assessment_completed' : 'domain_assessment_failed',
+      actor: 'system',
+      details: { assessmentId: result.id, domain, status: result.status, riskScore: result.riskScore, findings: result.findings.length },
+      evidence: result.evidence,
+    }).catch(() => {});
+    reply.send(result);
+  });
+
+  server.get('/oc/assessment/:clientId/domain/:domain', async (req) => {
+    const { clientId, domain } = req.params as { clientId: string; domain: string };
+    const assessments = await assessmentService.getAssessmentsByDomain(clientId, domain as any);
+    return { clientId, domain, assessments };
   });
 
   // ─── RECOMMENDATIONS ──────────────────────────────────────────────────────

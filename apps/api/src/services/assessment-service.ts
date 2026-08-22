@@ -9,13 +9,18 @@ import { sharedPool } from './db-pool.js';
 
 const dbPool = sharedPool;
 
+export type AssessmentDomain = 'infrastructure' | 'business' | 'application' | 'data' | 'security' | 'quality' | 'operations';
+
 export interface AssessmentFinding {
   id: string;
-  category: 'security' | 'performance' | 'compatibility' | 'risk' | 'technical-debt' | 'complexity';
+  category: 'security' | 'performance' | 'compatibility' | 'risk' | 'technical-debt' | 'complexity'
+    // Domain-assessment categories (Phase 2 item 2 extension) — same
+    // AssessmentFinding shape, new real category values, not a parallel type.
+    | 'business-context' | 'application-portfolio' | 'data-inventory' | 'compliance-security' | 'quality' | 'operational-readiness';
   severity: 'critical' | 'high' | 'medium' | 'low' | 'info';
   title: string;
   description: string;
-  evidence: string; // reference to discovery resource
+  evidence: string; // reference to discovery resource, or a real DB-query citation for domain assessments
   recommendation: string;
   effort: string;
 }
@@ -24,6 +29,7 @@ export interface AssessmentResult {
   id: string;
   clientId: string;
   discoveryRunId: string;
+  domain: AssessmentDomain;
   status: 'pending' | 'running' | 'completed' | 'failed';
   riskScore: number; // 0-100
   complexityScore: number; // 0-100
@@ -49,7 +55,7 @@ export class AssessmentService {
     const discRes = await dbPool.query('SELECT results, status FROM oc_discovery_runs WHERE id = $1 AND client_id = $2', [discoveryRunId, clientId]);
     if (discRes.rows.length === 0 || discRes.rows[0].status !== 'completed') {
       const failed: AssessmentResult = {
-        id: assessmentId, clientId, discoveryRunId, status: 'failed',
+        id: assessmentId, clientId, discoveryRunId, domain: 'infrastructure', status: 'failed',
         riskScore: 0, complexityScore: 0, findings: [],
         summary: { total: 0, critical: 0, high: 0, medium: 0, low: 0 },
         evidence: ['Assessment failed: Discovery run not found or not completed'],
@@ -77,7 +83,7 @@ export class AssessmentService {
 
     const completedAt = new Date().toISOString();
     const result: AssessmentResult = {
-      id: assessmentId, clientId, discoveryRunId, status: 'completed',
+      id: assessmentId, clientId, discoveryRunId, domain: 'infrastructure', status: 'completed',
       riskScore, complexityScore, findings, summary,
       evidence: [
         `Assessment completed at ${completedAt}`,
@@ -185,12 +191,235 @@ export class AssessmentService {
     } catch { return []; }
   }
 
+  async getAssessmentsByDomain(clientId: string, domain: AssessmentDomain): Promise<any[]> {
+    try {
+      const res = await dbPool.query('SELECT * FROM oc_assessments WHERE client_id = $1 AND domain = $2 ORDER BY created_at DESC LIMIT 10', [clientId, domain]);
+      return res.rows;
+    } catch { return []; }
+  }
+
+  /**
+   * Current State Assessment — the six domains beyond Infrastructure
+   * (roadmap Phase 2 item 2): Business, Application, Data, Security,
+   * Quality, Operations. Same real-findings shape as startAssessment
+   * above, not a parallel schema — every finding cites a real, checkable
+   * evidence source (a specific column/table on this exact client's real
+   * record), never a guess. An empty/zero real count is reported as an
+   * honest `info`-severity finding ("not recorded yet"), never silently
+   * skipped — matching this platform's "Not provided" / "Insufficient
+   * evidence" honesty convention rather than pretending nothing to assess.
+   */
+  async startDomainAssessment(clientId: string, domain: Exclude<AssessmentDomain, 'infrastructure'>): Promise<AssessmentResult> {
+    const assessmentId = `assess-${Date.now()}-${randomUUID().replace(/-/g, '').slice(0, 8)}`;
+    const startedAt = new Date().toISOString();
+
+    const clientRes = await dbPool.query(
+      `SELECT departments, capabilities, processes, tech_apps, tech_services, tech_apis, tech_databases, tech_servers, tech_cloud, tech_infrastructure, environments, monitoring FROM oc_clients WHERE id = $1`,
+      [clientId]
+    );
+    if (clientRes.rows.length === 0) {
+      const failed: AssessmentResult = {
+        id: assessmentId, clientId, discoveryRunId: '', domain, status: 'failed',
+        riskScore: 0, complexityScore: 0, findings: [],
+        summary: { total: 0, critical: 0, high: 0, medium: 0, low: 0 },
+        evidence: [`Assessment failed: client ${clientId} not found`],
+        startedAt, completedAt: startedAt,
+      };
+      await this.persistAssessment(failed);
+      return failed;
+    }
+    const client = clientRes.rows[0];
+
+    let findings: AssessmentFinding[];
+    switch (domain) {
+      case 'business': findings = await this.analyzeBusinessDomain(client); break;
+      case 'application': findings = await this.analyzeApplicationDomain(client); break;
+      case 'data': findings = await this.analyzeDataDomain(clientId, client); break;
+      case 'security': findings = await this.analyzeSecurityDomain(clientId); break;
+      case 'quality': findings = await this.analyzeQualityDomain(clientId); break;
+      case 'operations': findings = await this.analyzeOperationsDomain(client); break;
+    }
+
+    const riskScore = this.calculateRiskScore(findings);
+    const summary = {
+      total: findings.length,
+      critical: findings.filter(f => f.severity === 'critical').length,
+      high: findings.filter(f => f.severity === 'high').length,
+      medium: findings.filter(f => f.severity === 'medium').length,
+      low: findings.filter(f => f.severity === 'low').length,
+    };
+    const completedAt = new Date().toISOString();
+    const result: AssessmentResult = {
+      id: assessmentId, clientId, discoveryRunId: '', domain, status: 'completed',
+      riskScore, complexityScore: 0, findings, summary,
+      evidence: [
+        `${domain} assessment completed at ${completedAt}`,
+        `Findings: ${findings.length} (${summary.critical} critical, ${summary.high} high, ${summary.medium} medium, ${summary.low} low)`,
+        `Risk score: ${riskScore}/100`,
+      ],
+      startedAt, completedAt,
+    };
+    await this.persistAssessment(result);
+    return result;
+  }
+
+  private async analyzeBusinessDomain(client: any): Promise<AssessmentFinding[]> {
+    const findings: AssessmentFinding[] = [];
+    let idx = 0;
+    const departments: string[] = client.departments || [];
+    const capabilities: string[] = client.capabilities || [];
+    const processes: string[] = client.processes || [];
+
+    if (departments.length === 0) {
+      findings.push({ id: `f-${++idx}`, category: 'business-context', severity: 'medium', title: 'No departments recorded', description: 'This client has no departments recorded in their onboarding profile. Business-context assessment cannot identify organizational structure without this.', evidence: 'Client record: departments field is empty', recommendation: 'Capture the client\'s department structure during a discovery/onboarding conversation.', effort: '1-2 hours' });
+    } else {
+      findings.push({ id: `f-${++idx}`, category: 'business-context', severity: 'info', title: 'Departments recorded', description: `${departments.length} department(s) recorded: ${departments.join(', ')}.`, evidence: `Client record: departments = [${departments.join(', ')}]`, recommendation: 'No action required.', effort: 'None' });
+    }
+    if (capabilities.length === 0) {
+      findings.push({ id: `f-${++idx}`, category: 'business-context', severity: 'medium', title: 'No business capabilities recorded', description: 'No business capabilities are recorded for this client — capability mapping is a real prerequisite for gap analysis against requirements.', evidence: 'Client record: capabilities field is empty', recommendation: 'Run a capability-mapping session with client stakeholders.', effort: '1-2 days' });
+    } else {
+      findings.push({ id: `f-${++idx}`, category: 'business-context', severity: 'info', title: 'Business capabilities recorded', description: `${capabilities.length} capability(ies) recorded: ${capabilities.join(', ')}.`, evidence: `Client record: capabilities = [${capabilities.join(', ')}]`, recommendation: 'No action required.', effort: 'None' });
+    }
+    if (processes.length === 0) {
+      findings.push({ id: `f-${++idx}`, category: 'business-context', severity: 'low', title: 'No business processes recorded', description: 'No business processes are recorded for this client.', evidence: 'Client record: processes field is empty', recommendation: 'Capture key business processes during discovery.', effort: '1 day' });
+    } else {
+      findings.push({ id: `f-${++idx}`, category: 'business-context', severity: 'info', title: 'Business processes recorded', description: `${processes.length} process(es) recorded: ${processes.join(', ')}.`, evidence: `Client record: processes = [${processes.join(', ')}]`, recommendation: 'No action required.', effort: 'None' });
+    }
+    return findings;
+  }
+
+  private async analyzeApplicationDomain(client: any): Promise<AssessmentFinding[]> {
+    const findings: AssessmentFinding[] = [];
+    let idx = 0;
+    const apps: string[] = client.tech_apps || [];
+    const services: string[] = client.tech_services || [];
+    const apis: string[] = client.tech_apis || [];
+    const total = apps.length + services.length + apis.length;
+
+    if (total === 0) {
+      findings.push({ id: `f-${++idx}`, category: 'application-portfolio', severity: 'medium', title: 'No application/service/API inventory recorded', description: 'No applications, services, or APIs are recorded for this client. Application-portfolio assessment needs a real inventory to work from.', evidence: 'Client record: tech_apps, tech_services, tech_apis are all empty', recommendation: 'Run technical discovery or capture the application inventory directly during onboarding.', effort: '1-2 days' });
+    } else {
+      findings.push({ id: `f-${++idx}`, category: 'application-portfolio', severity: 'info', title: 'Application portfolio recorded', description: `${apps.length} application(s), ${services.length} service(s), ${apis.length} API(s) recorded.`, evidence: `Client record: tech_apps=${apps.length}, tech_services=${services.length}, tech_apis=${apis.length}`, recommendation: 'No action required.', effort: 'None' });
+      if (apps.length > 20) {
+        findings.push({ id: `f-${++idx}`, category: 'application-portfolio', severity: 'medium', title: 'Large application portfolio', description: `${apps.length} applications recorded — a large portfolio increases migration/rationalization complexity.`, evidence: `Client record: tech_apps has ${apps.length} entries`, recommendation: 'Consider an application rationalization exercise to identify consolidation opportunities.', effort: '1-2 weeks' });
+      }
+    }
+    return findings;
+  }
+
+  private async analyzeDataDomain(clientId: string, client: any): Promise<AssessmentFinding[]> {
+    const findings: AssessmentFinding[] = [];
+    let idx = 0;
+    const databases: string[] = client.tech_databases || [];
+
+    // Reuse real, already-discovered technical inventory if a completed
+    // discovery run exists — never a separate, disconnected data source.
+    const discRes = await dbPool.query(
+      `SELECT results FROM oc_discovery_runs WHERE client_id = $1 AND status = 'completed' ORDER BY created_at DESC LIMIT 1`,
+      [clientId]
+    );
+    const resources = discRes.rows[0]?.results?.resources || [];
+    const discoveredTables = resources.filter((r: any) => r.type === 'table').length;
+    const discoveredSchemas = resources.filter((r: any) => r.type === 'schema').length;
+
+    if (databases.length === 0 && discoveredTables === 0) {
+      findings.push({ id: `f-${++idx}`, category: 'data-inventory', severity: 'medium', title: 'No data inventory recorded', description: 'No databases are recorded in the client profile, and no completed technical discovery run has found any tables. Data assessment cannot proceed without a real inventory.', evidence: 'Client record: tech_databases is empty; no discovery run has found tables', recommendation: 'Record known databases during onboarding, or run technical discovery against a connected database.', effort: '1 day' });
+    } else {
+      findings.push({ id: `f-${++idx}`, category: 'data-inventory', severity: 'info', title: 'Data inventory available', description: `${databases.length} database(s) recorded in the client profile${discoveredTables > 0 ? `, plus ${discoveredTables} table(s) across ${discoveredSchemas} schema(s) from the latest technical discovery` : ''}.`, evidence: `Client record: tech_databases=${databases.length}; latest discovery: ${discoveredTables} tables, ${discoveredSchemas} schemas`, recommendation: 'No action required.', effort: 'None' });
+    }
+    return findings;
+  }
+
+  private async analyzeSecurityDomain(clientId: string): Promise<AssessmentFinding[]> {
+    const findings: AssessmentFinding[] = [];
+    let idx = 0;
+
+    const connectorRes = await dbPool.query(
+      `SELECT security_level, COUNT(*)::int AS count FROM oc_connectors WHERE client_id = $1 GROUP BY security_level`,
+      [clientId]
+    );
+    const adminConnectors = connectorRes.rows.find(r => r.security_level === 'admin')?.count || 0;
+    const totalConnectors = connectorRes.rows.reduce((sum, r) => sum + r.count, 0);
+
+    if (totalConnectors === 0) {
+      findings.push({ id: `f-${++idx}`, category: 'compliance-security', severity: 'low', title: 'No connectors configured yet', description: 'No connectors are configured for this client — security posture of external connections cannot be assessed until at least one exists.', evidence: 'Client record: oc_connectors has 0 rows for this client', recommendation: 'Configure connectors on the Connectors page as the client\'s discovery needs require them.', effort: 'None — expected before onboarding is complete' });
+    } else if (adminConnectors > 0) {
+      findings.push({ id: `f-${++idx}`, category: 'compliance-security', severity: 'medium', title: 'Admin-level connector access in use', description: `${adminConnectors} of ${totalConnectors} connector(s) are configured with admin-level access. Admin access carries a larger blast radius than read-only or read-write and should be justified.`, evidence: `oc_connectors: security_level='admin' count=${adminConnectors} of ${totalConnectors} total`, recommendation: 'Review whether each admin-level connector genuinely needs that access level, or can be downgraded to read-only/read-write.', effort: '2-4 hours' });
+    } else {
+      findings.push({ id: `f-${++idx}`, category: 'compliance-security', severity: 'info', title: 'No admin-level connectors', description: `${totalConnectors} connector(s) configured, none at admin-level access.`, evidence: `oc_connectors: security_level distribution across ${totalConnectors} connectors, 0 admin-level`, recommendation: 'No action required.', effort: 'None' });
+    }
+
+    const complianceRes = await dbPool.query(
+      `SELECT COUNT(*) FILTER (WHERE evidence_status = 'missing')::int AS missing, COUNT(*) FILTER (WHERE evidence_status = 'expired')::int AS expired
+       FROM oc_client_compliance WHERE client_id = $1`,
+      [clientId]
+    );
+    const { missing, expired } = complianceRes.rows[0] || { missing: 0, expired: 0 };
+    if (missing > 0) {
+      findings.push({ id: `f-${++idx}`, category: 'compliance-security', severity: 'high', title: 'Missing compliance evidence', description: `${missing} compliance control(s) have missing evidence.`, evidence: `oc_client_compliance: evidence_status='missing' count=${missing}`, recommendation: 'Provide the missing evidence on the Compliance page for each affected control.', effort: 'Varies per control' });
+    }
+    if (expired > 0) {
+      findings.push({ id: `f-${++idx}`, category: 'compliance-security', severity: 'high', title: 'Expired compliance evidence', description: `${expired} compliance control(s) have expired evidence.`, evidence: `oc_client_compliance: evidence_status='expired' count=${expired}`, recommendation: 'Refresh the expired evidence on the Compliance page for each affected control.', effort: 'Varies per control' });
+    }
+    return findings;
+  }
+
+  private async analyzeQualityDomain(clientId: string): Promise<AssessmentFinding[]> {
+    const findings: AssessmentFinding[] = [];
+    let idx = 0;
+    const res = await dbPool.query(
+      `SELECT severity, COUNT(*)::int AS count FROM oc_defects WHERE client_id = $1 AND status IN ('detected', 'acknowledged', 'investigating', 'mitigating') GROUP BY severity`,
+      [clientId]
+    );
+    const bySeverity: Record<string, number> = {};
+    for (const row of res.rows) bySeverity[row.severity] = row.count;
+    const total = Object.values(bySeverity).reduce((a, b) => a + b, 0);
+
+    if (total === 0) {
+      findings.push({ id: `f-${++idx}`, category: 'quality', severity: 'info', title: 'No open defects', description: 'This client has no open (detected, acknowledged, investigating, or mitigating) defects recorded.', evidence: `oc_defects: 0 rows with status in (detected, acknowledged, investigating, mitigating) for client_id=${clientId}`, recommendation: 'No action required.', effort: 'None' });
+    } else {
+      const criticalCount = bySeverity.critical || 0;
+      const highCount = bySeverity.high || 0;
+      if (criticalCount > 0) {
+        findings.push({ id: `f-${++idx}`, category: 'quality', severity: 'critical', title: 'Open critical defects', description: `${criticalCount} critical-severity defect(s) are currently open.`, evidence: `oc_defects: severity='critical', open status, count=${criticalCount}`, recommendation: 'Prioritize resolution of critical defects before further delivery work.', effort: 'Varies per defect' });
+      }
+      if (highCount > 0) {
+        findings.push({ id: `f-${++idx}`, category: 'quality', severity: 'high', title: 'Open high-severity defects', description: `${highCount} high-severity defect(s) are currently open.`, evidence: `oc_defects: severity='high', open status, count=${highCount}`, recommendation: 'Schedule resolution in the current or next sprint.', effort: 'Varies per defect' });
+      }
+      const lowerCount = (bySeverity.medium || 0) + (bySeverity.low || 0);
+      if (lowerCount > 0) {
+        findings.push({ id: `f-${++idx}`, category: 'quality', severity: 'low', title: 'Open medium/low-severity defects', description: `${lowerCount} medium or low-severity defect(s) are currently open.`, evidence: `oc_defects: severity in (medium, low), open status, count=${lowerCount}`, recommendation: 'Track for a future maintenance cycle.', effort: 'Varies per defect' });
+      }
+    }
+    return findings;
+  }
+
+  private async analyzeOperationsDomain(client: any): Promise<AssessmentFinding[]> {
+    const findings: AssessmentFinding[] = [];
+    let idx = 0;
+    const environments: Record<string, boolean> = client.environments || {};
+    const monitoring: Record<string, boolean> = client.monitoring || {};
+
+    const uncoveredMonitoring = Object.entries(monitoring).filter(([, v]) => !v).map(([k]) => k);
+    const prodExists = environments.prod === true;
+
+    if (prodExists && !monitoring.infra) {
+      findings.push({ id: `f-${++idx}`, category: 'operational-readiness', severity: 'high', title: 'Production environment without infrastructure monitoring', description: 'This client has a production environment but infrastructure monitoring is not enabled.', evidence: `Client record: environments.prod=true, monitoring.infra=${monitoring.infra ?? false}`, recommendation: 'Enable infrastructure monitoring for the production environment before go-live.', effort: '1-2 days' });
+    }
+    if (uncoveredMonitoring.length > 0) {
+      findings.push({ id: `f-${++idx}`, category: 'operational-readiness', severity: 'medium', title: 'Monitoring gaps', description: `${uncoveredMonitoring.length} monitoring categor(ies) not enabled: ${uncoveredMonitoring.join(', ')}.`, evidence: `Client record: monitoring = ${JSON.stringify(monitoring)}`, recommendation: 'Review whether each uncovered category is genuinely not needed, or should be enabled.', effort: '2-4 hours' });
+    } else {
+      findings.push({ id: `f-${++idx}`, category: 'operational-readiness', severity: 'info', title: 'Full monitoring coverage', description: 'All recorded monitoring categories are enabled.', evidence: `Client record: monitoring = ${JSON.stringify(monitoring)}`, recommendation: 'No action required.', effort: 'None' });
+    }
+    return findings;
+  }
+
   private async persistAssessment(result: AssessmentResult): Promise<void> {
     try {
       await dbPool.query(`
-        INSERT INTO oc_assessments (id, client_id, discovery_run_id, status, risk_score, complexity_score, findings, risks, recommendations, evidence, started_at, completed_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-      `, [result.id, result.clientId, result.discoveryRunId, result.status, result.riskScore, result.complexityScore, JSON.stringify(result.findings), JSON.stringify(result.findings.filter(f => f.category === 'risk')), JSON.stringify(result.findings.filter(f => f.recommendation)), result.evidence, result.startedAt, result.completedAt]);
+        INSERT INTO oc_assessments (id, client_id, discovery_run_id, domain, status, risk_score, complexity_score, findings, risks, recommendations, evidence, started_at, completed_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      `, [result.id, result.clientId, result.discoveryRunId || null, result.domain, result.status, result.riskScore, result.complexityScore, JSON.stringify(result.findings), JSON.stringify(result.findings.filter(f => f.category === 'risk')), JSON.stringify(result.findings.filter(f => f.recommendation)), result.evidence, result.startedAt, result.completedAt]);
     } catch (err) {
       console.error('Failed to persist assessment:', (err as Error).message);
     }

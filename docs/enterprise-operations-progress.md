@@ -18,18 +18,16 @@ engineering decision and continue" rather than blocking on Phase 1 first).
 
 All of Phase 1 (Evidence audit, Versioning Engine, Approval Workflow
 Engine, Traceability Engine) is done. Phase 2 item 3 (Business Requirements
-Intelligence) and Phase 2 item 1's free-text half (Universal Discovery
-intake) are also done — see entries below. **Next session should continue
-Phase 2**: Universal Discovery's document/file-ingestion fast-follow
-(PDF/Word/spreadsheet/screenshot — genuinely not started, not faked),
-Current State Assessment extension (Part 2 — extend the existing
-`assessment-service.ts` Source/Evidence/Confidence shape to the other six
-categories), and the Gap Analysis extension (Part 4 + 6 — extend the real
-`oc_gaps`/`oc_gap_options` foundation from migration 037 with the brief's
-full field set, verifying what's already present first). The Phase 1
-engines now have their first real consumer (Discovery Intake uses
-Traceability); Versioning and Approval Workflow still have no wired
-consumer yet — reach for them as soon as a real capability needs
+Intelligence), item 1's free-text half (Universal Discovery intake), and
+item 2 (Current State Assessment extension) are also done — see entries
+below. **Next session should continue Phase 2**: Universal Discovery's
+document/file-ingestion fast-follow (PDF/Word/spreadsheet/screenshot —
+genuinely not started, not faked), and the Gap Analysis extension (Part 4
++ 6 — extend the real `oc_gaps`/`oc_gap_options` foundation from migration
+037 with the brief's full field set, verifying what's already present
+first). The Phase 1 engines now have their first real consumer (Discovery
+Intake uses Traceability); Versioning and Approval Workflow still have no
+wired consumer yet — reach for them as soon as a real capability needs
 versioning or a real approval step, rather than reinventing either. Re-read
 this
 file first and confirm `npm run health` is still green (services may need
@@ -407,6 +405,74 @@ screenshot) is a real fast-follow — deliberately not built this pass.
    clients (confirmed via direct query). Both protected real clients
    confirmed intact.
 
+## Completed This Session — Phase 2 item 2, Current State Assessment domain extension (2026-08-22, continued)
+
+Extended the existing `assessment-service.ts`/`oc_assessments` shape (which
+only ever covered Infrastructure, driven by a technical discovery run) to
+the six other real domains from Part 2: Business, Application, Data,
+Security, Quality, Operations. Same `AssessmentResult`/`AssessmentFinding`
+interfaces throughout — genuinely extended, not a parallel schema, per the
+roadmap's own instruction.
+
+1. **Migration 043** — one additive column: `oc_assessments.domain`
+   (CHECK-constrained to the 7 real values, `DEFAULT 'infrastructure'` so
+   every pre-existing row is automatically, correctly backfilled — no data
+   migration script needed). Applied to the live DEV database, verified
+   via `\d`.
+2. **`assessment-service.ts`** — `startDomainAssessment(clientId, domain)`
+   plus six private analyzers, each grounded in a real, specific data
+   source on the client's own actual record (never a discovery-run
+   proxy for domains that don't have one):
+   - **Business**: `departments`/`capabilities`/`processes` array counts
+   - **Application**: `tech_apps`/`tech_services`/`tech_apis` counts, plus
+     a real complexity finding when the application portfolio exceeds 20
+   - **Data**: `tech_databases` count, genuinely reusing the latest
+     completed discovery run's real table/schema counts when one exists
+     (not a disconnected second data source)
+   - **Security**: real `oc_connectors.security_level` distribution
+     (flagging admin-level access as a real, justified-or-not finding) +
+     real `oc_client_compliance` evidence-missing/expired counts
+   - **Quality**: real open-defect counts by severity from `oc_defects`
+   - **Operations**: `environments`/`monitoring` JSONB — flags a real
+     production-environment-without-infrastructure-monitoring gap as
+     high-severity, and any other uncovered monitoring category as medium
+   Every domain's zero/empty case is an honest `info`- or `medium`-severity
+   "not recorded yet" finding, never silently skipped — same honesty
+   convention as `oc_business_requirements`' "Not provided" default.
+3. **A real bug found and fixed before it ever reached a test run** (not
+   caught by a failing assertion — caught by directly re-verifying the
+   live schema before writing tests, a discipline worth naming since it's
+   cheaper than the alternative): the first draft of the Quality analyzer
+   queried `oc_defects.askabd_status`, a column that does not exist on
+   that table at all — `askabd_status` is a real column, but on a
+   *different* table (Jira issue-link tracking, migration 023), and was
+   mistakenly assumed to apply here too. Fixed to the real column
+   (`status`) and its real vocabulary (`detected`/`acknowledged`/
+   `investigating`/`mitigating`/`resolved`/`verified`/`closed`) before the
+   test file was even written, let alone run.
+4. **Routes** — two new routes added directly into the existing assessment
+   block in `operations-center-routes.ts` (`POST /oc/assessment/domain/start`,
+   `GET /oc/assessment/:clientId/domain/:domain`) — not a new route file,
+   matching "extend, don't duplicate" for routes too, since this genuinely
+   is the same assessment surface, not a new domain concept.
+5. **Tests** — `assessment-domains.test.ts`, 15 real tests against real
+   Postgres: the honest-empty-finding path and the real-data path for
+   every one of the six domains, a real admin-connector finding, a real
+   critical-defect finding (the case that caught the bug above), a real
+   production-without-monitoring finding, persistence, and cross-domain
+   isolation (assessments for different domains never leak into each
+   other's `getAssessmentsByDomain` results). **15/15 passing.**
+6. **UI** — extended the existing Assessment page (not a new page) with a
+   "Current State Assessment — Beyond Infrastructure" section: one compact
+   run/re-run card per domain, showing finding counts, a severity-colored
+   summary, and an expandable real-findings list with evidence text.
+7. **Verification**: `tsc --noEmit` clean on both `apps/api` and
+   `apps/web`. Unauthenticated access to the extended assessment page
+   live-verified in the real browser — clean redirect, zero console errors.
+8. **Full regression, clean isolated runs**: API **481/481** (466 + 15
+   new), Web **33/33**. `npm run health`: 11/11. Zero leftover test-fixture
+   clients; both protected real clients confirmed intact.
+
 ## Failed Tests
 
 **Session 1 (Phase 0)**: One transient failure, root-caused and closed, not
@@ -511,29 +577,32 @@ one. The one test failure above was correctly diagnosed as non-code.
 
 ## Database Migrations
 
-**42 applied** (see `docs/enterprise-operations-gap-analysis.md` Section 1
+**43 applied** (see `docs/enterprise-operations-gap-analysis.md` Section 1
 for the full list through 037; `038_business_requirements.sql`,
 `039_entity_versioning_engine.sql`, `040_approval_workflow_engine.sql`,
-`041_traceability_engine.sql`, and `042_discovery_intake.sql` added this
-session, all applied to the live DEV database and verified via `\d`).
+`041_traceability_engine.sql`, `042_discovery_intake.sql`, and
+`043_assessment_domains.sql` added this session, all applied to the live
+DEV database and verified via `\d`).
 
 ## Last Verified Commit
 
-`e21a913` on `feature/reliability-hardening` (pushed to origin — confirmed
-`1a421fe..e21a913`). `main` confirmed unchanged at `b63f797`.
+Pending this turn's commit (Current State Assessment domain extension) on
+`feature/reliability-hardening`. Prior verified commit: `4b81d6a` (pushed
+to origin). `main` confirmed unchanged at `b63f797`.
 
 ## Last Playwright Verification
 
-Unauthenticated access to both new pages this session
-(`/clients/:clientId/business-requirements` and
-`/clients/:clientId/discovery-intake`) was live-verified in the real
-browser — clean redirect to `/staff/login`, zero console errors, no data
-exposed, for both. A full authenticated walkthrough of either was **not**
-completed — blocked on the same pre-existing credential constraint recorded
-under Pending Tasks item 2, not silently skipped. The real DB+HTTP
-integration suites (`business-requirements.test.ts` 15 tests,
-`discovery-intake.test.ts` 11 tests) are the substitute evidence for the
-backend half of both capabilities.
+Unauthenticated access to every new/extended page this session
+(`/clients/:clientId/business-requirements`,
+`/clients/:clientId/discovery-intake`, and the extended
+`/clients/:clientId/assessment`) was live-verified in the real browser —
+clean redirect to `/staff/login`, zero console errors, no data exposed, for
+all three. A full authenticated walkthrough of any was **not** completed —
+blocked on the same pre-existing credential constraint recorded under
+Pending Tasks item 2, not silently skipped. The real DB+HTTP integration
+suites (`business-requirements.test.ts` 15 tests, `discovery-intake.test.ts`
+11 tests, `assessment-domains.test.ts` 15 tests) are the substitute
+evidence for the backend half of all three capabilities.
 
 ## Last Health Check
 
@@ -544,18 +613,18 @@ recurring, harmless characteristic of this dev environment).
 
 ## Regression — final confirmed baseline this session
 
-- **API: 466/466 passing** (406 baseline → 421 Business Requirements → 433
+- **API: 481/481 passing** (406 baseline → 421 Business Requirements → 433
   Versioning Engine → 444 Approval Workflow Engine → 455 Traceability
-  Engine → 466 Discovery Intake; every addition confirmed via a clean,
-  fully isolated full-suite run — see Failed Tests above for two separate
-  self-inflicted-rerun stories earlier this session, both fully
-  investigated and closed as non-regressions unrelated to the new code;
-  the Traceability Engine and Discovery Intake runs were both clean with
-  zero flakes)
+  Engine → 466 Discovery Intake → 481 Assessment Domains; every addition
+  confirmed via a clean, fully isolated full-suite run — see Failed Tests
+  above for two separate self-inflicted-rerun stories earlier this
+  session, both fully investigated and closed as non-regressions unrelated
+  to the new code; the Traceability Engine, Discovery Intake, and
+  Assessment Domains runs were all clean with zero flakes)
 - **Identity: 219/219 passing** (clean, fully isolated run earlier this
   session — not re-run this turn since no identity-service code changed)
 - **Web: 33/33 passing** (clean, fully isolated run, no flakes — includes
-  the new Discovery Intake UI, unaffected)
+  the extended Assessment page UI, unaffected)
 - `npm run health`: 11/11 green
 - Both protected real clients confirmed intact via direct DB query,
   timestamps unchanged: `AskABD Manual UAT 2026` (created 2026-08-15) and

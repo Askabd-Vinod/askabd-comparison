@@ -6,6 +6,7 @@ import Link from 'next/link';
 interface Assessment {
   id: string;
   client_id: string;
+  domain?: string;
   status: string;
   risk_score: number;
   complexity_score: number;
@@ -14,6 +15,89 @@ interface Assessment {
   completed_at: string | null;
   duration_ms: number | null;
   evidence: string[];
+}
+
+// Current State Assessment — the six domains beyond Infrastructure (roadmap
+// Phase 2 item 2, migration 043, assessment-service.ts). Infrastructure
+// assessment above is discovery-run-driven; these six assess the client's
+// own real onboarding record (departments/capabilities/tech inventory/
+// connectors/compliance/defects/monitoring) — no discovery run required.
+const DOMAINS = [
+  { id: 'business', label: 'Business' }, { id: 'application', label: 'Application' },
+  { id: 'data', label: 'Data' }, { id: 'security', label: 'Security' },
+  { id: 'quality', label: 'Quality' }, { id: 'operations', label: 'Operations' },
+] as const;
+
+function DomainAssessmentCard({ clientId, domain, label }: { clientId: string; domain: string; label: string }) {
+  const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4200';
+  const [latest, setLatest] = useState<Assessment | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/api/v1/oc/assessment/${clientId}/domain/${domain}`);
+      if (res.ok) {
+        const data = await res.json();
+        setLatest(data.assessments?.[0] || null);
+      }
+    } catch { /* leave latest as-is; real fetch failure surfaces via unchanged state */ }
+  }, [clientId, domain, API]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function run() {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/api/v1/oc/assessment/domain/start`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, domain }),
+      });
+      if (res.ok) await load();
+    } finally { setLoading(false); }
+  }
+
+  const findings: any[] = latest?.findings || [];
+  const nonInfoCount = findings.filter(f => f.severity !== 'info').length;
+
+  return (
+    <div className="bg-white rounded-xl border p-4">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-bold text-gray-900">{label}</p>
+        <button onClick={run} disabled={loading} className="text-[10px] font-semibold text-purple-600 hover:text-purple-800 disabled:text-gray-300">
+          {loading ? 'Running…' : latest ? 'Re-run' : 'Run'}
+        </button>
+      </div>
+      {!latest ? (
+        <p className="text-[10px] text-gray-400">Not yet assessed.</p>
+      ) : (
+        <>
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${nonInfoCount > 0 ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
+              {findings.length} finding{findings.length !== 1 ? 's' : ''}
+            </span>
+            <span className="text-[9px] text-gray-400">{new Date(latest.completed_at || latest.started_at).toLocaleString('en-AU')}</span>
+          </div>
+          <button onClick={() => setExpanded(e => !e)} className="text-[10px] text-purple-600 hover:text-purple-800">
+            {expanded ? 'Hide details' : 'Show details'}
+          </button>
+          {expanded && (
+            <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto">
+              {findings.map((f: any, i: number) => (
+                <div key={i} className={`p-2 rounded border text-[10px] ${f.severity === 'critical' || f.severity === 'high' ? 'border-red-200 bg-red-50' : f.severity === 'medium' ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-gray-50'}`}>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-[8px] font-bold uppercase px-1 py-0.5 rounded ${f.severity === 'critical' || f.severity === 'high' ? 'bg-red-200 text-red-700' : f.severity === 'medium' ? 'bg-amber-200 text-amber-700' : 'bg-gray-200 text-gray-600'}`}>{f.severity}</span>
+                    <p className="font-medium text-gray-800">{f.title}</p>
+                  </div>
+                  <p className="text-gray-500 mt-0.5">{f.evidence}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
 }
 
 export default function AssessmentProgressPage() {
@@ -197,6 +281,16 @@ export default function AssessmentProgressPage() {
           )}
         </div>
       )}
+
+      {/* Current State Assessment — the six domains beyond Infrastructure */}
+      <div className="bg-white rounded-xl border p-5">
+        <p className="text-[9px] text-gray-400 uppercase font-semibold tracking-wide">Current State Assessment</p>
+        <h3 className="text-sm font-bold text-gray-900 mb-1">Beyond Infrastructure</h3>
+        <p className="text-xs text-gray-500 mb-4">Real, evidence-based assessment of this client's own recorded profile — no discovery run required.</p>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {DOMAINS.map(d => <DomainAssessmentCard key={d.id} clientId={clientId} domain={d.id} label={d.label} />)}
+        </div>
+      </div>
 
       {/* No Assessment Yet */}
       {!latest && !loading && (

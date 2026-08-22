@@ -153,10 +153,40 @@ wire into as each capability needs them, not standalone features.
   pattern. **Document/file ingestion (PDF/Word/spreadsheet/screenshot) is
   NOT built — a real fast-follow, deliberately out of scope for this pass,
   not faked.** See `docs/enterprise-operations-progress.md` for full detail.
-- **Current State Assessment** (Part 2): extend the existing
-  `assessment-service.ts` shape (already Source/Evidence/Confidence/Status
-  for infrastructure) to the other six categories (Business, Application,
-  Data, Security, Quality, Operations) rather than a parallel schema.
+- ✅ **DONE (2026-08-22)** — **Current State Assessment** (Part 2): extended
+  the existing `assessment-service.ts`/`oc_assessments` shape (migration
+  043 adds one `domain` column, CHECK-constrained to the 7 real values,
+  default `'infrastructure'` for backward compatibility) to the other six
+  categories: Business, Application, Data, Security, Quality, Operations —
+  same `AssessmentResult`/`AssessmentFinding` interfaces, extended with
+  real new category values, genuinely NOT a parallel schema. Every finding
+  cites a real, checkable evidence source on the client's own actual
+  record (`departments`/`capabilities`/`processes` for Business;
+  `tech_apps`/`tech_services`/`tech_apis` for Application;
+  `tech_databases` + the latest completed discovery run's real table/
+  schema counts for Data — genuinely reused, not a disconnected source;
+  `oc_connectors.security_level` distribution + `oc_client_compliance`
+  evidence-missing/expired counts for Security; real open-defect counts by
+  severity from `oc_defects` for Quality; `environments`/`monitoring` JSONB
+  for Operations). An empty/zero real count is always an honest `info`- or
+  `medium`-severity "not recorded yet" finding, never silently skipped —
+  matching this platform's "Not provided"/"Insufficient evidence" honesty
+  convention. **A real bug was found and fixed before it ever reached a
+  test run**: the Quality analyzer was first written against a column
+  (`askabd_status`) that does not exist on `oc_defects` at all — a
+  same-named column from a *different* table (Jira issue-link tracking)
+  was mistakenly assumed to apply here; caught by directly re-verifying
+  the live schema before writing tests, not by a failing assertion.
+  Corrected to the real `status` column and its real vocabulary
+  (`detected`/`acknowledged`/`investigating`/`mitigating`/`resolved`/
+  `verified`/`closed`). 15 real tests, 15/15 passing. New routes
+  (`POST /oc/assessment/domain/start`, `GET /oc/assessment/:clientId/domain/:domain`)
+  added directly into the existing `operations-center-routes.ts` assessment
+  block, not a new route file — genuinely extending, not duplicating. UI:
+  the existing Assessment page gained a "Current State Assessment — Beyond
+  Infrastructure" section with one real run/re-run card per domain,
+  extending the same page rather than adding a new one. See
+  `docs/enterprise-operations-progress.md` for full detail.
 - ✅ **DONE (2026-08-22)** — **Requirement quality/completeness
   classification** (Part 3): COMPLETE/PARTIALLY_COMPLETE/INCOMPLETE/
   AMBIGUOUS/CONFLICTING/DUPLICATE/UNVERIFIED, real rule-based classifier
