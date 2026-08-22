@@ -443,9 +443,8 @@ DEV database and verified via `\d`).
 
 ## Last Verified Commit
 
-Pending this turn's commit (Generic Traceability Engine — closes out Phase
-1) on `feature/reliability-hardening`. Prior verified commit: `7904167`
-(pushed to origin). `main` confirmed unchanged at `b63f797`.
+`e3d116c` on `feature/reliability-hardening` (pushed to origin — confirmed
+`7904167..e3d116c`). `main` confirmed unchanged at `b63f797`.
 
 ## Last Playwright Verification
 
