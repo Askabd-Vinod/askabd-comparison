@@ -1165,21 +1165,19 @@ for the full list through 037; `038_business_requirements.sql` through
 
 ## Last Verified Commit
 
-`9434158` on `feature/reliability-hardening` (the Universal Comparison
-Engine backend — migration 048, `universal-comparison-engine.ts`,
-`universal-comparison-routes.ts`, `server.ts`/`rules.ts` registrations,
-`universal-comparison-engine.test.ts`, doc updates). `main` confirmed
-unchanged at `b63f797`. **`9434158` was committed locally but the
-subsequent `git push origin feature/reliability-hardening` was blocked by
-this session's sandbox permission classifier (an infrastructure
-restriction, not a judgment call) — reported to the user, who can run the
-push themselves; not one of the five stop-and-ask conditions, so work
-continued.** The Universal Comparison Engine **UI**
-(`clients/[clientId]/comparisons/page.tsx`, `comparisons-manager.tsx`,
-the `client-tabs.tsx` entry, and this doc update) is complete and fully
-verified but **not yet committed** as of this checkpoint — that commit
-(and a retry of the push, or handing it to the user) is the immediate
-next action.
+`41fc70c` on `feature/reliability-hardening`, pushed to origin — confirmed
+`c1ccecb..41fc70c`. `main` confirmed unchanged at `b63f797`. Two commits
+this pass: `9434158` (Universal Comparison Engine backend — migration 048,
+`universal-comparison-engine.ts`, `universal-comparison-routes.ts`,
+`server.ts`/`rules.ts` registrations, `universal-comparison-engine.test.ts`)
+and `41fc70c` (its UI — `clients/[clientId]/comparisons/page.tsx`,
+`comparisons-manager.tsx`, the `client-tabs.tsx` entry). **Note**: the
+push after `9434158` was initially blocked by this session's sandbox
+permission classifier (an infrastructure restriction, not a judgment
+call) — reported to the user, work continued per the standing
+authorization since it isn't one of the five stop-and-ask conditions, and
+the retried push after `41fc70c` succeeded, carrying both commits to
+origin together.
 
 ## Last Playwright Verification
 
