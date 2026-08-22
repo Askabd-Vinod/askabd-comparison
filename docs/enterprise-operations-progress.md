@@ -961,9 +961,8 @@ database and verified via `\d`).
 
 ## Last Verified Commit
 
-Pending this turn's commit (Document Generation Engine) on
-`feature/reliability-hardening`. Prior verified commit: `f3ed4d4` (pushed
-to origin). `main` confirmed unchanged at `b63f797`.
+`1b2719b` on `feature/reliability-hardening` (pushed to origin — confirmed
+`f3ed4d4..1b2719b`). `main` confirmed unchanged at `b63f797`.
 
 ## Last Playwright Verification
 
