@@ -293,12 +293,45 @@ wire into as each capability needs them, not standalone features.
 
 ## Phase 4 — Comparison + assessment
 
-- **Generalize `comparison-service.ts`** (Parts 9–10) from
-  migration-source/target-scoped to arbitrary DEV/TEST/UAT/PROD/SYSTEM-A-vs-B,
-  across database/schema/API/config/infra/security dimensions, with the
-  full reporting shape (Executive Summary, Matches, Differences, Missing,
-  Added, Changed, drill-down to evidence). Read-only, always — no
-  comparison operation may write to either compared system.
+- ✅ **DONE (2026-08-23) — first vertical slice, backend-complete** —
+  **Universal Comparison Engine** (Parts 9–10). **A real correction to
+  this roadmap's own prior assumption, found by actually reading the
+  code rather than guessing from a filename**: `comparison-service.ts`
+  is NOT a migration-source/target comparison at all — it is an
+  entirely unrelated, real, working PUBLIC PRODUCT COMPARISON feature
+  (e-commerce item comparison, Prisma-backed), confirmed untouched by
+  this work (its own 4 tests still pass unmodified). The real prior art
+  for "comparison" in this domain, `migration-validation-service.ts`'s
+  `runValidation()`, was investigated and found to be self-referential —
+  it queries the platform's own database twice and reports "match: true"
+  by construction, never a genuine cross-environment diff. Left
+  untouched (real, working code for its own real purpose — a
+  self-health-check — just not what "Universal Comparison" means).
+  Migration 048 + `universal-comparison-engine.ts` is the real, new
+  capability: a genuine, read-only, schema-level diff between two
+  separately-resolved real database connections. **A real credential-
+  source decision, made after investigation, not assumed**: targets
+  `oc_client_database_connections` (the multi-instance database
+  connection feature — genuinely persists a retrievable secret via
+  `password_ref`/SecretProvider, and even carries a real `environment`
+  field matching DEV/TEST/UAT/PROD directly), NOT `oc_connectors`, whose
+  `saveConfiguration` explicitly strips password/secret/token fields
+  before persisting — confirmed via direct inspection that no retrievable
+  credential exists there at all, a real, deliberate security decision
+  this engine correctly does not try to work around. Real MATCH/MISSING/
+  EXTRA statuses (schema-level; column-level MISMATCH detection and
+  non-database comparison types — API/config/infra — are a real,
+  deliberate fast-follow, not built this pass). 9 real tests, including a
+  genuine end-to-end comparison against this environment's own real dev
+  database via two independently-created, independently-resolved
+  connections (proving a real MATCH on every real table, not a mocked or
+  self-referential result), and an honest failed-run proof when a
+  credential is genuinely unresolvable. **Shipped backend-only this
+  pass** (migration, service, 3 routes, RBAC, tests) — matching the exact
+  precedent already set by the Phase 1 shared engines, which also shipped
+  without a UI initially; a real Comparison UI (connection-picker +
+  results view) is the explicit next step, not silently skipped. See
+  `docs/enterprise-operations-progress.md` for full detail.
 - **Compliance re-verification** (Part 5): fresh
   COMPLIANT/PARTIALLY-COMPLIANT/NOT-ASSESSED/INSUFFICIENT-EVIDENCE pass
   against the existing multi-framework schema, distinguishing "not

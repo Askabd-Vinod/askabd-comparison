@@ -399,6 +399,11 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   { method: 'POST', path: '/api/v1/oc/documents/:id/customer-visibility', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/documents/:id/export', permissions: ['Admin.Access'] },
 
+  // ─── Universal Comparison Engine (migration 048, universal-comparison-routes.ts)
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/comparisons', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/comparisons/database-schema', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/comparisons/:id', permissions: ['Admin.Access'] },
+
   // ─── Client Requests — staff management (real customer self-service backend,
   // 2026-08-20) ──────────────────────────────────────────────────────────────
   // Staff review/approve/reject is Admin.Access-gated, same as every other
