@@ -18,18 +18,19 @@ engineering decision and continue" rather than blocking on Phase 1 first).
 
 All of Phase 1 and Phase 2 are done. Phase 3's first vertical slice (the
 Document Generation Engine) is done. **Phase 4's first vertical slice —
-the Universal Comparison Engine — is now also done, backend-only** (see
-entry below). All three Phase 1 engines now have real consumers:
+the Universal Comparison Engine — is now done end-to-end, backend AND UI**
+(see entries below). All three Phase 1 engines now have real consumers:
 Traceability (Discovery Intake, Gap Analysis, Document Generation),
 Approval Workflow (Gap Analysis risk-acceptance, Document Generation
 approval), Versioning (Document Generation content-history). Next session
-should pick from: the Universal Comparison Engine's real UI (connection
-picker + results view — the explicit next step, not skipped), the
-Requirements Traceability Matrix UI (Phase 3, Part 8, surfacing the real
-chain the Traceability Engine already tracks), genuinely new document
-templates for the ~44 other named document types (Phase 3, each only once
-a real data-fetcher exists for every section it needs), or Phase 5+ per
-the roadmap's own next-priority ordering. Re-read this
+should pick from: the Requirements Traceability Matrix UI (Phase 3, Part
+8, surfacing the real chain the Traceability Engine already tracks),
+genuinely new document templates for the ~44 other named document types
+(Phase 3, each only once a real data-fetcher exists for every section it
+needs), additional Universal Comparison types (API/config/infrastructure —
+a real, deliberate fast-follow, not yet built), or Phase 5+ (Risk/
+Decision/Dependency Management) per the roadmap's own next-priority
+ordering. Re-read this
 file first and confirm `npm run health` is still green (services may need
 `npm run dev:all` again if the machine was restarted between sessions; the
 Web dev-server health check specifically needs `/staff/login` pre-warmed
@@ -924,7 +925,71 @@ Errors/self-caught-fix note below) — no bad schema was ever live.
 | Persistence (`getRun` returns stored result, not recompute) | N/A | ✅ (1 test) | ✅ | — |
 | Full regression | N/A | ✅ API 543/543 (incl. unrelated `comparison.test.ts` untouched) | ✅ tsc + prod build (API only) | — |
 
+## Completed This Session — Universal Comparison Engine UI (2026-08-23, continued)
+
+The explicit, named next step from the backend-only pass above — a real
+connection-picker + results view, following the canonical Connector
+Configuration UI pattern already used for Business Requirements/Discovery
+Intake (simple client-scoped page + manager, no mock/demo branch needed
+since this is a brand-new capability with no pre-existing sample data to
+preserve).
+
+1. **New page**: `clients/[clientId]/comparisons/page.tsx` +
+   `comparisons-manager.tsx`. Server component fetches both the client's
+   real comparison run history and its real database connections list
+   (reusing the exact `DatabaseConnection` type already exported by
+   `database-connections-manager.tsx` — no duplicated shape).
+2. **Connection picker** — a real `<select>` per side, populated ONLY from
+   this client's `postgresql`-type connections (the one type
+   `inspectSchema` actually supports — never offered as a choice it can't
+   honor). An honest amber notice appears instead of the form when fewer
+   than two PostgreSQL connections exist yet, pointing at the real
+   Lifecycle tab's Database Connections section rather than a dead-end
+   empty form.
+3. **Results view** — a real per-run card (status badge: running/
+   completed/failed, same icon+label discipline as every other status
+   badge this session), an expandable panel showing the real 5-value
+   summary grid (match/mismatch/missing/extra/unknown) and a real
+   per-table diff table (table name, left-side detail, right-side detail,
+   status badge) — every row driven directly by the engine's own stored
+   `results` JSONB, never a client-side recomputation. A failed run shows
+   its real, stored `errorMessage`, never a generic "something went wrong."
+4. **New "Comparisons" tab** added to `client-tabs.tsx`, in the same
+   recently-added-capabilities cluster as Documents/Business Requirements.
+5. **Verification**: `tsc --noEmit` clean, `npm run build` clean (the new
+   `/clients/[clientId]/comparisons` route confirmed present in the build
+   output, 3.12 kB). Web test suite re-run after adding these files:
+   **33/33 passing**, no regression (no new automated web test was written
+   for this UI — same standard as every other UI pass this session, which
+   relies on typecheck + production build + the unauthenticated-boundary
+   browser check rather than a full component test suite). Unauthenticated
+   access to the new `/clients/:clientId/comparisons` page (tested against
+   the real, protected `Test1` client ID) live-verified in the real
+   browser — clean redirect to `/staff/login`, zero console errors, no
+   data exposed. A **fourth** instance of this session's known production-
+   build-disrupts-dev-server pattern occurred and was fixed via the
+   now-standard procedure (see Failed Tests below) before this check.
+   Full authenticated Playwright click-through was **not performed** —
+   same pre-existing, already-documented credential constraint as every
+   other UI this session.
+6. **API unchanged this pass** — no backend files touched, so the API
+   regression baseline (543/543) is carried forward unchanged, not re-run.
+
 ## Failed Tests
+
+**Universal Comparison Engine UI pass (2026-08-23)**: a fourth real
+instance of this session's known runtime pattern, root-caused the same
+way as the prior three, not assumed: after this pass's `npm run build`
+for the web workspace, `curl` against `localhost:3001` returned `000`
+(connection refused), then `500` once a process was found still holding
+the port. Confirmed via `netstat` that a real PID (21972) was genuinely
+still bound to port 3001 from the pre-build dev server. Fixed with the
+now-standard procedure: force-killed the real PID, cleared the stale
+`.next` cache, restarted the dev server via the project's own
+`.claude/launch.json` "web" configuration, pre-warmed `/staff/login`, and
+confirmed `npm run health` back to 11/11 before proceeding to the
+browser-boundary check. No code defect — infrastructure only, same
+category as the prior three occurrences this session.
 
 **Universal Comparison Engine pass (2026-08-23)**: no test flakes this
 pass — the two defects found (wrong FK target, FK-ordering cleanup bug)
@@ -1100,46 +1165,51 @@ for the full list through 037; `038_business_requirements.sql` through
 
 ## Last Verified Commit
 
-`1b2719b` on `feature/reliability-hardening` (pushed to origin — confirmed
-`f3ed4d4..1b2719b`). `main` confirmed unchanged at `b63f797`. **The
-Universal Comparison Engine work (migration 048, `universal-comparison-
-engine.ts`, `universal-comparison-routes.ts`, the `server.ts`/`rules.ts`
-registrations, `universal-comparison-engine.test.ts`, and this doc update)
-is complete, fully regression-tested, and staged, but NOT YET COMMITTED as
-of this checkpoint — commit + push is the immediate next action.**
+`9434158` on `feature/reliability-hardening` (the Universal Comparison
+Engine backend — migration 048, `universal-comparison-engine.ts`,
+`universal-comparison-routes.ts`, `server.ts`/`rules.ts` registrations,
+`universal-comparison-engine.test.ts`, doc updates). `main` confirmed
+unchanged at `b63f797`. **`9434158` was committed locally but the
+subsequent `git push origin feature/reliability-hardening` was blocked by
+this session's sandbox permission classifier (an infrastructure
+restriction, not a judgment call) — reported to the user, who can run the
+push themselves; not one of the five stop-and-ask conditions, so work
+continued.** The Universal Comparison Engine **UI**
+(`clients/[clientId]/comparisons/page.tsx`, `comparisons-manager.tsx`,
+the `client-tabs.tsx` entry, and this doc update) is complete and fully
+verified but **not yet committed** as of this checkpoint — that commit
+(and a retry of the push, or handing it to the user) is the immediate
+next action.
 
 ## Last Playwright Verification
 
 Unauthenticated access to every new/extended page across this session,
-through the extended `/clients/:clientId/documents`, was live-verified in
-the real browser — clean redirect to `/staff/login`, zero console errors,
-no data exposed. The Universal Comparison Engine (this pass) shipped
-backend-only with no new/extended UI, so no Playwright/unauthenticated-
-browser check applies to it yet — recorded honestly as N/A in its own
-verification table above, not silently omitted. A full authenticated
-walkthrough was genuinely attempted earlier this session (not just
-deferred) — a real temporary staff identity was created and verified
-end-to-end via askabd-identity's API, but the final step (granting it a
-role) was blocked by the sandbox's permission classifier as a raw-SQL
-privilege grant, and the user's explicit decision was to proceed via the
-existing DB+HTTP test standard rather than any workaround. See the Gap
-Analysis extension entry's and the Universal Comparison Engine entry's
-explicit per-capability verification-level tables (Playwright-verified vs
-API/DB-verified) for the exact format now used for every capability. The
-real DB+HTTP integration suites (`business-requirements.test.ts` 15,
-`discovery-intake.test.ts` 11, `discovery-document-ingestion.test.ts` 6,
-`assessment-domains.test.ts` 15, `gap-analysis-extension.test.ts` 25,
-`document-generation-engine.test.ts` 22, `universal-comparison-
-engine.test.ts` 9) are the substitute evidence for the backend half of
-all these capabilities.
+now including the new `/clients/:clientId/comparisons`, was live-verified
+in the real browser (against the real, protected `Test1` client ID) —
+clean redirect to `/staff/login`, zero console errors, no data exposed. A
+full authenticated walkthrough was genuinely attempted earlier this
+session (not just deferred) — a real temporary staff identity was created
+and verified end-to-end via askabd-identity's API, but the final step
+(granting it a role) was blocked by the sandbox's permission classifier as
+a raw-SQL privilege grant, and the user's explicit decision was to proceed
+via the existing DB+HTTP test standard rather than any workaround. See the
+Gap Analysis extension entry's and the Universal Comparison Engine
+backend entry's explicit per-capability verification-level tables
+(Playwright-verified vs API/DB-verified) for the exact format now used
+for every capability. The real DB+HTTP integration suites
+(`business-requirements.test.ts` 15, `discovery-intake.test.ts` 11,
+`discovery-document-ingestion.test.ts` 6, `assessment-domains.test.ts` 15,
+`gap-analysis-extension.test.ts` 25, `document-generation-engine.test.ts`
+22, `universal-comparison-engine.test.ts` 9) are the substitute evidence
+for the backend half of all these capabilities.
 
 ## Last Health Check
 
 `npm run health`: **11/11 green**, confirmed at the end of this session's
-Universal Comparison Engine pass — no dev-server disruption this pass
-(no web build ran, since no web files were touched). The prior pass's
-THIRD real Web dev-server runtime issue (a stale browser tab, not a
-server defect) remains fixed and undisturbed.
+Universal Comparison Engine UI pass — this pass hit and fixed a FOURTH
+real Web dev-server runtime issue this session (see Failed Tests above:
+the same production-build-disrupts-port-binding pattern as the first two
+incidents, fixed via the now-standard procedure).
 
 ## Regression — final confirmed baseline this session
 
@@ -1156,14 +1226,17 @@ server defect) remains fixed and undisturbed.
   Failed Tests above for two self-inflicted CPU-contention timeouts
   earlier in this session, both confirmed non-regressions via isolated
   re-runs)
-- **Web: 33/33 passing** (clean, fully isolated run earlier this session,
-  no flakes — includes the extended Gap Analysis UI, the document-upload
-  UI, and the new Document Generation UI; not re-run this pass since no
-  web code changed)
-- `tsc --noEmit` and `npm run build` clean for the API this pass (Web/
-  Identity unaffected, not re-built — no files touched in either this
-  pass) — genuine production build, not just typecheck
-- `npm run health`: 11/11 green, no disruption this pass
+- **Web: 33/33 passing** (re-run after adding the Universal Comparison
+  Engine UI — clean, no flakes, no regression; includes the extended Gap
+  Analysis UI, the document-upload UI, the Document Generation UI, and
+  the new Comparisons UI)
+- `tsc --noEmit` and `npm run build` clean for both API (Universal
+  Comparison Engine backend pass) and Web (Universal Comparison Engine UI
+  pass) — genuine production builds, not just typecheck; Identity
+  unaffected, not re-built, no identity files touched this session's
+  final two passes
+- `npm run health`: 11/11 green after the fourth real, properly-diagnosed
+  Web dev-server runtime issue this session (see Failed Tests above)
 - Both protected real clients confirmed intact via direct DB query,
   timestamps unchanged: `AskABD Manual UAT 2026` (created 2026-08-15) and
   `Test1` (created 2026-08-19T21:53:45Z — exact match to every prior

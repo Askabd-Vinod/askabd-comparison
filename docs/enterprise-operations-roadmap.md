@@ -293,7 +293,7 @@ wire into as each capability needs them, not standalone features.
 
 ## Phase 4 — Comparison + assessment
 
-- ✅ **DONE (2026-08-23) — first vertical slice, backend-complete** —
+- ✅ **DONE (2026-08-23) — first vertical slice, end-to-end (backend + UI)** —
   **Universal Comparison Engine** (Parts 9–10). **A real correction to
   this roadmap's own prior assumption, found by actually reading the
   code rather than guessing from a filename**: `comparison-service.ts`
@@ -326,11 +326,17 @@ wire into as each capability needs them, not standalone features.
   database via two independently-created, independently-resolved
   connections (proving a real MATCH on every real table, not a mocked or
   self-referential result), and an honest failed-run proof when a
-  credential is genuinely unresolvable. **Shipped backend-only this
-  pass** (migration, service, 3 routes, RBAC, tests) — matching the exact
-  precedent already set by the Phase 1 shared engines, which also shipped
-  without a UI initially; a real Comparison UI (connection-picker +
-  results view) is the explicit next step, not silently skipped. See
+  credential is genuinely unresolvable. **Shipped backend-only first**
+  (migration, service, 3 routes, RBAC, tests) — matching the exact
+  precedent already set by the Phase 1 shared engines — **then a real UI
+  followed in the same session**: `clients/[clientId]/comparisons`
+  (connection picker restricted to this client's real PostgreSQL
+  connections, a real per-run results view with the full match/mismatch/
+  missing/extra/unknown summary and per-table diff table, a new
+  "Comparisons" tab). Unauthenticated-boundary browser check passed
+  against the real, protected `Test1` client; full authenticated
+  Playwright walkthrough not yet done, same pre-existing credential
+  constraint as every other UI this session. See
   `docs/enterprise-operations-progress.md` for full detail.
 - **Compliance re-verification** (Part 5): fresh
   COMPLIANT/PARTIALLY-COMPLIANT/NOT-ASSESSED/INSUFFICIENT-EVIDENCE pass
