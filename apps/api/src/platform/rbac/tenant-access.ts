@@ -12,44 +12,52 @@
  *
  * Neither the real askabd-identity token (verified directly against that
  * service's source — it carries only sub/org/sid/iat/exp/jti) NOR this
- * application's own database contains any mapping from an authenticated
- * identity (or its org_context) to a specific `oc_clients.client_id`.
+ * application's own database USED TO contain any mapping from an
+ * authenticated identity (or its org_context) to a specific `oc_clients.id`.
  * `oc_clients` rows are AskABD's own consulting customers; `org_context` in
- * askabd-identity is the AUTHENTICATED STAFF MEMBER's own organization, a
- * different concept. Before this milestone, every `/api/v1/oc/**` route
- * accepted a `:clientId` URL parameter with ZERO check that the caller was
- * entitled to that specific client's data — `defaultPolicy: 'authenticated'`
- * meant any validly-signed token, of any role, could read or write ANY
- * client's operational data (services, connectors, requirements, commercial
- * engagements, documents, audit history) just by changing the URL.
+ * askabd-identity is the AUTHENTICATED CUSTOMER/STAFF MEMBER's own
+ * organization, a different concept. Before this module existed, every
+ * `/api/v1/oc/**` route accepted a `:clientId` URL parameter with ZERO check
+ * that the caller was entitled to that specific client's data —
+ * `defaultPolicy: 'authenticated'` meant any validly-signed token, of any
+ * role, could read or write ANY client's operational data just by changing
+ * the URL.
  *
- * Inventing a fake user→client mapping to "solve" this would be fabricated
- * identity architecture — explicitly prohibited. Instead, this module applies
- * the one SAFE, evidence-based rule available today, reusing roles that
- * already exist and are already tested (`admin`, `super_admin` — see
- * platform/rbac/roles.ts):
+ * RESOLVED (real, database-backed mapping — not a convention):
+ * `client_identity_mapping` (migration 024) is now the single source of truth
+ * for which client(s) an org_context is authorized to access — see
+ * `services/client-identity-mapping-service.ts`. Server-side resolution only:
+ * this module reads `org_context` from the VERIFIED JWT claim
+ * (`auth.tenantId`, set by middleware/auth.ts after real signature/issuer/
+ * audience/expiry verification), resolves the authorized client-ID set from
+ * that mapping table, and checks the request's client ID for MEMBERSHIP in
+ * that server-resolved set. A client ID supplied by the request (URL, body,
+ * or query — see `extractClientId` below) is NEVER trusted to expand access;
+ * it is only ever checked against what the server already resolved.
  *
+ * Two authorization paths, both explicit and both tested:
  *   - admin / super_admin — already the platform's broad-access roles — MAY
- *     cross client boundaries. This matches the platform's actual current
- *     operating reality (an internal consulting-staff console where account
- *     managers/admins work across many clients as their job function) and is
- *     documented here as an explicit privileged capability, not a silent
- *     assumption (see docs/tenant-authorization-matrix.md, "Admin cross-tenant
- *     access").
- *   - every other role (customer, business_user, merchant, partner, support,
- *     auditor, or no role at all) is DENIED by default. This is a fail-closed
- *     default, not a regression: no live path issues those roles a token
- *     today (the frontend sends no Authorization header at all — see
- *     docs/identity-rbac-architecture-audit.md), so no legitimate traffic is
- *     broken. When a real per-client mapping is designed, this module is the
- *     single place to extend it (see "Remaining P1" in the final report).
+ *     cross ALL client boundaries, unconditionally. Matches the platform's
+ *     actual operating reality (internal consulting staff work across many
+ *     clients) — documented here as an explicit privileged capability, not a
+ *     silent assumption (see docs/tenant-authorization-matrix.md).
+ *   - every other authenticated identity — resolved via
+ *     `client_identity_mapping`: allowed only for client IDs with an
+ *     *active* mapping to that identity's org_context. No mapping → denied.
+ *     Revoked mapping → denied. A mapping for a DIFFERENT org_context does
+ *     not help, no matter what client ID is requested — this is what makes
+ *     cross-tenant access denied even when the requester knows a valid
+ *     client ID that isn't theirs.
  *
  * DEV bypass (`auth.userId === 'dev-user-000'`) is exempted from this check,
  * mirroring the identical guard already used by the RBAC dev bypass in
- * platform/rbac/middleware.ts — this module invents no new bypass mechanism.
+ * platform/rbac/middleware.ts — this module invents no new bypass mechanism,
+ * and it is never reachable when `NODE_ENV === 'production'` (see
+ * middleware/auth.ts's `devBypass` formula).
  */
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { getAuthorization } from './middleware.js';
+import { ClientIdentityMappingService } from '../../services/client-identity-mapping-service.js';
 
 export interface TenantAccessConfig {
   /** URL prefix this boundary applies to, e.g. '/api/v1/oc/'. */
@@ -58,6 +66,8 @@ export interface TenantAccessConfig {
   crossClientRoles?: readonly string[];
   /** Mirrors the existing DEV-only auth/authorization bypass. Never true in production. */
   devBypass?: boolean;
+  /** Injectable for tests — defaults to a real, pool-backed instance. */
+  mappingService?: ClientIdentityMappingService;
 }
 
 const DEFAULT_CROSS_CLIENT_ROLES: readonly string[] = ['admin', 'super_admin'];
@@ -69,6 +79,7 @@ const DEFAULT_CROSS_CLIENT_ROLES: readonly string[] = ['admin', 'super_admin'];
  */
 export function registerTenantAccessMiddleware(server: FastifyInstance, cfg: TenantAccessConfig): void {
   const crossClientRoles = new Set(cfg.crossClientRoles ?? DEFAULT_CROSS_CLIENT_ROLES);
+  const mappingService = cfg.mappingService ?? new ClientIdentityMappingService();
 
   server.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
     const path = request.url.split('?')[0]!;
@@ -85,17 +96,24 @@ export function registerTenantAccessMiddleware(server: FastifyInstance, cfg: Ten
 
     const authz = getAuthorization(request);
     const roles = authz?.roles ?? [];
-    const allowed = roles.some(r => crossClientRoles.has(r));
+    if (roles.some(r => crossClientRoles.has(r))) return; // admin/super_admin — unconditional cross-client access
 
-    if (!allowed) {
-      request.log.warn({ userId: auth.userId, roles, clientId }, 'Tenant access denied');
+    // Every other identity: server-side resolution from the real mapping table, keyed
+    // by the VERIFIED org_context claim — never by anything the request itself supplied.
+    const orgContext: string | undefined = auth.tenantId;
+    const authorized = typeof orgContext === 'string' && orgContext !== 'public'
+      ? await mappingService.isAuthorized(orgContext, clientId)
+      : false;
+
+    if (!authorized) {
+      request.log.warn({ userId: auth.userId, orgContext, roles, clientId }, 'Tenant access denied — no active mapping for this org/client pair');
       reply.status(403).send({
         error: {
           category: 'authorization',
           code: 'SHARED.AUTHORIZATION_ERROR',
-          // Distinguishes this (client-scope could not be resolved for this identity)
-          // from platform/rbac/middleware.ts's plain 'forbidden' (a real permission
-          // denial) — see that file's denyAccess() for the full rationale.
+          // Distinguishes this (client-scope could not be resolved/authorized for this
+          // identity) from platform/rbac/middleware.ts's plain 'forbidden' (a real
+          // permission denial) — see that file's denyAccess() for the full rationale.
           reasonCode: 'tenant_not_resolved',
           message: 'Your organization access could not be determined.',
           statusCode: 403,

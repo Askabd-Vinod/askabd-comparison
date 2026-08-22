@@ -55,7 +55,7 @@ export class FinancialReconciliationService {
   // TRANSACTIONS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  async createTransaction(clientId: string, data: CreateTransactionInput) {
+  async createTransaction(clientId: string, data: CreateTransactionInput, actor: string = 'unknown-staff') {
     if (!VALID_TXN_TYPES.includes(data.transactionType)) {
       return { success: false, error: 'invalid_type', message: `Allowed: ${VALID_TXN_TYPES.join(', ')}` };
     }
@@ -89,7 +89,7 @@ export class FinancialReconciliationService {
 
     await this.audit.createAuditEntry({
       entityType: 'financial_transaction', entityId: txn.id, entityName: data.reference || txn.id,
-      action: 'created', actor: 'admin',
+      action: 'created', actor,
       details: { type: data.transactionType, amount: data.amount, currency: data.currency || 'USD' },
       evidence: [`Transaction ${data.transactionType} for ${data.currency || 'USD'} ${data.amount} created`],
     });
@@ -97,7 +97,7 @@ export class FinancialReconciliationService {
     await this.workflow.emitEvent({
       eventType: 'TRANSACTION_CREATED', clientId,
       entityType: 'financial_transaction', entityId: txn.id,
-      actor: 'admin', severity: 'info',
+      actor, severity: 'info',
       payload: { type: data.transactionType, amount: data.amount },
     });
 
@@ -333,7 +333,7 @@ export class FinancialReconciliationService {
       : `status = $1, updated_at = NOW()`;
 
     const params = newStatus === 'resolved' || newStatus === 'waived'
-      ? [newStatus, actor || 'admin', notes || '', exceptionId]
+      ? [newStatus, actor || 'unknown-staff', notes || '', exceptionId]
       : [newStatus, exceptionId];
 
     const whereIdx = newStatus === 'resolved' || newStatus === 'waived' ? 4 : 2;
@@ -342,7 +342,7 @@ export class FinancialReconciliationService {
     const eventType = newStatus === 'resolved' ? 'RECONCILIATION_EXCEPTION_RESOLVED' : 'RECONCILIATION_EXCEPTION_CREATED';
     await this.audit.createAuditEntry({
       entityType: 'reconciliation_exception', entityId: exceptionId, entityName: exc.exception_type,
-      action: `status_${newStatus}`, actor: actor || 'admin',
+      action: `status_${newStatus}`, actor: actor || 'unknown-staff',
       details: { from: exc.status, to: newStatus, notes },
       evidence: [`Exception ${exceptionId}: ${exc.status} → ${newStatus}`],
     });
@@ -350,7 +350,7 @@ export class FinancialReconciliationService {
     await this.workflow.emitEvent({
       eventType, clientId,
       entityType: 'reconciliation_exception', entityId: exceptionId,
-      actor: actor || 'admin', severity: 'info',
+      actor: actor || 'unknown-staff', severity: 'info',
       payload: { from: exc.status, to: newStatus },
     });
 

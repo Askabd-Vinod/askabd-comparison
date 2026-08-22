@@ -125,7 +125,49 @@ export class LifecycleService {
     // SERVICE READINESS GATE
     if (!canSkipReadiness) {
       const serviceId = statusToServiceId[current.status];
-      if (serviceId) {
+      if (serviceId === 'connector-configuration') {
+        // Real bug found live during the 2026-08-21 NovaTech UAT connection pass: this
+        // transition used to fall through to the generic requirements-based readiness
+        // check below, which for 'connector-configuration' still points at
+        // requirements-service.ts's STALE, pre-multi-record service definition
+        // (flat `database_host`/`database_port`/`database_name`/`database_username`/
+        // `database_password` requirement keys) — a schema nothing in the app has
+        // written to since the real oc_client_database_connections multi-record
+        // feature (DatabaseConnectionsManager) replaced it. The frontend's own
+        // client-side gate (lifecycle/page.tsx's allChecksComplete) was special-cased
+        // to check real connections instead, but this server-side transition endpoint —
+        // the actual authority — was never updated to match, so a client with a real,
+        // live-tested, Connected database connection still got a hard 422
+        // (`lifecycle_prerequisites_not_met`, five phantom "required" fields) from the
+        // one gate that actually matters. Reproduced live end-to-end with a real
+        // PostgreSQL connection against the real, running identity-postgres database
+        // before this fix; fixed here to check the real table directly instead of the
+        // dead requirement keys.
+        const { ClientDatabaseConnectionService } = await import('./client-database-connection-service.js');
+        const connections = await new ClientDatabaseConnectionService().list(clientId);
+        const hasConnected = connections.some(c => c.status === 'connected');
+        if (!hasConnected) {
+          return {
+            success: false,
+            error: 'lifecycle_prerequisites_not_met',
+            readiness: {
+              status: 'blocked',
+              service: { id: serviceId },
+              currentStatus: current.status,
+              targetStatus: transition.to,
+              blockers: [{
+                type: 'connection', requirementKey: 'database_connection', fieldKey: '',
+                message: 'At least one database connection must pass a real connection test.',
+                action: 'test_connection',
+              }],
+              nextAction: { label: 'Add and test a database connection', action: 'test_connection', requirementKey: 'database_connection', fieldKey: '' },
+              documents: { required: 0, uploaded: 0, valid: 0, expired: 0 },
+              requiredProvided: 0,
+              required: 1,
+            },
+          };
+        }
+      } else if (serviceId) {
         try {
           const { RequirementsService } = await import('./requirements-service.js');
           const reqService = new RequirementsService();

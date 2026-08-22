@@ -140,11 +140,65 @@ export class OperationsCenterService {
     return result.rows[0];
   }
 
+  /**
+   * Real fix for a real bug found during live browser verification of the
+   * remediation-execution engine: the incident-detail page's previous "list, then
+   * create if empty" pattern was two separate HTTP round trips with a genuine race —
+   * two page loads close together (a double request, a slow network, React re-render)
+   * could both see an empty list and both create a remediation, leaving a duplicate
+   * open row for the same incident. This does the check-and-insert atomically in one
+   * statement — `WHERE NOT EXISTS` inside the same INSERT means Postgres itself
+   * enforces "no second OPEN remediation for this incident", not application logic
+   * racing against itself. Deliberately still allows a genuinely NEW remediation once
+   * a prior one reaches a terminal phase (completed/rolled-back/failed) — a real
+   * incident can legitimately need a second remediation attempt.
+   */
+  async findOrCreateRemediation(data: CreateRemediationInput) {
+    // Real atomicity, enforced by Postgres itself via a partial unique index
+    // (029_remediation_idempotency.sql) — not application-level check-then-insert,
+    // which is provably unsafe under READ COMMITTED (confirmed by a real 10-way
+    // concurrent test that reproduced 2 duplicate rows before this fix).
+    const insertResult = await this.pool.query(
+      `INSERT INTO oc_remediations (incident_id, client_id, title, description, grade, fix_immediate, fix_permanent,
+        impact_analysis, steps, validation_criteria, rollback_plan, owner)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+       ON CONFLICT (incident_id) WHERE phase NOT IN ('completed', 'rolled-back', 'failed') DO NOTHING
+       RETURNING *`,
+      [data.incidentId, data.clientId, data.title, data.description || '', data.grade,
+       data.fixImmediate, data.fixPermanent, JSON.stringify(data.impactAnalysis || {}),
+       JSON.stringify(data.steps || []), data.validationCriteria || [], data.rollbackPlan || '', data.owner]
+    );
+    if (insertResult.rows.length > 0) {
+      const created = insertResult.rows[0];
+      this.auditBestEffort({
+        entityType: 'remediation', entityId: created.id, entityName: data.title,
+        action: 'created', actor: data.owner,
+        details: { incidentId: data.incidentId, grade: data.grade },
+        evidence: [`Remediation plan created for incident ${data.incidentId}`],
+      }, `remediation created: ${created.id}`);
+      return created;
+    }
+    // An open remediation already existed — return it, not a duplicate.
+    const existing = await this.pool.query(
+      `SELECT * FROM oc_remediations WHERE incident_id = $1 AND phase NOT IN ('completed', 'rolled-back', 'failed')
+       ORDER BY created_at DESC LIMIT 1`, [data.incidentId]
+    );
+    return existing.rows[0] || null;
+  }
+
   async updateRemediationPhase(id: string, phase: string, evidence: string[], actor: string) {
     const updates: string[] = [`phase = $2`, `updated_at = NOW()`];
     const params: any[] = [id, phase];
 
-    if (phase === 'executing') { updates.push(`started_at = NOW()`); }
+    if (phase === 'executing') {
+      updates.push(`started_at = NOW()`);
+      // Real fix, found live: oc_remediations.approved_by has always existed but was
+      // never actually written by any code path — the frontend showed a hardcoded
+      // fake name instead. The real approver is whoever's execute call caused this
+      // exact transition.
+      params.push(actor);
+      updates.push(`approved_by = $${params.length}`);
+    }
     if (phase === 'completed') { updates.push(`completed_at = NOW()`); }
     if (phase === 'rolled-back') { updates.push(`rolled_back_at = NOW()`); }
 
@@ -168,8 +222,12 @@ export class OperationsCenterService {
   }
 
   async closeRemediationTicket(id: string, verifiedBy: string) {
+    // Real fix, found live: closing the ticket previously left `phase` stuck at
+    // 'validating' forever — 'completed'/`completed_at` were reachable in the schema
+    // but no code path ever actually reached them.
     const result = await this.pool.query(
-      `UPDATE oc_remediations SET ticket_closed = TRUE, ticket_closed_at = NOW(), verified_by = $2, verified_at = NOW(), updated_at = NOW()
+      `UPDATE oc_remediations SET ticket_closed = TRUE, ticket_closed_at = NOW(), verified_by = $2, verified_at = NOW(),
+       phase = 'completed', completed_at = COALESCE(completed_at, NOW()), updated_at = NOW()
        WHERE id = $1 RETURNING *`, [id, verifiedBy]
     );
 
@@ -179,6 +237,72 @@ export class OperationsCenterService {
       details: { ticketClosed: true },
       evidence: [`Ticket closed and verified by ${verifiedBy} at ${new Date().toISOString()}`],
     }, `remediation ticket closed: ${id}`);
+
+    return result.rows[0];
+  }
+
+  async getRemediation(id: string) {
+    const result = await this.pool.query('SELECT * FROM oc_remediations WHERE id = $1', [id]);
+    return result.rows[0] || null;
+  }
+
+  async listRemediations(filters: { clientId?: string; incidentId?: string } = {}) {
+    let query = 'SELECT * FROM oc_remediations WHERE 1=1';
+    const params: any[] = [];
+    if (filters.clientId) { params.push(filters.clientId); query += ` AND client_id = $${params.length}`; }
+    if (filters.incidentId) { params.push(filters.incidentId); query += ` AND incident_id = $${params.length}`; }
+    query += ' ORDER BY created_at DESC LIMIT 50';
+    const result = await this.pool.query(query, params);
+    return result.rows;
+  }
+
+  async setRemediationOperation(id: string, operationId: string) {
+    const result = await this.pool.query(
+      `UPDATE oc_remediations SET operation_id = $2, updated_at = NOW() WHERE id = $1 RETURNING *`, [id, operationId]
+    );
+    return result.rows[0];
+  }
+
+  /**
+   * Real, operator-driven step transition — replaces the frontend's previous
+   * setInterval simulation entirely. Every call is a genuine staff action (Start /
+   * Mark Complete / Mark Failed clicked in the browser), persisted here with a real
+   * timestamp and a real, actually-measured duration (time between the real
+   * "in-progress" and real "passed"/"failed" writes) — never a guessed number.
+   */
+  async transitionRemediationStep(id: string, stepId: string, status: 'in-progress' | 'passed' | 'failed', actor: string, note?: string) {
+    const remediation = await this.getRemediation(id);
+    if (!remediation) return null;
+    const nowIso = new Date().toISOString();
+    let matched = false;
+    const steps = (remediation.steps || []).map((s: any) => {
+      if (s.id !== stepId) return s;
+      matched = true;
+      const updated: any = { ...s, status, actor };
+      if (status === 'in-progress') { updated.startedAt = nowIso; }
+      if (status === 'passed' || status === 'failed') {
+        updated.completedAt = nowIso;
+        if (updated.startedAt) {
+          const ms = new Date(nowIso).getTime() - new Date(updated.startedAt).getTime();
+          updated.duration = `${Math.max(0, Math.round(ms / 1000))}s`; // real elapsed time, not fabricated
+        }
+      }
+      if (note) updated.note = note;
+      return updated;
+    });
+    if (!matched) return null;
+
+    const evidenceLine = `[${nowIso}] Step "${stepId}" → ${status}, by ${actor}${note ? `: ${note}` : ''}`;
+    const result = await this.pool.query(
+      `UPDATE oc_remediations SET steps = $2, evidence = array_append(evidence, $3), updated_at = NOW() WHERE id = $1 RETURNING *`,
+      [id, JSON.stringify(steps), evidenceLine]
+    );
+
+    this.auditBestEffort({
+      entityType: 'remediation', entityId: id, entityName: remediation.title,
+      action: `step_${status === 'in-progress' ? 'started' : status}`, actor,
+      details: { stepId, status }, evidence: [evidenceLine],
+    }, `remediation step ${status}: ${id}/${stepId}`);
 
     return result.rows[0];
   }

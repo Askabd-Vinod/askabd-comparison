@@ -1,10 +1,11 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { Action } from './button';
+import { getStaffSession } from '../lib/staff-session';
 
 interface Field { key: string; label: string; description?: string; fieldType: string; required: boolean; placeholder?: string; helpText?: string; options?: string[]; securityClassification?: string; validationRules?: string[] }
 interface DocReq { key: string; name: string; description: string; required: boolean; acceptedTypes: string[]; maxSizeMb: number; expiryRequired: boolean }
-interface Requirement { id: string; requirementKey: string; requirementName: string; description: string; whyRequired: string; fieldType: string; required: boolean; status: string; value: string; fieldsData: Record<string, string>; validationStatus: string; securityClassification: string; version: number; fields?: Field[]; documents?: DocReq[] }
+interface Requirement { id: string; requirementKey: string; requirementName: string; description: string; whyRequired: string; fieldType: string; required: boolean; status: string; value: string; fieldsData: Record<string, string>; validationStatus: string; securityClassification: string; version: number; options?: string[]; fields?: Field[]; documents?: DocReq[] }
 interface DocRecord { id: string; document_name: string; status: string; version: number; uploaded_at: string; file_size: number; mime_type: string }
 
 interface Props { clientId: string; serviceId: string; serviceName: string; onSaveComplete?: () => void }
@@ -175,10 +176,18 @@ export function RequirementWorkspace({ clientId, serviceId, serviceName, onSaveC
     const req = requirements.find(r => r.requirementKey === reqKey);
     if (!req) return;
     const localErrors = validateLocally(req);
+    // A single-field select's "Other" choice requires an actual description — an
+    // unqualified "Other" is not usable business information (see renderField's
+    // companion "Please specify" input above).
+    if (!req.fields && req.fieldType === 'select') {
+      const raw = (fieldValues[reqKey]?._value || '').trim();
+      if (raw === 'Other') localErrors.push(`${req.requirementName}: please specify`);
+    }
     if (localErrors.length > 0) {
       const errMap: Record<string, string> = {};
       localErrors.forEach(e => errMap[`${reqKey}.${e.split(':')[0]}`] = e);
       setErrors(prev => ({ ...prev, ...errMap }));
+      setErrorWithRef(reqKey, localErrors.join('; '));
       return;
     }
     setSaving(reqKey);
@@ -192,7 +201,12 @@ export function RequirementWorkspace({ clientId, serviceId, serviceName, onSaveC
     }
 
     const vals = fieldValues[reqKey] || {};
-    const body = req.fields ? { value: '', actor: 'admin', fieldsData: vals } : { value: vals._value || '', actor: 'admin' };
+    // Real fix (2026-08-20): this used to hardcode actor: 'admin' regardless of
+    // who was actually signed in — a fabricated audit identity (Part 21: "Audit
+    // entries must reference real IDs. Never fabricate audit history"). The real,
+    // verified staff identity's own id is used instead.
+    const actor = getStaffSession()?.identityId || 'unknown-staff';
+    const body = req.fields ? { value: '', actor, fieldsData: vals } : { value: vals._value || '', actor };
     const preVersion = req.version || 0;
     const url = `${API}/api/v1/oc/client-services/${clientId}/${serviceId}/requirements/${reqKey}`;
     const attemptSave = () => fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -470,11 +484,35 @@ export function RequirementWorkspace({ clientId, serviceId, serviceName, onSaveC
                   )}
 
                   {/* Single field (legacy) */}
-                  {!hasFields && req.fieldType && (
-                    <div className="mb-3">
-                      {renderField({ key: '_value', label: req.requirementName, fieldType: req.fieldType, required: req.required, placeholder: req.description, options: undefined, securityClassification: req.securityClassification } as Field, vals._value || '', v => updateField(req.requirementKey, '_value', v))}
-                    </div>
-                  )}
+                  {!hasFields && req.fieldType && (() => {
+                    // Real fix (2026-08-20): this used to hardcode options: undefined,
+                    // which meant every simple select requirement (e.g. Primary Cloud
+                    // Provider) rendered as an unusable empty dropdown — required but
+                    // structurally impossible to complete — regardless of what the
+                    // backend's real catalog defined. req.options now carries the
+                    // server's real, catalog-defined list (see requirements-service.ts's
+                    // mapRow).
+                    const rawValue = vals._value || '';
+                    const isOther = rawValue === 'Other' || rawValue.startsWith('Other: ');
+                    const otherDetail = rawValue.startsWith('Other: ') ? rawValue.slice('Other: '.length) : '';
+                    const selectDisplayValue = isOther ? 'Other' : rawValue;
+                    return (
+                      <div className="mb-3">
+                        {renderField({ key: '_value', label: req.requirementName, fieldType: req.fieldType, required: req.required, placeholder: req.description, options: req.options, securityClassification: req.securityClassification } as Field, selectDisplayValue, v => updateField(req.requirementKey, '_value', v))}
+                        {req.fieldType === 'select' && isOther && (
+                          <input
+                            type="text"
+                            required
+                            value={otherDetail}
+                            onChange={e => updateField(req.requirementKey, '_value', `Other: ${e.target.value}`)}
+                            placeholder="Please specify"
+                            aria-label={`${req.requirementName} — please specify`}
+                            className="w-full border rounded px-2 py-1.5 text-[11px] mt-1.5 focus:ring-1 focus:ring-purple-500 focus:border-purple-500"
+                          />
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Save button — canonical primary Action, sized to match this panel's compact density */}
                   <Action

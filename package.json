@@ -7,6 +7,8 @@
   ],
   "scripts": {
     "dev": "npm run dev --workspace=apps/api & npm run dev --workspace=apps/web",
+    "dev:all": "node scripts/dev-all.mjs",
+    "health": "node scripts/health.mjs",
     "build": "npm run build --workspaces",
     "test": "npm run test --workspaces",
     "lint": "npm run lint --workspaces"

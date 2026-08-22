@@ -1,5 +1,11 @@
 # Resource Authorization Register
 
+> **SUPERSEDED 2026-08-19** — the "~15 routes remain genuinely uncovered" accounting below predates
+> this session's real-identity/JWKS work and the two waves of opaque-ID gates it added (29
+> mutations + 19 reads, including 3 more found in the final adversarial pass). See
+> `docs/final-adversarial-security-audit.md` for the current, re-counted state. Kept below,
+> unedited, as an accurate historical record of the 2026-08-17 state.
+
 **Date:** 2026-08-17, updated during the "final product completion" pass. Per-resource-type
 register, built from the actual route table in `apps/api/src/routes/operations-center-routes.ts`
 (~220 routes) cross-referenced against `apps/api/src/platform/rbac/rules.ts` and

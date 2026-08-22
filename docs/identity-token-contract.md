@@ -129,6 +129,24 @@ real, running instance of `askabd-identity` in a given deployment actually match
 source code (e.g. hasn't been patched, hasn't had the placeholder env vars wired up since this
 audit) is not verifiable without a live instance — none is reachable from this environment.
 
+### Phase 5 update (2026-08-18) — resolution path #1 above has been implemented
+
+The row `Is JWKS compatible? — No, does not exist` and the "Are signing algorithms compatible? —
+No" row are now stale. Resolution path #1 listed above ("`askabd-identity` publishes a JWKS
+endpoint... no code change needed on this side, only a real JWKS URL to configure") is exactly
+what was implemented — see `docs/identity-real-contract.md`'s "Phase 5 update" section for the
+full change list (signing-key persistence, `GET /.well-known/jwks.json`, `aud`/`kid` claims,
+tests on both sides). The prediction that this side would need no code change was only partially
+right in practice: `apps/api/src/config/env.ts`/`auth.ts` needed a small consistency fix (reading
+`JWT_SECRET`/`JWKS_URL` from the app's own validated config instead of raw `process.env`, and
+adding `JWT_ISSUER`/`JWT_AUDIENCE` to that same schema) to make the already-existing `JWKS_URL`
+support actually configurable the same way every other setting in this app is — not a new
+verification code path.
+
+Still open: a live cross-process verification (real identity process issuing, real comparison
+process verifying over real HTTP/DB) has not yet been performed as of this update — see
+`docs/identity-real-contract.md`'s "What this does NOT yet claim" note.
+
 ## Tenant model — the org/client mapping question (feeds Phase 4)
 
 `org_context` in `askabd-identity` is that service's OWN multi-tenancy dimension — "which

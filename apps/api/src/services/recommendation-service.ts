@@ -4,6 +4,7 @@
  * Every recommendation traces back to discovery + assessment evidence.
  */
 
+import { randomUUID } from 'node:crypto';
 import { sharedPool } from './db-pool.js';
 
 const dbPool = sharedPool;
@@ -40,7 +41,8 @@ export interface RecommendationSet {
 export class RecommendationService {
 
   async generate(clientId: string, assessmentId: string): Promise<RecommendationSet> {
-    const setId = `rec-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    // randomUUID, not Math.random() — a genuinely collision-safe suffix.
+    const setId = `rec-${Date.now()}-${randomUUID().replace(/-/g, '').slice(0, 8)}`;
 
     // Load assessment
     const assRes = await dbPool.query('SELECT findings, risk_score, complexity_score, discovery_run_id FROM oc_assessments WHERE id = $1 AND client_id = $2', [assessmentId, clientId]);

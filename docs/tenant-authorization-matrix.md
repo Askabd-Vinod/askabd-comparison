@@ -1,5 +1,11 @@
 # Tenant/Client Authorization Matrix
 
+> **SUPERSEDED 2026-08-19** — this document's central claim ("no tenant mapping exists anywhere,
+> and none was invented") is no longer true: `client_identity_mapping` and the real
+> askabd-identity/JWKS integration now provide exactly that mapping, live-proven with real
+> identities. See `docs/final-adversarial-security-audit.md` for the current state. Kept below,
+> unedited, as an accurate historical record of the 2026-08-17 state.
+
 **Date:** 2026-08-17. Built from direct inspection of `apps/api/src/platform/rbac/*`,
 `apps/api/src/routes/operations-center-routes.ts`, and the database schema — not assumed.
 

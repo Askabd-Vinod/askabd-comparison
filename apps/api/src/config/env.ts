@@ -34,6 +34,14 @@ const AppConfigSchema = z.object({
   // Security
   JWT_SECRET: z.string().optional(),
   JWKS_URL: z.string().optional(),
+  // Expected JWT issuer — matches askabd-identity's real, hardcoded issuer claim
+  // (src/services/token-service.ts: .setIssuer('askabd-identity')). Configurable rather
+  // than hardcoded in the middleware so a non-default identity deployment can override it.
+  JWT_ISSUER: z.string().default('askabd-identity'),
+  // Expected JWT audience. Only enforced when set (see middleware/auth.ts — jose skips
+  // the `aud` check entirely when this is undefined). Matches askabd-identity's
+  // TOKEN_AUDIENCE default ('askabd-platform') when both services use their defaults.
+  JWT_AUDIENCE: z.string().optional(),
   // Scheduler
   SCHEDULER_AUTH_TOKEN: z.string().optional(),
 });

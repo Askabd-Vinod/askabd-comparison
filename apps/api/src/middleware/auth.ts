@@ -86,13 +86,37 @@ const DEFAULT_PUBLIC_ROUTES = [
  * Public routes are excluded from auth checks.
  */
 export function registerAuthMiddleware(server: FastifyInstance, authConfig?: Partial<AuthConfig>): void {
+  // Sourced from the app's own validated/frozen config object (config/env.ts) rather
+  // than raw process.env — JWT_SECRET and JWKS_URL were previously read directly from
+  // process.env here even though config.JWT_SECRET/config.JWKS_URL already existed,
+  // validated but unused. JWT_ISSUER/JWT_AUDIENCE are new additions to that same schema.
+  // A caller that explicitly passes its own `jwtSecret` (every HS256 test-token
+  // suite in tests/*.test.ts does this — a real, deliberate, self-contained
+  // verification mode) is opting OUT of env-derived JWKS verification, even if
+  // this process's real .env happens to have a real JWKS_URL configured for the
+  // actual app (server.ts never passes an explicit jwtSecret, so it is
+  // unaffected by this and always gets the real env fallback as before).
+  // Found as a genuine regression: once apps/api/.env correctly gained a real
+  // JWKS_URL (closing the devBypass hole — see docs/local-development-runbook.md),
+  // every test that signed its own HS256 token started silently getting
+  // verified against the real JWKS instead (env's JWKS_URL took priority
+  // unconditionally), failing every one of them with 401. The fix respects
+  // explicit caller intent instead of letting env silently override it.
+  const explicitSecret = authConfig?.jwtSecret !== undefined;
+  // A caller providing EITHER of its own verification key sources (jwtSecret or
+  // jwksUrl) is running a self-contained harness — real tests do this to point
+  // at a local mock JWKS server or a local HS256 secret, never the real
+  // askabd-identity instance — and should not silently inherit this process's
+  // real env JWT_AUDIENCE default for whatever it didn't explicitly specify
+  // itself (see jwks-verification.test.ts's "audience left unconfigured" case).
+  const explicitVerificationSource = explicitSecret || authConfig?.jwksUrl !== undefined;
   const cfg: AuthConfig = {
     publicRoutes: [...DEFAULT_PUBLIC_ROUTES, ...(authConfig?.publicRoutes ?? [])],
-    jwtSecret: authConfig?.jwtSecret ?? process.env.JWT_SECRET,
-    jwksUrl: authConfig?.jwksUrl ?? process.env.JWKS_URL,
-    issuer: authConfig?.issuer ?? 'askabd-identity',
-    audience: authConfig?.audience ?? process.env.JWT_AUDIENCE,
-    devBypass: authConfig?.devBypass ?? (config.NODE_ENV !== 'production' && !process.env.JWT_SECRET && !process.env.JWKS_URL),
+    jwtSecret: authConfig?.jwtSecret ?? config.JWT_SECRET,
+    jwksUrl: authConfig?.jwksUrl ?? (explicitSecret ? undefined : config.JWKS_URL),
+    issuer: authConfig?.issuer ?? config.JWT_ISSUER,
+    audience: authConfig?.audience ?? (explicitVerificationSource ? undefined : config.JWT_AUDIENCE),
+    devBypass: authConfig?.devBypass ?? (config.NODE_ENV !== 'production' && !config.JWT_SECRET && !config.JWKS_URL),
   };
 
   server.decorateRequest('auth', null);

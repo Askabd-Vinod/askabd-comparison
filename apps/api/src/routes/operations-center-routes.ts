@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { randomInt } from 'node:crypto';
 import { config } from '../config/env.js';
 import { sharedPool } from '../services/db-pool.js';
 import { OperationsCenterService } from '../services/operations-center-service.js';
@@ -9,6 +10,7 @@ import { AssessmentService } from '../services/assessment-service.js';
 import { RecommendationService } from '../services/recommendation-service.js';
 import { MigrationValidationService } from '../services/migration-validation-service.js';
 import { MigrationExecutionService } from '../services/migration-execution-service.js';
+import { operationService } from '../services/operation-service.js';
 import { ProblemUniverseService } from '../services/problem-universe-service.js';
 import { GapAnalysisService } from '../services/gap-analysis-service.js';
 import { DecisionTransformationService } from '../services/decision-transformation-service.js';
@@ -25,6 +27,12 @@ import { CommercialEngagementService } from '../services/commercial-engagement-s
 import { PaymentMethodService } from '../services/payment-method-service.js';
 import { FinancialReconciliationService } from '../services/financial-reconciliation-service.js';
 import { ServiceRequirementMatrixService } from '../services/service-requirement-matrix-service.js';
+import { ClientIdentityMappingService } from '../services/client-identity-mapping-service.js';
+import { InvitationService } from '../services/invitation-service.js';
+import { searchClientWorkspace } from '../services/client-search-service.js';
+import { CustomerActivityService, type ActivityModule, type ActivityResult } from '../services/customer-activity-service.js';
+import { getAuth } from '../middleware/auth.js';
+import { getAuthorization } from '../platform/rbac/middleware.js';
 
 // Use the shared application-wide database pool
 const routePool = sharedPool;
@@ -36,6 +44,175 @@ const routePool = sharedPool;
 export async function operationsCenterRoutes(server: FastifyInstance): Promise<void> {
   const ocService = new OperationsCenterService();
   const notifService = new NotificationService();
+  const mappingService = new ClientIdentityMappingService();
+  const invitationService = new InvitationService();
+
+  // ─── SESSION ──────────────────────────────────────────────────────────────
+
+  // What a real, authenticated caller is actually entitled to see — resolved entirely
+  // server-side from the verified JWT claims + client_identity_mapping. Not a client-scoped
+  // route (no :clientId), so tenant-access.ts's boundary does not apply here; this IS the
+  // endpoint the frontend uses to find out which client-scoped routes it may call at all.
+  server.get('/oc/me', async (req) => {
+    const auth = getAuth(req);
+    const authz = getAuthorization(req);
+    const roles = authz?.roles ?? [];
+    const orgContext = auth?.tenantId;
+    const isCrossClient = roles.includes('admin') || roles.includes('super_admin');
+    const authorizedClientIds = isCrossClient || !orgContext || orgContext === 'public'
+      ? []
+      : await mappingService.resolveAuthorizedClientIds(orgContext);
+    return {
+      userId: auth?.userId ?? null,
+      orgContext: orgContext ?? null,
+      roles,
+      crossClientAccess: isCrossClient,
+      authorizedClientIds,
+    };
+  });
+
+  // ─── Pending invitations for the authenticated identity (Path B) ────────────
+  // "An existing AskABD account signs in normally, no invitation link needed" —
+  // real, server-authoritative, keyed on the caller's own verified org_context
+  // (the same authorization key used everywhere else in this schema — see
+  // client-identity-mapping-service.ts), never a client-supplied value and never
+  // matched by email (askabd-identity exposes no email-based lookup, and this
+  // platform does not otherwise treat email as an authorization key).
+  server.get('/oc/me/pending-invitations', async (req, reply) => {
+    const auth = getAuth(req);
+    const orgContext = auth?.tenantId;
+    if (!orgContext || orgContext === 'public') {
+      return reply.status(401).send({ error: { code: 'not_authenticated', message: 'Sign in to view pending invitations.' } });
+    }
+    const pending = await invitationService.listPendingForOrgContext(orgContext);
+    return { invitations: pending };
+  });
+
+  // Explicit accept — no invitation token involved. The customer must actively
+  // click Accept; nothing here is granted merely because org_context matches.
+  server.post('/oc/me/pending-invitations/:id/accept', async (req, reply) => {
+    const auth = getAuth(req);
+    const orgContext = auth?.tenantId;
+    if (!orgContext || orgContext === 'public' || !auth?.userId) {
+      return reply.status(401).send({ error: { code: 'not_authenticated', message: 'Sign in to accept an invitation.' } });
+    }
+    const { id } = req.params as { id: string };
+    const result = await invitationService.acceptForAuthenticatedIdentity(id, orgContext, auth.userId);
+    if (!result.ok) {
+      const status = result.error.code === 'invitation_not_found' ? 404
+        : result.error.code === 'invitation_invalid' ? 409
+        : 502;
+      return reply.status(status).send({ error: result.error });
+    }
+    reply.send(result.value);
+  });
+
+  // ─── GLOBAL SEARCH ────────────────────────────────────────────────────────
+  // Real fix (final closure pass): the frontend's /search page previously only
+  // searched apps/web/lib/mock-clients.ts — a real onboarded client, incident,
+  // defect, or migration was never findable through search, regardless of how
+  // exactly its name was typed. This is a genuine, real, cross-client aggregate
+  // query — the same class of route as GET /oc/incidents (no clientId filter) —
+  // gated Admin.Access below for the same reason: an internal staff console
+  // feature searching across every client's data, not a customer-portal capability.
+  server.get('/oc/search', async (req, reply) => {
+    const q = (req.query as any).q as string | undefined;
+    if (!q || q.trim().length < 2) {
+      reply.send({ query: q || '', results: { clients: [], incidents: [], defects: [], migrations: [], remediations: [] }, totalMatches: 0 });
+      return;
+    }
+    const like = `%${q.trim()}%`;
+    const LIMIT_PER_CATEGORY = 10;
+    try {
+      const [clients, incidents, defects, migrations, remediations] = await Promise.all([
+        routePool.query(
+          `SELECT id, name, industry, health FROM oc_clients WHERE name ILIKE $1 OR industry ILIKE $1 ORDER BY name LIMIT $2`,
+          [like, LIMIT_PER_CATEGORY]
+        ),
+        // Each of these 4 now LEFT JOINs oc_clients for a real client_name —
+        // previously the frontend showed the raw internal client_id (e.g.
+        // "Client client-689fbe34-...") in the search result subtitle
+        // instead of a human-readable client name. Found during the
+        // 2026-08-22 global UX audit.
+        routePool.query(
+          `SELECT i.id, i.client_id, c.name AS client_name, i.title, i.severity, i.status FROM oc_incidents i LEFT JOIN oc_clients c ON c.id = i.client_id WHERE i.title ILIKE $1 ORDER BY i.detected_at DESC LIMIT $2`,
+          [like, LIMIT_PER_CATEGORY]
+        ),
+        routePool.query(
+          `SELECT d.id, d.client_id, c.name AS client_name, d.title, d.severity, d.category FROM oc_defects d LEFT JOIN oc_clients c ON c.id = d.client_id WHERE d.title ILIKE $1 ORDER BY d.first_seen_at DESC LIMIT $2`,
+          [like, LIMIT_PER_CATEGORY]
+        ).catch(() => ({ rows: [] })),
+        routePool.query(
+          `SELECT m.id, m.client_id, c.name AS client_name, m.source_schema, m.target_schema, m.status FROM oc_migration_runs m LEFT JOIN oc_clients c ON c.id = m.client_id WHERE m.source_schema ILIKE $1 OR m.target_schema ILIKE $1 OR m.id ILIKE $1 ORDER BY m.created_at DESC LIMIT $2`,
+          [like, LIMIT_PER_CATEGORY]
+        ).catch(() => ({ rows: [] })),
+        routePool.query(
+          `SELECT r.id, r.client_id, c.name AS client_name, r.title, r.phase FROM oc_remediations r LEFT JOIN oc_clients c ON c.id = r.client_id WHERE r.title ILIKE $1 ORDER BY r.created_at DESC LIMIT $2`,
+          [like, LIMIT_PER_CATEGORY]
+        ),
+      ]);
+      const results = {
+        clients: clients.rows,
+        incidents: incidents.rows,
+        defects: defects.rows,
+        migrations: migrations.rows,
+        remediations: remediations.rows,
+      };
+      const totalMatches = Object.values(results).reduce((sum, arr) => sum + arr.length, 0);
+      reply.send({ query: q, results, totalMatches });
+    } catch (err) {
+      reply.status(500).send({ error: (err as Error).message, query: q, results: { clients: [], incidents: [], defects: [], migrations: [], remediations: [] }, totalMatches: 0 });
+    }
+  });
+
+  // ─── CLIENT-SCOPED SEARCH (Part 3, 2026-08-20) ────────────────────────────
+  // Distinct from /oc/search above: this searches WITHIN one client's own
+  // workspace, across the real entities that live there (requirements,
+  // services, connectors, problems, gaps, incidents, migrations, CRM,
+  // requests) — the real answer to "this client has too many tabs to find one
+  // thing by clicking through them." Staff path sees everything (internal +
+  // customer-visible); the customer-portal path only ever sees what
+  // crm-service.ts's own visibility='customer' filter already exposes
+  // elsewhere in the portal — never a broader set.
+  server.get('/oc/clients/:clientId/search', async (req) => {
+    const { clientId } = req.params as any;
+    const q = (req.query as any).q as string | undefined;
+    return searchClientWorkspace(clientId, q || '', 'staff');
+  });
+
+  server.get('/oc/portal/:clientId/search', async (req) => {
+    const { clientId } = req.params as any;
+    const q = (req.query as any).q as string | undefined;
+    return searchClientWorkspace(clientId, q || '', 'customer');
+  });
+
+  // ─── CUSTOMER ACTIVITY (Phase 2, 2026-08-20) ──────────────────────────────
+  // Real, cross-service aggregation — see customer-activity-service.ts's own
+  // doc for the full rationale (business events from oc_audit_log, real
+  // authentication/session events from askabd-identity's own audit log via
+  // its real HTTP API, normalized at this boundary). Admin.Access-gated
+  // below, same as every other staff-only aggregate view in this file.
+  const customerActivityService = new CustomerActivityService();
+  server.get('/oc/clients/:clientId/activity', async (req, reply) => {
+    const { clientId } = req.params as { clientId: string };
+    const header = req.headers.authorization;
+    if (!header || !header.startsWith('Bearer ')) {
+      return reply.status(401).send({ error: { code: 'not_authenticated', message: 'Sign in to view activity.' } });
+    }
+    const q = req.query as { from?: string; to?: string; module?: string; action?: string; status?: string; sort?: string; limit?: string; offset?: string };
+    const page = await customerActivityService.getActivity({
+      clientId,
+      from: q.from ? new Date(q.from) : undefined,
+      to: q.to ? new Date(q.to) : undefined,
+      module: q.module as ActivityModule | undefined,
+      action: q.action,
+      status: q.status as ActivityResult | undefined,
+      sort: q.sort === 'asc' ? 'asc' : 'desc',
+      limit: q.limit ? Math.min(parseInt(q.limit, 10), 200) : 50,
+      offset: q.offset ? parseInt(q.offset, 10) : 0,
+    }, header.slice(7));
+    return page;
+  });
 
   // ─── CLIENTS ──────────────────────────────────────────────────────────────
 
@@ -159,12 +336,110 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     reply.status(201).send({ remediation });
   });
 
+  // Atomic find-or-create — closes a real race the incident-detail page hit live:
+  // two near-simultaneous page loads for the same incident could each see "no
+  // remediation yet" and each create one. This does the check inside a single SQL
+  // statement instead of two separate HTTP round trips.
+  server.post('/oc/remediations/find-or-create', async (req, reply) => {
+    const remediation = await ocService.findOrCreateRemediation(req.body as any);
+    reply.send({ remediation });
+  });
+
+  server.get('/oc/remediations', async (req) => {
+    const q = req.query as any;
+    const remediations = await ocService.listRemediations({ clientId: q.clientId, incidentId: q.incidentId });
+    return { remediations };
+  });
+
+  server.get('/oc/remediations/:id', async (req, reply) => {
+    const remediation = await ocService.getRemediation((req.params as any).id);
+    if (!remediation) { reply.status(404).send({ error: 'Remediation not found' }); return; }
+    return { remediation };
+  });
+
   server.patch('/oc/remediations/:id/phase', async (req) => {
     const { phase, evidence, actor } = req.body as any;
     const remediation = await ocService.updateRemediationPhase(
       (req.params as any).id, phase, evidence || [], actor || 'system'
     );
     return { remediation };
+  });
+
+  // Real execution start — replaces the frontend's previous client-only simulation.
+  // Creates a genuine oc_operations row (the same reusable model migrations/discovery
+  // use) with totalUnits = the real step count, transitions the remediation to
+  // 'executing', and links the two so a refresh or a different staff member sees the
+  // identical, server-authoritative state.
+  server.post('/oc/remediations/:id/execute', async (req, reply) => {
+    const { id } = req.params as any;
+    const { actor } = req.body as any;
+    const remediation = await ocService.getRemediation(id);
+    if (!remediation) { reply.status(404).send({ error: 'Remediation not found' }); return; }
+    if (remediation.operation_id) {
+      const existing = await operationService.get(remediation.operation_id);
+      if (existing && ['queued', 'running'].includes(existing.status)) {
+        reply.status(409).send({ error: 'Remediation already has an execution in progress', operation: existing });
+        return;
+      }
+    }
+    const stepCount = Array.isArray(remediation.steps) ? remediation.steps.length : 0;
+    const created = await operationService.create({
+      clientId: remediation.client_id, type: 'remediation', sourceId: id,
+      totalUnits: stepCount > 0 ? stepCount : null,
+      currentStage: `Remediation: ${remediation.title}`,
+      cancellable: false, retryable: true,
+      createdBy: actor || 'staff',
+    });
+    const operation = (await operationService.start(created.id)) ?? created;
+    await ocService.setRemediationOperation(id, operation.id);
+    const updated = await ocService.updateRemediationPhase(id, 'executing', [`[${new Date().toISOString()}] Execution started by ${actor || 'staff'} — real operation ${operation.id} created`], actor || 'staff');
+    reply.send({ remediation: updated, operation });
+  });
+
+  // Real, operator-driven step transitions — a genuine staff click, not a timer.
+  server.post('/oc/remediations/:id/steps/:stepId/start', async (req, reply) => {
+    const { id, stepId } = req.params as any;
+    const { actor } = req.body as any;
+    const remediation = await ocService.transitionRemediationStep(id, stepId, 'in-progress', actor || 'staff');
+    if (!remediation) { reply.status(404).send({ error: 'Remediation or step not found' }); return; }
+    if (remediation.operation_id) {
+      const step = (remediation.steps || []).find((s: any) => s.id === stepId);
+      await operationService.progress(remediation.operation_id, { currentStage: step?.label || stepId, evidenceMessage: `Step "${step?.label || stepId}" started` }).catch(() => {});
+    }
+    reply.send({ remediation });
+  });
+
+  server.post('/oc/remediations/:id/steps/:stepId/complete', async (req, reply) => {
+    const { id, stepId } = req.params as any;
+    const { actor, evidence } = req.body as any;
+    let remediation = await ocService.transitionRemediationStep(id, stepId, 'passed', actor || 'staff', evidence);
+    if (!remediation) { reply.status(404).send({ error: 'Remediation or step not found' }); return; }
+    if (remediation.operation_id) {
+      const step = (remediation.steps || []).find((s: any) => s.id === stepId);
+      await operationService.progress(remediation.operation_id, { completedUnitsDelta: 1, evidenceMessage: `Step "${step?.label || stepId}" completed${evidence ? `: ${evidence}` : ''} (${step?.duration || 'duration unknown'})` }).catch(() => {});
+      const allDone = (remediation.steps || []).every((s: any) => s.status === 'passed' || s.status === 'skipped');
+      if (allDone) {
+        await operationService.complete(remediation.operation_id, { evidenceMessage: 'All remediation steps completed' }).catch(() => {});
+        // Real bug caught by this feature's own test on first run: this used to call
+        // updateRemediationPhase but keep responding with the pre-transition
+        // `remediation` object, so the phase change was persisted but never visible
+        // in the response the browser actually reads. Fixed: use its return value.
+        remediation = await ocService.updateRemediationPhase(id, 'validating', [`[${new Date().toISOString()}] All steps complete — awaiting verification`], actor || 'staff');
+      }
+    }
+    reply.send({ remediation });
+  });
+
+  server.post('/oc/remediations/:id/steps/:stepId/fail', async (req, reply) => {
+    const { id, stepId } = req.params as any;
+    const { actor, reason } = req.body as any;
+    const remediation = await ocService.transitionRemediationStep(id, stepId, 'failed', actor || 'staff', reason);
+    if (!remediation) { reply.status(404).send({ error: 'Remediation or step not found' }); return; }
+    if (remediation.operation_id) {
+      const step = (remediation.steps || []).find((s: any) => s.id === stepId);
+      await operationService.progress(remediation.operation_id, { failedUnitsDelta: 1, evidenceMessage: `Step "${step?.label || stepId}" failed${reason ? `: ${reason}` : ''}` }).catch(() => {});
+    }
+    reply.send({ remediation });
   });
 
   server.post('/oc/remediations/:id/close', async (req) => {
@@ -203,11 +478,13 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
   // ─── OTP & VERIFICATION ───────────────────────────────────────────────────
 
   // PostgreSQL-backed OTP store: survives API restarts
-  const { storeOtp, getOtp, incrementAttempts, deleteOtp } = await import('../services/otp-store.js');
+  const { storeOtp, deleteOtp, verifyAndConsumeOtp } = await import('../services/otp-store.js');
 
   server.post('/oc/otp/send', async (req, reply) => {
     const { clientId, clientName, businessOwner, email, onboardingData } = req.body as any;
-    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    // crypto.randomInt (CSPRNG), not Math.random — found during the final adversarial
+    // audit: a verification code should never be generated from a non-cryptographic RNG.
+    const otp = String(randomInt(100000, 1000000));
     const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
     // Persist OTP to PostgreSQL with onboarding metadata (NEVER sent to frontend)
@@ -275,48 +552,51 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
       return;
     }
 
-    const stored = await getOtp(clientId);
-
     // Allow demo OTP "123456" ONLY in development/test environments — NEVER in production
     const isDemoOtp = otp === '123456' && config.NODE_ENV !== 'production';
 
-    if (!stored && !isDemoOtp) {
+    // Real fix (final closure pass): the previous "read the row, then separately
+    // increment/delete it" sequence was a genuine race — a real 2-request concurrent
+    // test using the correct OTP reproduced BOTH requests reporting success, letting
+    // a single-use code be consumed twice. verifyAndConsumeOtp does the entire
+    // check-and-consume as one row-locked Postgres transaction.
+    let outcome: Awaited<ReturnType<typeof verifyAndConsumeOtp>>;
+    if (isDemoOtp) {
+      // The demo shortcut has no real code to check against — best-effort consume
+      // any real pending OTP for this client so it can't be reused after the demo
+      // path succeeds, then proceed as a real success with empty OTP-store metadata
+      // (the client-record fallback below fills it in).
+      await deleteOtp(clientId).catch(() => {});
+      outcome = { outcome: 'valid', meta: {}, priorAttempts: 0 };
+    } else {
+      outcome = await verifyAndConsumeOtp(clientId, otp);
+    }
+
+    if (outcome.outcome === 'not_found') {
       reply.send({ valid: false, error: 'No OTP found for this client. Please request a new one.' });
       return;
     }
-
-    // Check attempts (max 5)
-    if (stored && stored.attempts >= 5) {
+    if (outcome.outcome === 'locked') {
       reply.send({ valid: false, error: 'Too many failed attempts. Please request a new OTP.' });
       return;
     }
-
-    // Check expiry
-    if (stored && new Date(stored.expiry) < new Date() && !isDemoOtp) {
-      await deleteOtp(clientId);
+    if (outcome.outcome === 'expired') {
       reply.send({ valid: false, error: 'OTP has expired. Please request a new one.' });
       return;
     }
-
-    // Validate OTP
-    const valid = isDemoOtp || (stored !== null && stored !== undefined && otp === stored.otp);
-
-    if (!valid) {
-      await incrementAttempts(clientId);
-      const remaining = stored ? 5 - stored.attempts - 1 : 0;
+    if (outcome.outcome === 'invalid') {
       ocService.createAuditEntry({
         entityType: 'otp', entityId: clientId, entityName: '',
-        action: 'otp_failed', actor: 'admin',
-        details: { valid: false, attempts: (stored?.attempts || 0) + 1 },
+        action: 'otp_failed', actor: getAuth(req)?.userId || 'unknown-staff',
+        details: { valid: false, attemptsRemaining: outcome.attemptsRemaining },
         evidence: ['OTP verification failed'],
       }).catch(() => { /* non-blocking */ });
-      reply.send({ valid: false, error: `Incorrect OTP. ${Math.max(0, remaining)} attempts remaining.` });
+      reply.send({ valid: false, error: `Incorrect OTP. ${outcome.attemptsRemaining} attempts remaining.` });
       return;
     }
 
     // Success — auto-populate identity verification requirements from onboarding data
-    const otpMeta = stored; // Capture before deletion
-    await deleteOtp(clientId);
+    const otpMeta = outcome.meta;
 
     // Auto-fill identity verification requirements so user doesn't have to re-enter
     // Source 1: OTP metadata (stored during OTP send)
@@ -368,8 +648,8 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
 
     ocService.createAuditEntry({
       entityType: 'otp', entityId: clientId, entityName: '',
-      action: 'otp_verified', actor: 'admin',
-      details: { valid: true, attempts: (stored?.attempts || 0) + 1 },
+      action: 'otp_verified', actor: getAuth(req)?.userId || 'unknown-staff',
+      details: { valid: true, attempts: outcome.priorAttempts + 1 },
       evidence: ['OTP verified successfully'],
     }).catch(() => { /* non-blocking */ });
 
@@ -383,7 +663,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
       return;
     }
 
-    const newOtp = String(Math.floor(100000 + Math.random() * 900000));
+    const newOtp = String(randomInt(100000, 1000000)); // crypto.randomInt — see /oc/otp/send
     const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
     // Persist new OTP (invalidates previous)
@@ -423,22 +703,22 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
   const connectorService = new ConnectorService();
 
   server.post('/oc/connectors/test', async (req, reply) => {
-    const { provider, clientId, fields } = req.body as any;
+    const { provider, clientId, fields, name } = req.body as any;
     if (!provider || !clientId) {
       reply.status(400).send({ error: { code: 'invalid', message: 'Provider and clientId are required' } });
       return;
     }
 
-    const result = await connectorService.testConnection({ provider, clientId, fields: fields || {} });
+    const result = await connectorService.testConnection({ provider, clientId, fields: fields || {}, name });
 
     // Audit the connection test
     ocService.createAuditEntry({
-      entityType: 'connector', entityId: clientId, entityName: provider,
+      entityType: 'connector', entityId: clientId, entityName: result.name || provider,
       action: result.status === 'connected' ? 'connection_validated' : 'connection_failed',
-      actor: 'admin',
-      details: { provider, status: result.status, mode: result.mode, stepsRun: result.steps.length, stepsPassed: result.steps.filter(s => s.pass).length },
+      actor: getAuth(req)?.userId || 'unknown-staff',
+      details: { provider, name: result.name, status: result.status, mode: result.mode, stepsRun: result.steps.length, stepsPassed: result.steps.filter(s => s.pass).length },
       evidence: [
-        `${provider} connection test: ${result.status} (${result.mode} mode)`,
+        `${result.name || provider} (${provider}) connection test: ${result.status} (${result.mode} mode)`,
         `Steps: ${result.steps.filter(s => s.pass).length}/${result.steps.length} passed`,
         `Duration: ${result.totalDurationMs}ms`,
         result.error ? `Error: ${result.error}` : 'No errors',
@@ -454,6 +734,22 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     return { clientId, connectors };
   });
 
+  // Real removal — multi-instance connectors (migration 035) can be individually
+  // deleted, e.g. decommissioning a client's old AWS Dev account while keeping Prod.
+  server.delete('/oc/connectors/:id', async (req, reply) => {
+    const { id } = req.params as any;
+    const { clientId } = req.query as any;
+    if (!clientId) { reply.status(400).send({ error: { code: 'invalid', message: 'clientId query param is required' } }); return; }
+    const removed = await connectorService.removeConnector(id, clientId);
+    if (!removed) { reply.status(404).send({ error: { code: 'not_found', message: 'No such connector for this client' } }); return; }
+    ocService.createAuditEntry({
+      entityType: 'connector', entityId: clientId, entityName: id,
+      action: 'connector_removed', actor: getAuth(req)?.userId || 'unknown-staff',
+      details: { connectorId: id }, evidence: [`Connector ${id} removed for client ${clientId}`],
+    }).catch(() => {});
+    reply.send({ removed: true, id });
+  });
+
   // Real connection-test history — powers the client "Testing" page honestly (see
   // apps/web's testing/page.tsx), replacing what was previously a hardcoded fake test-suite
   // list identical for every client. Every row here is a genuine past testConnection() run.
@@ -464,29 +760,30 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
   });
 
   server.post('/oc/connectors/save', async (req, reply) => {
-    const { provider, clientId, fields, securityLevel } = req.body as any;
+    const { provider, clientId, fields, securityLevel, name } = req.body as any;
     if (!provider || !clientId) {
       reply.status(400).send({ error: { code: 'invalid', message: 'Provider and clientId are required' } });
       return;
     }
-    await connectorService.saveConfiguration(clientId, provider, fields || {}, securityLevel || 'read-only');
+    const resolvedName = (name && String(name).trim()) || provider;
+    await connectorService.saveConfiguration(clientId, provider, fields || {}, securityLevel || 'read-only', resolvedName);
 
     // Auto-validate after saving if connection fields are present
     let testResult = null;
     if (fields && (fields.host || fields.connectionUrl || fields.token || fields.clusterEndpoint)) {
       try {
-        testResult = await connectorService.testConnection({ provider, clientId, fields });
+        testResult = await connectorService.testConnection({ provider, clientId, fields, name: resolvedName });
       } catch { /* validation is best-effort during save */ }
     }
 
     ocService.createAuditEntry({
-      entityType: 'connector', entityId: clientId, entityName: provider,
-      action: 'connector_configured', actor: 'admin',
-      details: { provider, securityLevel: securityLevel || 'read-only', autoValidated: !!testResult, validationStatus: testResult?.status },
-      evidence: [`${provider} connector configured for client ${clientId}${testResult ? ` — validation: ${testResult.status}` : ''}`],
+      entityType: 'connector', entityId: clientId, entityName: resolvedName,
+      action: 'connector_configured', actor: getAuth(req)?.userId || 'unknown-staff',
+      details: { provider, name: resolvedName, securityLevel: securityLevel || 'read-only', autoValidated: !!testResult, validationStatus: testResult?.status },
+      evidence: [`${resolvedName} (${provider}) connector configured for client ${clientId}${testResult ? ` — validation: ${testResult.status}` : ''}`],
     }).catch(() => {});
 
-    reply.send({ status: testResult?.status || 'configured', provider, clientId, validated: !!testResult });
+    reply.send({ status: testResult?.status || 'configured', provider, name: resolvedName, clientId, validated: !!testResult });
   });
 
   // ─── DISCOVERY ────────────────────────────────────────────────────────────
@@ -604,14 +901,14 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
   server.post('/oc/recommendations/:id/approve', async (req, reply) => {
     const { id } = req.params as any;
     const { clientId, actor, comment } = req.body as any;
-    const result = await recommendationService.approve(clientId, id, actor || 'admin', comment);
+    const result = await recommendationService.approve(clientId, id, actor || getAuth(req)?.userId || 'unknown-staff', comment);
 
     if (result.success) {
       ocService.createAuditEntry({
         entityType: 'recommendation', entityId: clientId, entityName: id,
-        action: 'recommendation_approved', actor: actor || 'admin',
+        action: 'recommendation_approved', actor: actor || getAuth(req)?.userId || 'unknown-staff',
         details: { recommendationId: id, comment },
-        evidence: [`Recommendations approved by ${actor || 'admin'} at ${new Date().toISOString()}`],
+        evidence: [`Recommendations approved by ${actor || getAuth(req)?.userId || 'unknown-staff'} at ${new Date().toISOString()}`],
       }).catch(() => {});
     }
     reply.send(result);
@@ -620,7 +917,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
   server.post('/oc/recommendations/:id/reject', async (req, reply) => {
     const { id } = req.params as any;
     const { clientId, actor, reason } = req.body as any;
-    const result = await recommendationService.reject(clientId, id, actor || 'admin', reason || '');
+    const result = await recommendationService.reject(clientId, id, actor || getAuth(req)?.userId || 'unknown-staff', reason || '');
     reply.send(result);
   });
 
@@ -677,7 +974,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     // Auto-advance: migration planning → approved (plan creation implies planning complete)
     await lifecycleService.transition(clientId, 'migration_plan_created', 'system', 'Migration plan created', true, 'system').catch(() => {});
     await lifecycleService.transition(clientId, 'migration_approved', 'system', 'Auto-approved for DEV', true, 'system').catch(() => {});
-    ocService.createAuditEntry({ entityType: 'migration', entityId: clientId, entityName: plan.id, action: 'migration_plan_created', actor: 'admin', details: { ...plan.plan, migrationId: plan.id }, evidence: plan.evidence }).catch(() => {});
+    ocService.createAuditEntry({ entityType: 'migration', entityId: clientId, entityName: plan.id, action: 'migration_plan_created', actor: getAuth(req)?.userId || 'unknown-staff', details: { ...plan.plan, migrationId: plan.id }, evidence: plan.evidence }).catch(() => {});
     reply.send(plan);
   });
 
@@ -723,7 +1020,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
   server.post('/oc/migration/:migrationId/rollback', async (req, reply) => {
     const { migrationId } = req.params as any;
     const result = await migrationExecution.rollback(migrationId);
-    ocService.createAuditEntry({ entityType: 'migration', entityId: '', entityName: migrationId, action: result.success ? 'rollback_completed' : 'rollback_failed', actor: 'admin', details: {}, evidence: result.evidence }).catch(() => {});
+    ocService.createAuditEntry({ entityType: 'migration', entityId: '', entityName: migrationId, action: result.success ? 'rollback_completed' : 'rollback_failed', actor: getAuth(req)?.userId || 'unknown-staff', details: {}, evidence: result.evidence }).catch(() => {});
     reply.send(result);
   });
 
@@ -761,6 +1058,79 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const run = await migrationExecution.getRun(migrationId);
     if (!run) { reply.status(404).send({ error: 'Migration run not found' }); return; }
     return { migration: run };
+  });
+
+  // ─── ASYNC MIGRATION EXECUTION (real-time operation tracking) ────────────
+  // The synchronous /oc/migration/execute route above is unchanged and still real —
+  // this is an ADDITIVE alternative for genuinely long migrations: it returns
+  // immediately with an operationId instead of blocking the HTTP request for the
+  // entire migration's duration, and the frontend polls GET /oc/operations/:id for
+  // real, per-step progress as it actually happens (see operation-service.ts).
+  server.post('/oc/migration/:migrationId/execute-async', async (req, reply) => {
+    const { migrationId } = req.params as any;
+    const plan = await migrationExecution.getRun(migrationId);
+    if (!plan) { reply.status(404).send({ error: 'Migration run not found' }); return; }
+    if (plan.status === 'running') { reply.status(409).send({ error: 'Migration already running' }); return; }
+
+    const auth = (req as any).auth;
+    const created = await operationService.create({
+      clientId: plan.clientId, type: 'migration', sourceId: migrationId,
+      totalUnits: plan.plan.totalSteps, currentStage: 'Starting',
+      cancellable: false, retryable: true, createdBy: auth?.userId ?? null,
+    });
+    const operation = (await operationService.start(created.id)) ?? created;
+
+    await lifecycleService.transition(plan.clientId, 'migration_started', 'system', 'Migration execution started (async)', true, 'system').catch(() => {});
+
+    // Fire-and-forget: the HTTP response returns now; execution continues on this same
+    // Node process's event loop, yielding at every real `await client.query(...)` inside
+    // execute() — genuine async, not a fabricated "in progress" state. Each step's real
+    // completion is reported to oc_operations as it actually happens.
+    (async () => {
+      try {
+        const result = await migrationExecution.execute(migrationId, (step) => {
+          const delta = step.status === 'completed' ? { completedUnitsDelta: 1 }
+            : step.status === 'failed' ? { failedUnitsDelta: 1 }
+            : step.status === 'skipped' || step.status === 'not_supported' ? { warningUnitsDelta: 1 }
+            : {};
+          operationService.progress(operation.id, { ...delta, currentStage: step.name, evidenceMessage: `${step.name}: ${step.status}${step.error ? ' — ' + step.error : ''}` }).catch(() => {});
+        });
+        if (result.status === 'completed') {
+          await lifecycleService.transition(result.clientId, 'migration_completed', 'system', `Migration completed: ${result.progress.mandatoryCompleted}/${result.progress.mandatory}`, true, 'system').catch(() => {});
+          await operationService.complete(operation.id, { result: { migrationId, status: result.status, progress: result.progress }, evidenceMessage: 'Migration completed successfully' });
+        } else {
+          await operationService.fail(operation.id, { errorSummary: result.error || `Migration ${result.status}`, evidenceMessage: `Migration ended with status: ${result.status}` });
+        }
+        ocService.createAuditEntry({ entityType: 'migration', entityId: result.clientId, entityName: migrationId, action: 'migration_' + result.status, actor: 'system', details: { status: result.status, progress: result.progress, duration: result.durationMs, operationId: operation.id }, evidence: result.evidence }).catch(() => {});
+      } catch (err) {
+        await operationService.fail(operation.id, { errorSummary: (err as Error).message, evidenceMessage: `Execution crashed: ${(err as Error).message}` }).catch(() => {});
+      }
+    })();
+
+    reply.status(202).send({ operation });
+  });
+
+  server.get('/oc/operations/:id', async (req, reply) => {
+    const { id } = req.params as any;
+    const operation = await operationService.get(id);
+    if (!operation) { reply.status(404).send({ error: 'Operation not found' }); return; }
+    return { operation };
+  });
+
+  server.get('/oc/operations', async (req) => {
+    const q = req.query as any;
+    if (!q.clientId) return { operations: [] };
+    const operations = await operationService.listForClient(q.clientId, { type: q.type, status: q.status });
+    return { operations };
+  });
+
+  server.post('/oc/operations/:id/cancel', async (req, reply) => {
+    const { id } = req.params as any;
+    const auth = (req as any).auth;
+    const result = await operationService.cancel(id, auth?.userId ?? null);
+    if (!result.ok) { reply.status(400).send({ error: result.error }); return; }
+    ocService.createAuditEntry({ entityType: 'operation', entityId: result.value!.clientId, entityName: id, action: 'operation_cancelled', actor: auth?.userId ?? 'unknown', details: { type: result.value!.type }, evidence: [`Cancelled at ${new Date().toISOString()}`] }).catch(() => {});
+    return { operation: result.value };
   });
 
   // ─── CLIENT SERVICE REQUIREMENTS ──────────────────────────────────────────
@@ -849,7 +1219,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
 
     let result;
     try {
-      result = await requirementsService.updateRequirement(clientId, serviceId, requirementKey, value || '', actor || 'admin', fieldsData);
+      result = await requirementsService.updateRequirement(clientId, serviceId, requirementKey, value || '', actor || getAuth(req)?.userId || 'unknown-staff', fieldsData);
     } catch (err) {
       // Transaction rolled back — no partial write occurred. Surface as a retryable server error.
       reply.status(500).send({ error: 'Save failed — no changes were committed. Please try again.', requestId: req.id });
@@ -860,7 +1230,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     // Audit
     ocService.createAuditEntry({
       entityType: 'requirement', entityId: clientId, entityName: `${serviceId}/${requirementKey}`,
-      action: 'requirement_updated', actor: actor || 'admin',
+      action: 'requirement_updated', actor: actor || getAuth(req)?.userId || 'unknown-staff',
       details: { serviceId, requirementKey, status: result.status, version: result.version },
       evidence: [`Requirement ${requirementKey} updated for service ${serviceId}`],
     }).catch(() => {});
@@ -961,9 +1331,9 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
           INSERT INTO oc_client_service_documents (client_id, service_id, requirement_key, document_name, original_file_name, storage_reference, mime_type, file_size, checksum, status, version, uploaded_by)
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'uploaded', $10, $11)
           RETURNING id, document_name, original_file_name, mime_type, file_size, checksum, status, validation_status, version, uploaded_by, uploaded_at
-        `, [clientId, serviceId, requirementKey, originalName, originalName, stored.storageReference, mimeType, stored.fileSize, stored.checksum, nextVersion, 'admin']);
+        `, [clientId, serviceId, requirementKey, originalName, originalName, stored.storageReference, mimeType, stored.fileSize, stored.checksum, nextVersion, getAuth(req)?.userId || 'unknown-staff']);
 
-        ocService.createAuditEntry({ entityType: 'document', entityId: clientId, entityName: originalName, action: 'document_uploaded', actor: 'admin', details: { serviceId, requirementKey, version: nextVersion, mimeType, fileSize: stored.fileSize }, evidence: [`Document "${originalName}" v${nextVersion} uploaded (binary)`] }).catch(() => {});
+        ocService.createAuditEntry({ entityType: 'document', entityId: clientId, entityName: originalName, action: 'document_uploaded', actor: getAuth(req)?.userId || 'unknown-staff', details: { serviceId, requirementKey, version: nextVersion, mimeType, fileSize: stored.fileSize }, evidence: [`Document "${originalName}" v${nextVersion} uploaded (binary)`] }).catch(() => {});
         reply.status(201).send(res.rows[0]);
       } else {
         // JSON metadata-only upload
@@ -983,9 +1353,9 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
           INSERT INTO oc_client_service_documents (client_id, service_id, requirement_key, document_name, original_file_name, storage_reference, mime_type, file_size, status, version, uploaded_by)
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'uploaded', $9, $10)
           RETURNING id, document_name, original_file_name, mime_type, file_size, status, validation_status, version, uploaded_by, uploaded_at
-        `, [clientId, serviceId, requirementKey, docName, docName, storageRef, mimeType, fileSize, nextVersion, body?.actor || 'admin']);
+        `, [clientId, serviceId, requirementKey, docName, docName, storageRef, mimeType, fileSize, nextVersion, body?.actor || getAuth(req)?.userId || 'unknown-staff']);
 
-        ocService.createAuditEntry({ entityType: 'document', entityId: clientId, entityName: docName, action: 'document_uploaded', actor: body?.actor || 'admin', details: { serviceId, requirementKey, version: nextVersion }, evidence: [`Document "${docName}" v${nextVersion} uploaded (metadata)`] }).catch(() => {});
+        ocService.createAuditEntry({ entityType: 'document', entityId: clientId, entityName: docName, action: 'document_uploaded', actor: body?.actor || getAuth(req)?.userId || 'unknown-staff', details: { serviceId, requirementKey, version: nextVersion }, evidence: [`Document "${docName}" v${nextVersion} uploaded (metadata)`] }).catch(() => {});
         reply.status(201).send(res.rows[0]);
       }
     } catch (err) {
@@ -1032,7 +1402,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const data = req.body as any;
     if (!data.title) { reply.status(400).send({ error: 'title is required' }); return; }
     const problem = await problemService.createProblem(clientId, data);
-    ocService.createAuditEntry({ entityType: 'problem', entityId: clientId, entityName: problem.title, action: 'problem_created', actor: 'admin', details: { problemId: problem.id, domain: problem.domain, severity: problem.severity }, evidence: [`Problem "${problem.title}" identified in domain ${problem.domain}`] }).catch(() => {});
+    ocService.createAuditEntry({ entityType: 'problem', entityId: clientId, entityName: problem.title, action: 'problem_created', actor: getAuth(req)?.userId || 'unknown-staff', details: { problemId: problem.id, domain: problem.domain, severity: problem.severity }, evidence: [`Problem "${problem.title}" identified in domain ${problem.domain}`] }).catch(() => {});
     reply.status(201).send(problem);
   });
 
@@ -1048,13 +1418,13 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
 
   server.patch('/oc/problems/:problemId', async (req) => {
     const { problemId } = req.params as any;
-    return problemService.updateProblem(problemId, req.body as any, 'admin');
+    return problemService.updateProblem(problemId, req.body as any, getAuth(req)?.userId || 'unknown-staff');
   });
 
   server.post('/oc/problems/:problemId/status', async (req, reply) => {
     const { problemId } = req.params as any;
     const { status } = req.body as any;
-    const result = await problemService.updateStatus(problemId, status, 'admin');
+    const result = await problemService.updateStatus(problemId, status, getAuth(req)?.userId || 'unknown-staff');
     if (!result.success) { reply.status(400).send(result); return; }
     reply.send(result);
   });
@@ -1123,7 +1493,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const data = req.body as any;
     if (!data.title) { reply.status(400).send({ error: 'title is required' }); return; }
     const gap = await gapService.createGap(clientId, data);
-    ocService.createAuditEntry({ entityType: 'gap', entityId: clientId, entityName: gap.title, action: 'gap_created', actor: 'admin', details: { gapId: gap.id, domain: gap.domain, severity: gap.severity }, evidence: [`Gap "${gap.title}" created in domain ${gap.domain}`] }).catch(() => {});
+    ocService.createAuditEntry({ entityType: 'gap', entityId: clientId, entityName: gap.title, action: 'gap_created', actor: getAuth(req)?.userId || 'unknown-staff', details: { gapId: gap.id, domain: gap.domain, severity: gap.severity }, evidence: [`Gap "${gap.title}" created in domain ${gap.domain}`] }).catch(() => {});
     reply.status(201).send(gap);
   });
 
@@ -1139,7 +1509,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const { status } = req.body as any;
     const result = await gapService.updateStatus(gapId, status);
     if (!result.success) { reply.status(400).send(result); return; }
-    ocService.createAuditEntry({ entityType: 'gap', entityId: gapId, entityName: '', action: 'gap_status_changed', actor: 'admin', details: { newStatus: status }, evidence: [`Gap status changed to ${status}`] }).catch(() => {});
+    ocService.createAuditEntry({ entityType: 'gap', entityId: gapId, entityName: '', action: 'gap_status_changed', actor: getAuth(req)?.userId || 'unknown-staff', details: { newStatus: status }, evidence: [`Gap status changed to ${status}`] }).catch(() => {});
     reply.send(result);
   });
 
@@ -1156,9 +1526,9 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const { gapId } = req.params as any;
     const data = req.body as any;
     if (!data.targetState) { reply.status(400).send({ error: 'targetState is required' }); return; }
-    const gap = await gapService.defineTargetState(gapId, data, 'admin');
+    const gap = await gapService.defineTargetState(gapId, data, getAuth(req)?.userId || 'unknown-staff');
     if (!gap) { reply.status(404).send({ error: 'Gap not found' }); return; }
-    ocService.createAuditEntry({ entityType: 'gap', entityId: gapId, entityName: gap.title, action: 'target_defined', actor: 'admin', details: { targetState: data.targetState, targetMaturity: data.targetMaturity }, evidence: [`Target state defined: ${data.targetState}`] }).catch(() => {});
+    ocService.createAuditEntry({ entityType: 'gap', entityId: gapId, entityName: gap.title, action: 'target_defined', actor: getAuth(req)?.userId || 'unknown-staff', details: { targetState: data.targetState, targetMaturity: data.targetMaturity }, evidence: [`Target state defined: ${data.targetState}`] }).catch(() => {});
     reply.send(gap);
   });
 
@@ -1220,7 +1590,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const gap = await gapService.getGap(gapId);
     if (!gap) { reply.status(404).send({ error: 'Gap not found' }); return; }
     const option = await decisionService.createOption(gapId, gap.clientId, req.body as any);
-    ocService.createAuditEntry({ entityType: 'option', entityId: gapId, entityName: option.name, action: 'option_created', actor: 'admin', details: { optionId: option.id, solutionType: option.solutionType }, evidence: [`Option "${option.name}" created for gap`] }).catch(() => {});
+    ocService.createAuditEntry({ entityType: 'option', entityId: gapId, entityName: option.name, action: 'option_created', actor: getAuth(req)?.userId || 'unknown-staff', details: { optionId: option.id, solutionType: option.solutionType }, evidence: [`Option "${option.name}" created for gap`] }).catch(() => {});
     reply.status(201).send(option);
   });
 
@@ -1235,9 +1605,9 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const { gapId } = req.params as any;
     const gap = await gapService.getGap(gapId);
     if (!gap) { reply.status(404).send({ error: 'Gap not found' }); return; }
-    const decision = await decisionService.createDecision(gapId, gap.clientId, req.body as any);
+    const decision = await decisionService.createDecision(gapId, gap.clientId, req.body as any, getAuth(req)?.userId || 'unknown-staff');
     await gapService.updateStatus(gapId, 'approved');
-    ocService.createAuditEntry({ entityType: 'decision', entityId: gapId, entityName: '', action: 'decision_made', actor: decision.decisionMaker || 'admin', details: { decisionId: decision.id, selectedOption: decision.selectedOptionId, rationale: decision.rationale }, evidence: [`Decision approved for gap ${gapId}`] }).catch(() => {});
+    ocService.createAuditEntry({ entityType: 'decision', entityId: gapId, entityName: '', action: 'decision_made', actor: decision.decisionMaker || getAuth(req)?.userId || 'unknown-staff', details: { decisionId: decision.id, selectedOption: decision.selectedOptionId, rationale: decision.rationale }, evidence: [`Decision approved for gap ${gapId}`] }).catch(() => {});
     reply.status(201).send(decision);
   });
 
@@ -1252,7 +1622,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const data = req.body as any;
     if (!data.title) { reply.status(400).send({ error: 'title is required' }); return; }
     const tfm = await decisionService.createTransformation(clientId, data);
-    ocService.createAuditEntry({ entityType: 'transformation', entityId: clientId, entityName: tfm.title, action: 'transformation_created', actor: 'admin', details: { id: tfm.id, domain: tfm.domain, type: tfm.transformationType }, evidence: [`Transformation "${tfm.title}" planned`] }).catch(() => {});
+    ocService.createAuditEntry({ entityType: 'transformation', entityId: clientId, entityName: tfm.title, action: 'transformation_created', actor: getAuth(req)?.userId || 'unknown-staff', details: { id: tfm.id, domain: tfm.domain, type: tfm.transformationType }, evidence: [`Transformation "${tfm.title}" planned`] }).catch(() => {});
     reply.status(201).send(tfm);
   });
 
@@ -1278,7 +1648,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const { status, outcome } = req.body as any;
     const tfm = await decisionService.updateTransformationStatus(id, status, outcome);
     if (!tfm) { reply.status(404).send({ error: 'Transformation not found' }); return; }
-    ocService.createAuditEntry({ entityType: 'transformation', entityId: tfm.clientId, entityName: tfm.title, action: `transformation_${status}`, actor: 'admin', details: { id, status, outcome }, evidence: [`Transformation status: ${status}`] }).catch(() => {});
+    ocService.createAuditEntry({ entityType: 'transformation', entityId: tfm.clientId, entityName: tfm.title, action: `transformation_${status}`, actor: getAuth(req)?.userId || 'unknown-staff', details: { id, status, outcome }, evidence: [`Transformation status: ${status}`] }).catch(() => {});
     reply.send(tfm);
   });
 
@@ -1319,7 +1689,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const data = req.body as any;
     if (!data.name) { reply.status(400).send({ error: 'name is required' }); return; }
     const cap = await capabilityService.create(data);
-    ocService.createAuditEntry({ entityType: 'capability', entityId: cap.id, entityName: cap.name, action: 'capability_registered', actor: 'admin', details: { category: cap.category, status: cap.status, maturity: cap.maturity }, evidence: [`Capability "${cap.name}" registered in ${cap.category} category`] }).catch(() => {});
+    ocService.createAuditEntry({ entityType: 'capability', entityId: cap.id, entityName: cap.name, action: 'capability_registered', actor: getAuth(req)?.userId || 'unknown-staff', details: { category: cap.category, status: cap.status, maturity: cap.maturity }, evidence: [`Capability "${cap.name}" registered in ${cap.category} category`] }).catch(() => {});
     reply.status(201).send(cap);
   });
 
@@ -1328,7 +1698,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const data = req.body as any;
     const cap = await capabilityService.update(id, data);
     if (!cap) { reply.status(404).send({ error: 'Capability not found' }); return; }
-    ocService.createAuditEntry({ entityType: 'capability', entityId: cap.id, entityName: cap.name, action: 'capability_updated', actor: 'admin', details: { ...data }, evidence: [`Capability "${cap.name}" updated`] }).catch(() => {});
+    ocService.createAuditEntry({ entityType: 'capability', entityId: cap.id, entityName: cap.name, action: 'capability_updated', actor: getAuth(req)?.userId || 'unknown-staff', details: { ...data }, evidence: [`Capability "${cap.name}" updated`] }).catch(() => {});
     reply.send(cap);
   });
 
@@ -1349,7 +1719,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const data = req.body as any;
     if (!data.name) { reply.status(400).send({ error: 'name is required' }); return; }
     const metric = await optimizationService.createMetric(clientId, data);
-    ocService.createAuditEntry({ entityType: 'metric', entityId: clientId, entityName: metric.name, action: 'metric_defined', actor: 'admin', details: { metricId: metric.id, category: metric.category, domain: metric.domain }, evidence: [`Metric "${metric.name}" defined (${metric.unit}, ${metric.direction})`] }).catch(() => {});
+    ocService.createAuditEntry({ entityType: 'metric', entityId: clientId, entityName: metric.name, action: 'metric_defined', actor: getAuth(req)?.userId || 'unknown-staff', details: { metricId: metric.id, category: metric.category, domain: metric.domain }, evidence: [`Metric "${metric.name}" defined (${metric.unit}, ${metric.direction})`] }).catch(() => {});
     reply.status(201).send(metric);
   });
 
@@ -1366,7 +1736,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const data = req.body as any;
     if (!data.metricId || data.value === undefined) { reply.status(400).send({ error: 'metricId and value are required' }); return; }
     const baseline = await optimizationService.captureBaseline(clientId, data);
-    ocService.createAuditEntry({ entityType: 'baseline', entityId: clientId, entityName: data.metricId, action: 'baseline_captured', actor: 'admin', details: { baselineId: baseline.id, value: baseline.value, unit: baseline.unit }, evidence: [`Baseline captured: ${baseline.value} ${baseline.unit}`] }).catch(() => {});
+    ocService.createAuditEntry({ entityType: 'baseline', entityId: clientId, entityName: data.metricId, action: 'baseline_captured', actor: getAuth(req)?.userId || 'unknown-staff', details: { baselineId: baseline.id, value: baseline.value, unit: baseline.unit }, evidence: [`Baseline captured: ${baseline.value} ${baseline.unit}`] }).catch(() => {});
     reply.status(201).send(baseline);
   });
 
@@ -1384,7 +1754,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     if (!data.metricId || data.value === undefined) { reply.status(400).send({ error: 'metricId and value are required' }); return; }
     try {
       const result = await optimizationService.recordMeasurement(clientId, data);
-      ocService.createAuditEntry({ entityType: 'measurement', entityId: clientId, entityName: data.metricId, action: 'measurement_recorded', actor: 'admin', details: { measurementId: result.measurement.id, value: result.measurement.value, alertLevel: result.measurement.alertLevel, findingsGenerated: result.findings.length }, evidence: [`Measurement: ${result.measurement.value} ${result.measurement.unit}${result.findings.length > 0 ? ` — ${result.findings.length} findings triggered` : ''}`] }).catch(() => {});
+      ocService.createAuditEntry({ entityType: 'measurement', entityId: clientId, entityName: data.metricId, action: 'measurement_recorded', actor: getAuth(req)?.userId || 'unknown-staff', details: { measurementId: result.measurement.id, value: result.measurement.value, alertLevel: result.measurement.alertLevel, findingsGenerated: result.findings.length }, evidence: [`Measurement: ${result.measurement.value} ${result.measurement.unit}${result.findings.length > 0 ? ` — ${result.findings.length} findings triggered` : ''}`] }).catch(() => {});
       reply.status(201).send(result);
     } catch (err) {
       reply.status(400).send({ error: (err as Error).message });
@@ -1409,7 +1779,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const data = req.body as any;
     if (!data.name) { reply.status(400).send({ error: 'name is required' }); return; }
     const rule = await optimizationService.createRule(data);
-    ocService.createAuditEntry({ entityType: 'rule', entityId: rule.id, entityName: rule.name, action: 'rule_created', actor: 'admin', details: { domain: rule.domain, conditionType: rule.conditionType }, evidence: [`Optimization rule "${rule.name}" created`] }).catch(() => {});
+    ocService.createAuditEntry({ entityType: 'rule', entityId: rule.id, entityName: rule.name, action: 'rule_created', actor: getAuth(req)?.userId || 'unknown-staff', details: { domain: rule.domain, conditionType: rule.conditionType }, evidence: [`Optimization rule "${rule.name}" created`] }).catch(() => {});
     reply.status(201).send(rule);
   });
 
@@ -1427,11 +1797,11 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     try {
       if (target === 'gap') {
         const result = await optimizationService.promoteToGap(findingId);
-        ocService.createAuditEntry({ entityType: 'finding', entityId: findingId, entityName: '', action: 'finding_promoted_to_gap', actor: 'admin', details: result, evidence: [`Finding promoted → Problem ${result.problemId} → Gap ${result.gapId}`] }).catch(() => {});
+        ocService.createAuditEntry({ entityType: 'finding', entityId: findingId, entityName: '', action: 'finding_promoted_to_gap', actor: getAuth(req)?.userId || 'unknown-staff', details: result, evidence: [`Finding promoted → Problem ${result.problemId} → Gap ${result.gapId}`] }).catch(() => {});
         reply.send(result);
       } else {
         const result = await optimizationService.promoteToProlem(findingId);
-        ocService.createAuditEntry({ entityType: 'finding', entityId: findingId, entityName: '', action: 'finding_promoted_to_problem', actor: 'admin', details: result, evidence: [`Finding promoted → Problem ${result.problemId}`] }).catch(() => {});
+        ocService.createAuditEntry({ entityType: 'finding', entityId: findingId, entityName: '', action: 'finding_promoted_to_problem', actor: getAuth(req)?.userId || 'unknown-staff', details: result, evidence: [`Finding promoted → Problem ${result.problemId}`] }).catch(() => {});
         reply.send(result);
       }
     } catch (err) { reply.status(400).send({ error: (err as Error).message }); }
@@ -1439,14 +1809,14 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
 
   server.post('/oc/optimization/findings/:findingId/acknowledge', async (req, reply) => {
     const { findingId } = req.params as any;
-    const finding = await optimizationService.acknowledgeFinding(findingId, 'admin');
+    const finding = await optimizationService.acknowledgeFinding(findingId, getAuth(req)?.userId || 'unknown-staff');
     if (!finding) { reply.status(404).send({ error: 'Finding not found' }); return; }
     reply.send(finding);
   });
 
   server.post('/oc/optimization/findings/:findingId/resolve', async (req, reply) => {
     const { findingId } = req.params as any;
-    const finding = await optimizationService.resolveFinding(findingId, 'admin');
+    const finding = await optimizationService.resolveFinding(findingId, getAuth(req)?.userId || 'unknown-staff');
     if (!finding) { reply.status(404).send({ error: 'Finding not found' }); return; }
     reply.send(finding);
   });
@@ -1458,7 +1828,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     if (!data.transformationId) { reply.status(400).send({ error: 'transformationId is required' }); return; }
     try {
       const outcome = await optimizationService.recordOutcome(clientId, data);
-      ocService.createAuditEntry({ entityType: 'outcome', entityId: clientId, entityName: data.transformationId, action: 'outcome_recorded', actor: 'admin', details: { outcomeId: outcome.id, health: outcome.health, benefitRealization: outcome.benefitRealizationPct }, evidence: [`Transformation outcome: health=${outcome.health}, benefit realization=${outcome.benefitRealizationPct?.toFixed(1) || 'N/A'}%`] }).catch(() => {});
+      ocService.createAuditEntry({ entityType: 'outcome', entityId: clientId, entityName: data.transformationId, action: 'outcome_recorded', actor: getAuth(req)?.userId || 'unknown-staff', details: { outcomeId: outcome.id, health: outcome.health, benefitRealization: outcome.benefitRealizationPct }, evidence: [`Transformation outcome: health=${outcome.health}, benefit realization=${outcome.benefitRealizationPct?.toFixed(1) || 'N/A'}%`] }).catch(() => {});
       reply.status(201).send(outcome);
     } catch (err) { reply.status(400).send({ error: (err as Error).message }); }
   });
@@ -1735,7 +2105,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
   server.post('/oc/workflow/rules', async (req, reply) => {
     const data = req.body as any;
     if (!data.name || !data.eventType) { reply.status(400).send({ error: 'name and eventType are required' }); return; }
-    const rule = await workflowService.createRule(data);
+    const rule = await workflowService.createRule(data, getAuth(req)?.userId || 'unknown-staff');
     reply.status(201).send(rule);
   });
 
@@ -1765,7 +2135,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const data = req.body as any;
     if (!data.category || !data.channel) { reply.status(400).send({ error: 'category and channel are required' }); return; }
     const pref = await workflowService.upsertPreference(clientId, data);
-    ocService.createAuditEntry({ entityType: 'preference', entityId: clientId, entityName: `${data.category}/${data.channel}`, action: 'preference_updated', actor: 'admin', details: { ...data }, evidence: [`Notification preference updated: ${data.category}/${data.channel}`] }).catch(() => {});
+    ocService.createAuditEntry({ entityType: 'preference', entityId: clientId, entityName: `${data.category}/${data.channel}`, action: 'preference_updated', actor: getAuth(req)?.userId || 'unknown-staff', details: { ...data }, evidence: [`Notification preference updated: ${data.category}/${data.channel}`] }).catch(() => {});
     reply.send(pref);
   });
 
@@ -1799,7 +2169,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
   server.post('/oc/scheduler/jobs/:jobId/run', async (req, reply) => {
     const { jobId } = req.params as any;
     const result = await schedulerService.runJob(jobId);
-    ocService.createAuditEntry({ entityType: 'scheduler', entityId: jobId, entityName: '', action: result.success ? 'job_completed' : 'job_failed', actor: 'admin', details: result, evidence: [`Job ${jobId}: ${result.success ? 'completed' : 'failed'}`] }).catch(() => {});
+    ocService.createAuditEntry({ entityType: 'scheduler', entityId: jobId, entityName: '', action: result.success ? 'job_completed' : 'job_failed', actor: getAuth(req)?.userId || 'unknown-staff', details: result, evidence: [`Job ${jobId}: ${result.success ? 'completed' : 'failed'}`] }).catch(() => {});
     reply.send(result);
   });
 
@@ -1846,7 +2216,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const { frameworkId } = req.body as any;
     if (!frameworkId) { reply.status(400).send({ error: 'frameworkId required' }); return; }
     const result = await complianceService.initializeClientCompliance(clientId, frameworkId);
-    ocService.createAuditEntry({ entityType: 'compliance', entityId: clientId, entityName: frameworkId, action: 'compliance_initialized', actor: 'admin', details: result, evidence: [`Compliance initialized: ${result.initialized} controls, ${result.existing} existing`] }).catch(() => {});
+    ocService.createAuditEntry({ entityType: 'compliance', entityId: clientId, entityName: frameworkId, action: 'compliance_initialized', actor: getAuth(req)?.userId || 'unknown-staff', details: result, evidence: [`Compliance initialized: ${result.initialized} controls, ${result.existing} existing`] }).catch(() => {});
     reply.status(201).send(result);
   });
 
@@ -1872,7 +2242,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     try {
       const result = await complianceService.triggerRemediationChain(clientId, controlId, data);
       if (!result.alreadyExists) {
-        ocService.createAuditEntry({ entityType: 'compliance', entityId: clientId, entityName: controlId, action: 'remediation_chain_triggered', actor: 'admin', details: { problemId: result.problem?.id, gapId: result.gap?.id }, evidence: [`Compliance remediation: control ${controlId} → problem → gap`] }).catch(() => {});
+        ocService.createAuditEntry({ entityType: 'compliance', entityId: clientId, entityName: controlId, action: 'remediation_chain_triggered', actor: getAuth(req)?.userId || 'unknown-staff', details: { problemId: result.problem?.id, gapId: result.gap?.id }, evidence: [`Compliance remediation: control ${controlId} → problem → gap`] }).catch(() => {});
       }
       reply.status(result.alreadyExists ? 200 : 201).send(result);
     } catch (err) { reply.status(400).send({ error: (err as Error).message }); }
@@ -1898,8 +2268,9 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const { clientId } = req.params as any;
     const data = req.body as any;
     try {
-      const exception = await complianceService.createException(clientId, data);
-      ocService.createAuditEntry({ entityType: 'exception', entityId: clientId, entityName: exception.title, action: 'exception_requested', actor: data.requestedBy || 'admin', details: { exceptionId: exception.id, controlId: data.controlId, riskLevel: data.riskLevel }, evidence: [`Exception requested for control ${data.controlId}`] }).catch(() => {});
+      const realActor = data.requestedBy || getAuth(req)?.userId || 'unknown-staff';
+      const exception = await complianceService.createException(clientId, data, realActor);
+      ocService.createAuditEntry({ entityType: 'exception', entityId: clientId, entityName: exception.title, action: 'exception_requested', actor: realActor, details: { exceptionId: exception.id, controlId: data.controlId, riskLevel: data.riskLevel }, evidence: [`Exception requested for control ${data.controlId}`] }).catch(() => {});
       reply.status(201).send(exception);
     } catch (err) { reply.status(400).send({ error: (err as Error).message }); }
   });
@@ -1915,8 +2286,8 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const { status, actor } = req.body as any;
     if (!status) { reply.status(400).send({ error: 'status required' }); return; }
     try {
-      const result = await complianceService.transitionException(exceptionId, status, actor || 'admin');
-      ocService.createAuditEntry({ entityType: 'exception', entityId: exceptionId, entityName: '', action: `exception_${status}`, actor: actor || 'admin', details: { newStatus: status }, evidence: [`Exception transitioned to ${status}`] }).catch(() => {});
+      const result = await complianceService.transitionException(exceptionId, status, actor || getAuth(req)?.userId || 'unknown-staff');
+      ocService.createAuditEntry({ entityType: 'exception', entityId: exceptionId, entityName: '', action: `exception_${status}`, actor: actor || getAuth(req)?.userId || 'unknown-staff', details: { newStatus: status }, evidence: [`Exception transitioned to ${status}`] }).catch(() => {});
       reply.send(result);
     } catch (err) { reply.status(400).send({ error: (err as Error).message }); }
   });
@@ -2005,9 +2376,9 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
       INSERT INTO oc_client_services (client_id, service_id, status, enabled_at, enabled_by, reason)
       VALUES ($1, $2, 'enabled', NOW(), $3, $4)
       ON CONFLICT (client_id, service_id) DO UPDATE SET status = 'enabled', enabled_at = NOW(), enabled_by = $3, reason = $4, disabled_at = NULL, updated_at = NOW()
-    `, [clientId, serviceId, actor || 'admin', reason || null]);
+    `, [clientId, serviceId, actor || getAuth(req)?.userId || 'unknown-staff', reason || null]);
 
-    ocService.createAuditEntry({ entityType: 'client_service', entityId: clientId, entityName: serviceId, action: 'service_enabled', actor: actor || 'admin', details: { serviceId, reason }, evidence: [`Service ${serviceId} enabled for client ${clientId}`] }).catch(() => {});
+    ocService.createAuditEntry({ entityType: 'client_service', entityId: clientId, entityName: serviceId, action: 'service_enabled', actor: actor || getAuth(req)?.userId || 'unknown-staff', details: { serviceId, reason }, evidence: [`Service ${serviceId} enabled for client ${clientId}`] }).catch(() => {});
     reply.send({ success: true, clientId, serviceId, status: 'enabled' });
   });
 
@@ -2029,9 +2400,9 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
       INSERT INTO oc_client_services (client_id, service_id, status, disabled_at, enabled_by, reason)
       VALUES ($1, $2, 'disabled', NOW(), $3, $4)
       ON CONFLICT (client_id, service_id) DO UPDATE SET status = 'disabled', disabled_at = NOW(), enabled_by = $3, reason = $4, enabled_at = NULL, updated_at = NOW()
-    `, [clientId, serviceId, actor || 'admin', reason || null]);
+    `, [clientId, serviceId, actor || getAuth(req)?.userId || 'unknown-staff', reason || null]);
 
-    ocService.createAuditEntry({ entityType: 'client_service', entityId: clientId, entityName: serviceId, action: 'service_disabled', actor: actor || 'admin', details: { serviceId, reason }, evidence: [`Service ${serviceId} disabled for client ${clientId}`] }).catch(() => {});
+    ocService.createAuditEntry({ entityType: 'client_service', entityId: clientId, entityName: serviceId, action: 'service_disabled', actor: actor || getAuth(req)?.userId || 'unknown-staff', details: { serviceId, reason }, evidence: [`Service ${serviceId} disabled for client ${clientId}`] }).catch(() => {});
     reply.send({ success: true, clientId, serviceId, status: 'disabled' });
   });
 
@@ -2207,7 +2578,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const { id } = req.params as any;
     const body = req.body as any;
     if (!body.clientId || !body.serviceId) { reply.status(400).send({ error: { code: 'validation', message: 'clientId and serviceId are required' } }); return; }
-    const result = await commercialService.addService(id, body.clientId, body);
+    const result = await commercialService.addService(id, body.clientId, body, getAuth(req)?.userId || 'unknown-staff');
     if (!result.success) { reply.status(422).send(result); return; }
     reply.status(201).send(result);
   });
@@ -2216,7 +2587,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const { id, serviceId } = req.params as any;
     const { clientId } = req.query as any;
     if (!clientId) { reply.status(400).send({ error: { code: 'validation', message: 'clientId query param required' } }); return; }
-    const result = await commercialService.removeService(id, clientId, serviceId);
+    const result = await commercialService.removeService(id, clientId, serviceId, getAuth(req)?.userId || 'unknown-staff');
     if (!result.success) { reply.status(422).send(result); return; }
     return result;
   });
@@ -2244,7 +2615,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const { id } = req.params as any;
     const body = req.body as any;
     if (!body.clientId) { reply.status(400).send({ error: { code: 'validation', message: 'clientId is required' } }); return; }
-    const result = await commercialService.setPricing(id, body.clientId, body);
+    const result = await commercialService.setPricing(id, body.clientId, body, getAuth(req)?.userId || 'unknown-staff');
     if (!result.success) { reply.status(422).send(result); return; }
     reply.status(201).send(result);
   });
@@ -2262,7 +2633,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const { id } = req.params as any;
     const body = req.body as any;
     if (!body.clientId) { reply.status(400).send({ error: { code: 'validation', message: 'clientId is required' } }); return; }
-    const result = await commercialService.createProposal(id, body.clientId, body);
+    const result = await commercialService.createProposal(id, body.clientId, body, getAuth(req)?.userId || 'unknown-staff');
     if (!result.success) { reply.status(422).send(result); return; }
     reply.status(201).send(result);
   });
@@ -2307,7 +2678,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const { clientId } = req.params as any;
     const body = req.body as any;
     if (!body.displayName || !body.type) { reply.status(400).send({ error: { code: 'validation', message: 'displayName and type are required' } }); return; }
-    const result = await paymentService.addPaymentMethod(clientId, body);
+    const result = await paymentService.addPaymentMethod(clientId, body, getAuth(req)?.userId || 'unknown-staff');
     if (!result.success) { reply.status(422).send(result); return; }
     reply.status(201).send(result);
   });
@@ -2324,7 +2695,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const { id } = req.params as any;
     const { clientId } = req.body as any;
     if (!clientId) { reply.status(400).send({ error: { code: 'validation', message: 'clientId is required' } }); return; }
-    const result = await paymentService.setDefault(id, clientId);
+    const result = await paymentService.setDefault(id, clientId, getAuth(req)?.userId || 'unknown-staff');
     if (!result.success) { reply.status(422).send(result); return; }
     return result;
   });
@@ -2333,7 +2704,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const { id } = req.params as any;
     const { clientId } = req.body as any;
     if (!clientId) { reply.status(400).send({ error: { code: 'validation', message: 'clientId is required' } }); return; }
-    const result = await paymentService.verify(id, clientId);
+    const result = await paymentService.verify(id, clientId, getAuth(req)?.userId || 'unknown-staff');
     if (!result.success) { reply.status(422).send(result); return; }
     return result;
   });
@@ -2342,7 +2713,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const { id } = req.params as any;
     const { clientId } = req.body as any;
     if (!clientId) { reply.status(400).send({ error: { code: 'validation', message: 'clientId is required' } }); return; }
-    const result = await paymentService.disable(id, clientId);
+    const result = await paymentService.disable(id, clientId, getAuth(req)?.userId || 'unknown-staff');
     if (!result.success) { reply.status(422).send(result); return; }
     return result;
   });
@@ -2362,7 +2733,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     const { clientId } = req.params as any;
     const body = req.body as any;
     if (!body.transactionType || !body.amount) { reply.status(400).send({ error: { code: 'validation', message: 'transactionType and amount are required' } }); return; }
-    const result = await reconService.createTransaction(clientId, body);
+    const result = await reconService.createTransaction(clientId, body, getAuth(req)?.userId || 'unknown-staff');
     if (!result.success) { reply.status(422).send(result); return; }
     reply.status(201).send(result);
   });
@@ -2436,7 +2807,10 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
   // ─── PLATFORM COMMERCIAL SUMMARY ───────────────────────────────────────────
 
   server.get('/oc/platform/commercial/summary', async () => {
-    const { rows: engagements } = await routePool.query('SELECT * FROM oc_commercial_engagements ORDER BY created_at DESC');
+    // LEFT JOIN oc_clients for a real client_name — previously the frontend
+    // pipeline showed the raw internal client_id (e.g. "client-689fbe34-...")
+    // instead of the client's name. Found during the 2026-08-22 global UX audit.
+    const { rows: engagements } = await routePool.query('SELECT e.*, c.name AS client_name FROM oc_commercial_engagements e LEFT JOIN oc_clients c ON c.id = e.client_id ORDER BY e.created_at DESC');
     const byStatus: Record<string, number> = {};
     let totalEstimatedValue = 0;
     let totalContractedValue = 0;
@@ -2493,7 +2867,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
 
     ocService.createAuditEntry({
       entityType: 'jira', entityId: body.environment || 'development', entityName: body.baseUrl,
-      action: 'jira_configured', actor: 'admin',
+      action: 'jira_configured', actor: getAuth(req)?.userId || 'unknown-staff',
       details: { projectKey: body.projectKey, authMethod: body.authMethod },
       evidence: [`Jira configured for ${body.environment || 'development'}: ${body.baseUrl} / ${body.projectKey}`],
     }).catch(() => {});
@@ -2509,7 +2883,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
 
     ocService.createAuditEntry({
       entityType: 'jira', entityId: environment, entityName: 'health_check',
-      action: 'jira_health_checked', actor: 'admin',
+      action: 'jira_health_checked', actor: getAuth(req)?.userId || 'unknown-staff',
       details: { status: result.status, responseMs: result.responseMs },
       evidence: [`Jira health: ${result.status}${result.error ? ' — ' + result.error : ''}`],
     }).catch(() => {});
@@ -2542,7 +2916,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
       ocService.createAuditEntry({
         entityType: 'jira', entityId: body.clientId, entityName: result.issueKey || '',
         action: result.duplicate ? 'jira_issue_duplicate' : 'jira_issue_created',
-        actor: 'admin',
+        actor: getAuth(req)?.userId || 'unknown-staff',
         details: { sourceType: body.sourceType, sourceId: body.sourceId, issueKey: result.issueKey, duplicate: result.duplicate },
         evidence: [result.duplicate ? `Existing Jira issue ${result.issueKey} returned (idempotent)` : `Jira issue ${result.issueKey} created for ${body.sourceType}/${body.sourceId}`],
       }).catch(() => {});
@@ -2627,6 +3001,19 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
       `, [body.clientId || null, body.severity, body.title, body.description || '', body.affectedService || '', body.impactSummary || '']);
       reply.status(201).send({ incident: res.rows[0] });
     } catch (err) { reply.status(500).send({ error: (err as Error).message }); }
+  });
+
+  // Single real incident by ID — did not exist before this pass. Added so a real
+  // client's incident-detail page (previously only ever rendered for the ~20 static
+  // mock-clients.ts entries — see clients/[clientId]/incidents/[incidentId]/page.tsx)
+  // can fetch a genuine oc_incidents row instead of falling back to a placeholder.
+  server.get('/oc/incidents/:id', async (req, reply) => {
+    const { id } = req.params as any;
+    try {
+      const res = await routePool.query('SELECT * FROM oc_incidents WHERE id = $1', [id]);
+      if (res.rows.length === 0) { reply.status(404).send({ error: 'Incident not found' }); return; }
+      return { incident: res.rows[0] };
+    } catch (err) { reply.status(500).send({ error: (err as Error).message }); return; }
   });
 
   // ─── AUTOMATED DEFECT DETECTION ─────────────────────────────────────────────

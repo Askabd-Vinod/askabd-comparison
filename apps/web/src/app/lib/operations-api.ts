@@ -77,6 +77,47 @@ export async function closeRemediationTicket(id: string, verifiedBy: string) {
   });
 }
 
+export async function getRemediation(id: string) {
+  return ocFetch<{ remediation: any }>(`/remediations/${id}`);
+}
+
+export async function listRemediations(params: { clientId?: string; incidentId?: string }) {
+  const q = new URLSearchParams();
+  if (params.clientId) q.set('clientId', params.clientId);
+  if (params.incidentId) q.set('incidentId', params.incidentId);
+  return ocFetch<{ remediations: any[] }>(`/remediations?${q.toString()}`);
+}
+
+/** Real execution start — creates a genuine oc_operations row server-side. */
+export async function executeRemediation(id: string, actor: string) {
+  return ocFetch<{ remediation: any; operation: any } | { error: string; operation?: any }>(`/remediations/${id}/execute`, {
+    method: 'POST', body: JSON.stringify({ actor }),
+  });
+}
+
+/** Real, operator-driven step transitions — replace any client-only timer/simulation. */
+export async function startRemediationStep(id: string, stepId: string, actor: string) {
+  return ocFetch<{ remediation: any }>(`/remediations/${id}/steps/${stepId}/start`, {
+    method: 'POST', body: JSON.stringify({ actor }),
+  });
+}
+
+export async function completeRemediationStep(id: string, stepId: string, actor: string, evidence?: string) {
+  return ocFetch<{ remediation: any }>(`/remediations/${id}/steps/${stepId}/complete`, {
+    method: 'POST', body: JSON.stringify({ actor, evidence }),
+  });
+}
+
+export async function failRemediationStep(id: string, stepId: string, actor: string, reason?: string) {
+  return ocFetch<{ remediation: any }>(`/remediations/${id}/steps/${stepId}/fail`, {
+    method: 'POST', body: JSON.stringify({ actor, reason }),
+  });
+}
+
+export async function getIncident(id: string) {
+  return ocFetch<{ incident: any }>(`/incidents/${id}`);
+}
+
 // ─── SERVICE ACTIONS ────────────────────────────────────────────────────────
 
 export async function recordServiceAction(data: {

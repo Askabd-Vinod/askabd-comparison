@@ -1,8 +1,10 @@
 'use client';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { getEnvConfig, envColor, envLabel } from '../lib/env';
+import { getStaffSession, staffLogout, type StaffSession } from '../lib/staff-session';
 
 const navItems = [
   { href: '/', label: 'Dashboard' },
@@ -20,6 +22,11 @@ const navItems = [
 export function NavBar() {
   const env = getEnvConfig();
   const pathname = usePathname();
+  const router = useRouter();
+  const [staff, setStaff] = useState<StaffSession | null>(null);
+
+  // Real session, re-read on every navigation — never a hardcoded "Super Admin" badge.
+  useEffect(() => { setStaff(getStaffSession()); }, [pathname]);
 
   function isActive(href: string) {
     if (href === '/') return pathname === '/';
@@ -49,7 +56,7 @@ export function NavBar() {
       {/* Navigation bar below */}
       <nav className="bg-white/95 backdrop-blur-sm border-b border-gray-200" aria-label="Main navigation">
         <div className="max-w-[1600px] mx-auto px-4 h-11 flex items-center justify-between">
-          <div className="flex items-center gap-0.5 overflow-x-auto">
+          <div className="flex items-center gap-0.5 overflow-x-auto min-w-0">
             {navItems.map(item => {
               const active = isActive(item.href);
               return (
@@ -73,9 +80,26 @@ export function NavBar() {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
             </Link>
             <span className="text-[10px] text-gray-400 hidden sm:inline">v{env.version}</span>
-            <div className="w-7 h-7 bg-purple-100 rounded-full flex items-center justify-center ring-2 ring-purple-200" title="hello@askabd.com — Super Admin">
-              <span className="text-[10px] font-bold text-purple-700">SA</span>
-            </div>
+            {staff ? (
+              <div className="flex items-center gap-2">
+                {/* Previously showed the raw internal identityId UUID in this
+                    tooltip instead of the staff member's own email — found
+                    during the 2026-08-22 global UX audit. */}
+                <Link href="/account/security" className="w-7 h-7 bg-purple-100 rounded-full flex items-center justify-center ring-2 ring-purple-200 hover:ring-purple-400 transition" title={`${staff.email} — ${staff.roles.join(', ')} — Account Security`}>
+                  <span className="text-[10px] font-bold text-purple-700">{staff.roles[0]?.[0]?.toUpperCase() ?? 'S'}</span>
+                </Link>
+                <button
+                  onClick={async () => { await staffLogout(); router.replace('/staff/login'); }}
+                  className="text-[11px] text-gray-500 hover:text-purple-700 font-medium"
+                >
+                  Sign out
+                </button>
+              </div>
+            ) : (
+              <Link href="/staff/login" className="text-[11px] text-purple-600 hover:text-purple-800 font-semibold">
+                Staff sign in
+              </Link>
+            )}
           </div>
         </div>
       </nav>

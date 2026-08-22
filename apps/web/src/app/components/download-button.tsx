@@ -1,5 +1,6 @@
 'use client';
 import { logAuditEvent } from '../lib/operations-api';
+import { getStaffSession } from '../lib/staff-session';
 
 interface DownloadButtonProps {
   fileName: string;
@@ -57,7 +58,12 @@ export function DownloadButton({ fileName, format, entityType, entityId, entityN
         entityId: entityId || fileName,
         entityName: entityName || fileName,
         action: 'downloaded',
-        actor: 'hello@askabd.com',
+        // Previously hardcoded to a literal 'hello@askabd.com' regardless of
+        // who actually downloaded the file — found during the 2026-08-22
+        // global UX/fabrication audit. This is a shared component used
+        // across Reports and several other screens, so this one fix
+        // corrects the actor attribution everywhere it's used.
+        actor: getStaffSession()?.identityId || 'unknown-staff',
         details: { format, fileName: fullFileName, clientName },
         evidence: [`File "${fullFileName}" downloaded at ${new Date().toISOString()}`],
       }).catch(() => {});

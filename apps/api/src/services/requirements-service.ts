@@ -73,6 +73,16 @@ export interface ClientRequirement {
   updatedAt: string;
   updatedBy: string;
   whyRequired: string;
+  /** Real, catalog-defined dropdown options for a simple (non-multi-field)
+   *  `select`/`multiselect` requirement — e.g. primary_cloud_provider's
+   *  ['AWS', 'Azure', 'Google Cloud', ...]. Distinct from `fields[].options`,
+   *  which covers the SAME concept for a multi-field requirement's individual
+   *  select sub-fields. Root-cause fix (2026-08-20): mapRow() previously
+   *  dropped this entirely, so every single-field select requirement reached
+   *  the UI as fieldType: 'select' with NO options — a real, reported defect
+   *  (Primary Cloud Provider rendered as an unusable empty dropdown, "required"
+   *  but structurally impossible to complete). */
+  options?: string[];
   fields?: RequirementField[];
   documents?: DocumentRequirement[];
 }
@@ -420,6 +430,7 @@ export class RequirementsService {
       securityClassification: row.security_classification || 'internal',
       version: row.version || 1, updatedAt: row.updated_at, updatedBy: row.updated_by,
       whyRequired: def?.whyRequired || row.why_required || '',
+      options: def?.options || undefined,
       fields: def?.fields || undefined,
       documents: def?.documents || undefined,
     };

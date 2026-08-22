@@ -294,14 +294,14 @@ export class ComplianceService {
   // COMPLIANCE EXCEPTIONS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  async createException(clientId: string, data: any): Promise<any> {
+  async createException(clientId: string, data: any, actor: string = 'unknown-staff'): Promise<any> {
     if (!data.controlId || !data.frameworkId || !data.reason) throw new Error('controlId, frameworkId, and reason are required');
     const { rows } = await sharedPool.query(`
       INSERT INTO oc_compliance_exceptions (client_id, framework_id, control_id, title, description, reason, business_justification, risk_level, risk_owner, compensating_control, requested_by, expiration_date, review_date, status, conditions)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'requested',$14) RETURNING *
     `, [clientId, data.frameworkId, data.controlId, data.title || 'Exception Request', data.description,
       data.reason, data.businessJustification, data.riskLevel || 'medium', data.riskOwner,
-      data.compensatingControl, data.requestedBy || 'admin',
+      data.compensatingControl, data.requestedBy || actor,
       data.expirationDate || null, data.reviewDate || null, data.conditions || null]);
     return this.mapException(rows[0]);
   }

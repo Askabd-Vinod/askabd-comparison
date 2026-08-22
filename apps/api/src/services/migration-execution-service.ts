@@ -11,6 +11,7 @@
  * - Evidence-based validation against the migration plan
  */
 
+import { randomUUID } from 'node:crypto';
 import { sharedPool } from './db-pool.js';
 
 const dbPool = sharedPool;
@@ -71,7 +72,8 @@ export class MigrationExecutionService {
    * Every step is classified as mandatory or optional.
    */
   async createPlan(clientId: string, sourceSchema: string = 'public'): Promise<MigrationRun> {
-    const id = `mig-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    // randomUUID, not Math.random() — a genuinely collision-safe suffix.
+    const id = `mig-${Date.now()}-${randomUUID().replace(/-/g, '').slice(0, 6)}`;
     const targetSchema = `mig_${clientId.replace(/[^a-z0-9]/g, '_')}_${Date.now()}`;
 
     const tables = await dbPool.query("SELECT tablename FROM pg_tables WHERE schemaname = $1 ORDER BY tablename", [sourceSchema]);
@@ -175,7 +177,15 @@ export class MigrationExecutionService {
    * - Idempotent: prevents concurrent execution
    * - Uses INSERT ... SELECT for data (clean target = no duplicates)
    */
-  async execute(migrationId: string): Promise<MigrationRun> {
+  /**
+   * @param onStep Optional real-time progress hook, called after each REAL step
+   * completes (never invented between steps). Additive — every existing caller that
+   * omits it gets identical behavior to before. Used by the async execution path
+   * (routes/operations-center-routes.ts's /oc/operations/migration/:id/execute) to
+   * report genuine per-step progress into oc_operations while this same, unmodified
+   * step logic runs.
+   */
+  async execute(migrationId: string, onStep?: (step: MigrationStep) => void): Promise<MigrationRun> {
     const run = await this.getRun(migrationId);
     if (!run) throw new Error('Migration run not found');
     if (run.status === 'running') throw new Error('Migration already running. Wait for completion or cancel.');
@@ -202,6 +212,7 @@ export class MigrationExecutionService {
         await client.query(`CREATE SCHEMA ${run.targetSchema}`);
         schemaStep.status = 'completed'; schemaStep.completedAt = new Date().toISOString();
         run.evidence.push(`Schema ${run.targetSchema} created`);
+        onStep?.(schemaStep);
       }
 
       // Step 2: Create tables (mandatory — using INCLUDING ALL for indexes/constraints)
@@ -217,6 +228,7 @@ export class MigrationExecutionService {
           step.resolution = 'Check source table exists and permissions are adequate';
           run.evidence.push(`FAILED: Table ${step.object} — ${step.error}`);
         }
+        onStep?.(step);
       }
 
       // Step 3: Copy data (mandatory — clean target means no duplicate key issues)
@@ -227,6 +239,7 @@ export class MigrationExecutionService {
         const tableStep = tableSteps.find(t => t.object === step.object);
         if (tableStep?.status !== 'completed') {
           step.status = 'skipped'; step.error = `Skipped: table ${step.object} was not created`;
+          onStep?.(step);
           continue;
         }
         try {
@@ -240,6 +253,7 @@ export class MigrationExecutionService {
           step.resolution = 'Verify data compatibility and constraints';
           run.evidence.push(`FAILED: Data ${step.object} — ${step.error}`);
         }
+        onStep?.(step);
       }
 
       // Step 4: Sequences (optional)
@@ -249,6 +263,7 @@ export class MigrationExecutionService {
           const exists = await client.query(`SELECT 1 FROM pg_sequences WHERE schemaname = $1 AND sequencename = $2`, [run.targetSchema, step.object]);
           step.status = exists.rows.length > 0 ? 'completed' : 'skipped';
         } catch { step.status = 'skipped'; }
+        onStep?.(step);
       }
 
       // Step 5: Views (optional — attempt with dependency ordering)
@@ -264,6 +279,7 @@ export class MigrationExecutionService {
           step.status = 'not_supported'; step.error = (err as Error).message;
           step.resolution = 'View has dependencies that require manual ordering. Create after migration.';
         }
+        onStep?.(step);
       }
 
     } catch (err) {

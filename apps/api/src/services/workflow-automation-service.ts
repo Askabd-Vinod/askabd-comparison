@@ -313,7 +313,11 @@ export class WorkflowAutomationService {
     return rows.length > 0 ? this.mapRule(rows[0]) : null;
   }
 
-  async createRule(data: Partial<WorkflowRule>): Promise<WorkflowRule> {
+  async createRule(data: Partial<WorkflowRule>, actor: string = 'unknown-staff'): Promise<WorkflowRule> {
+    // Previously hardcoded 'admin' unconditionally (no fallback attempt at
+    // all) — found during the 2026-08-22 global UX/fabrication audit: every
+    // workflow rule ever created was attributed to a fake 'admin' identity
+    // regardless of who actually created it. Now takes the real caller.
     const { rows } = await sharedPool.query(`
       INSERT INTO oc_workflow_rules (name, description, event_type, conditions, actions, notification_template, recipient_rules, escalation_rules, priority, severity, enabled, scope, client_id, cooldown_minutes, created_by)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *
@@ -322,7 +326,7 @@ export class WorkflowAutomationService {
       JSON.stringify(data.notificationTemplate || {}), JSON.stringify(data.recipientRules || {}),
       JSON.stringify(data.escalationRules || {}), data.priority || 'medium', data.severity || 'info',
       data.enabled !== false, data.scope || 'global', data.clientId || null,
-      data.cooldownMinutes || 0, 'admin']);
+      data.cooldownMinutes || 0, actor]);
     return this.mapRule(rows[0]);
   }
 

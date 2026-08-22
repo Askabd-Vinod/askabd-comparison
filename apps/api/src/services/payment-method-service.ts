@@ -40,7 +40,7 @@ export class PaymentMethodService {
   private audit = new OperationsCenterService();
   private workflow = new WorkflowAutomationService();
 
-  async addPaymentMethod(clientId: string, data: AddPaymentMethodInput) {
+  async addPaymentMethod(clientId: string, data: AddPaymentMethodInput, actor: string = 'unknown-staff') {
     if (!VALID_TYPES.includes(data.type)) {
       return { success: false, error: 'invalid_type', message: `Invalid type. Allowed: ${VALID_TYPES.join(', ')}` };
     }
@@ -76,7 +76,7 @@ export class PaymentMethodService {
 
     await this.audit.createAuditEntry({
       entityType: 'payment_method', entityId: pm.id, entityName: data.displayName,
-      action: 'created', actor: 'admin',
+      action: 'created', actor,
       details: { type: data.type, provider: data.provider || 'manual', last4: data.last4 },
       evidence: [`Payment method "${data.displayName}" (${data.type}) added for client ${clientId}`],
     });
@@ -84,7 +84,7 @@ export class PaymentMethodService {
     await this.workflow.emitEvent({
       eventType: 'PAYMENT_METHOD_ADDED', clientId,
       entityType: 'payment_method', entityId: pm.id, entityName: data.displayName,
-      actor: 'admin', severity: 'info',
+      actor, severity: 'info',
       payload: { type: data.type, provider: data.provider || 'manual' },
     });
 
@@ -107,7 +107,7 @@ export class PaymentMethodService {
     return rows[0] || null;
   }
 
-  async setDefault(id: string, clientId: string) {
+  async setDefault(id: string, clientId: string, actor: string = 'unknown-staff') {
     const pm = await this.getPaymentMethod(id, clientId);
     if (!pm) return { success: false, error: 'not_found' };
     if (pm.status !== 'active') return { success: false, error: 'not_active', message: 'Only active payment methods can be set as default' };
@@ -119,20 +119,20 @@ export class PaymentMethodService {
 
     await this.audit.createAuditEntry({
       entityType: 'payment_method', entityId: id, entityName: pm.display_name,
-      action: 'set_default', actor: 'admin',
+      action: 'set_default', actor,
       details: { clientId }, evidence: [`Default payment method set to "${pm.display_name}"`],
     });
 
     await this.workflow.emitEvent({
       eventType: 'PAYMENT_METHOD_CHANGED', clientId,
       entityType: 'payment_method', entityId: id, entityName: pm.display_name,
-      actor: 'admin', severity: 'info', payload: { action: 'set_default' },
+      actor, severity: 'info', payload: { action: 'set_default' },
     });
 
     return { success: true };
   }
 
-  async verify(id: string, clientId: string) {
+  async verify(id: string, clientId: string, actor: string = 'unknown-staff') {
     const pm = await this.getPaymentMethod(id, clientId);
     if (!pm) return { success: false, error: 'not_found' };
 
@@ -143,20 +143,20 @@ export class PaymentMethodService {
 
     await this.audit.createAuditEntry({
       entityType: 'payment_method', entityId: id, entityName: pm.display_name,
-      action: 'verified', actor: 'admin',
+      action: 'verified', actor,
       details: { clientId }, evidence: [`Payment method "${pm.display_name}" verified`],
     });
 
     await this.workflow.emitEvent({
       eventType: 'PAYMENT_METHOD_VERIFIED', clientId,
       entityType: 'payment_method', entityId: id, entityName: pm.display_name,
-      actor: 'admin', severity: 'info', payload: { type: pm.type },
+      actor, severity: 'info', payload: { type: pm.type },
     });
 
     return { success: true };
   }
 
-  async disable(id: string, clientId: string) {
+  async disable(id: string, clientId: string, actor: string = 'unknown-staff') {
     const pm = await this.getPaymentMethod(id, clientId);
     if (!pm) return { success: false, error: 'not_found' };
     if (pm.status === 'disabled') return { success: false, error: 'already_disabled' };
@@ -167,14 +167,14 @@ export class PaymentMethodService {
 
     await this.audit.createAuditEntry({
       entityType: 'payment_method', entityId: id, entityName: pm.display_name,
-      action: 'disabled', actor: 'admin',
+      action: 'disabled', actor,
       details: { clientId }, evidence: [`Payment method "${pm.display_name}" disabled`],
     });
 
     await this.workflow.emitEvent({
       eventType: 'PAYMENT_METHOD_DISABLED', clientId,
       entityType: 'payment_method', entityId: id, entityName: pm.display_name,
-      actor: 'admin', severity: 'info', payload: { type: pm.type },
+      actor, severity: 'info', payload: { type: pm.type },
     });
 
     return { success: true };

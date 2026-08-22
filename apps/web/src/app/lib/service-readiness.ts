@@ -14,16 +14,6 @@ import { type LifecycleStatus, statusMeta } from './onboarding-lifecycle';
 export type ActionOwner = 'client' | 'askabd' | 'automatic' | 'approval';
 export type ServiceStatus = 'not-started' | 'ready' | 'in-progress' | 'blocked' | 'completed' | 'failed';
 
-export interface RequiredConnector {
-  connectorType: string;
-  provider: string;
-  purpose: string;
-  securityLevel: 'read-only' | 'read-write' | 'admin';
-  requiredFields: { field: string; label: string; placeholder: string; sensitive: boolean }[];
-  validationSteps: string[];
-  whyNeeded: string;
-}
-
 export interface ServiceRequirement {
   serviceId: string;
   serviceName: string;
@@ -32,7 +22,6 @@ export interface ServiceRequirement {
   owner: ActionOwner;
   clientRequired: string[];
   askabdRequired: string[];
-  requiredConnectors: RequiredConnector[];
   requiredInputs: string[];
   validationChecks: { id: string; label: string; description: string }[];
   successCriteria: string;
@@ -57,77 +46,21 @@ export interface ClientDeliveryStatus {
   currentOwner: ActionOwner;
 }
 
-// ─── CONNECTOR REQUIREMENT DEFINITIONS ───────────────────────────────────────
-
-export const connectorRequirements: Record<string, RequiredConnector> = {
-  postgresql: {
-    connectorType: 'database', provider: 'PostgreSQL',
-    purpose: 'Database discovery, schema analysis, and migration',
-    securityLevel: 'read-only',
-    requiredFields: [
-      { field: 'host', label: 'Host', placeholder: 'db.example.com', sensitive: false },
-      { field: 'port', label: 'Port', placeholder: '5432', sensitive: false },
-      { field: 'database', label: 'Database Name', placeholder: 'production_db', sensitive: false },
-      { field: 'username', label: 'Username', placeholder: 'readonly_user', sensitive: false },
-      { field: 'password', label: 'Password', placeholder: '••••••••', sensitive: true },
-      { field: 'ssl', label: 'SSL Mode', placeholder: 'require', sensitive: false },
-    ],
-    validationSteps: ['DNS resolution', 'Port accessibility', 'TCP connectivity', 'TLS/SSL handshake', 'Authentication', 'Database access', 'Read permission', 'Query execution', 'Latency check'],
-    whyNeeded: 'AskABD needs read-only access to discover database schemas, tables, views, indexes, and data volumes for assessment and migration planning.',
-  },
-  aws: {
-    connectorType: 'cloud', provider: 'AWS',
-    purpose: 'Cloud resource discovery, infrastructure assessment, and migration',
-    securityLevel: 'read-only',
-    requiredFields: [
-      { field: 'accountId', label: 'AWS Account ID', placeholder: '123456789012', sensitive: false },
-      { field: 'region', label: 'Primary Region', placeholder: 'ap-southeast-2', sensitive: false },
-      { field: 'roleArn', label: 'IAM Role ARN', placeholder: 'arn:aws:iam::123456789012:role/AskABDReadOnly', sensitive: false },
-      { field: 'externalId', label: 'External ID', placeholder: 'askabd-trust-xxxxx', sensitive: true },
-    ],
-    validationSteps: ['AWS endpoint connectivity', 'Credential validation', 'Account identity', 'Region access', 'IAM permission check', 'EC2 read access', 'RDS read access', 'S3 list access', 'VPC read access'],
-    whyNeeded: 'AskABD needs read-only access to discover EC2 instances, RDS databases, S3 buckets, VPCs, ECS/EKS clusters, and other configured resources. No modifications will be made.',
-  },
-  azure: {
-    connectorType: 'cloud', provider: 'Azure',
-    purpose: 'Azure resource discovery and infrastructure assessment',
-    securityLevel: 'read-only',
-    requiredFields: [
-      { field: 'tenantId', label: 'Tenant ID', placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', sensitive: false },
-      { field: 'subscriptionId', label: 'Subscription ID', placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', sensitive: false },
-      { field: 'clientId', label: 'App Registration Client ID', placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', sensitive: false },
-      { field: 'clientSecret', label: 'Client Secret', placeholder: '••••••••', sensitive: true },
-    ],
-    validationSteps: ['Azure endpoint connectivity', 'Authentication', 'Tenant access', 'Subscription access', 'Resource group read', 'VM list access', 'Database list access'],
-    whyNeeded: 'AskABD needs Reader role access to discover VMs, Azure SQL, Storage Accounts, VNets, AKS clusters, and other resources.',
-  },
-  github: {
-    connectorType: 'source-control', provider: 'GitHub',
-    purpose: 'Repository discovery, code analysis, and CI/CD assessment',
-    securityLevel: 'read-only',
-    requiredFields: [
-      { field: 'organization', label: 'Organization', placeholder: 'your-org', sensitive: false },
-      { field: 'token', label: 'Personal Access Token', placeholder: 'ghp_xxxxxxxxxxxxxxxxxxxx', sensitive: true },
-    ],
-    validationSteps: ['GitHub API connectivity', 'Token validation', 'Organization access', 'Repository list access', 'Read permission confirmed'],
-    whyNeeded: 'AskABD needs read access to repositories for code analysis, dependency scanning, and CI/CD pipeline assessment.',
-  },
-  kubernetes: {
-    connectorType: 'infrastructure', provider: 'Kubernetes',
-    purpose: 'Container infrastructure discovery and workload assessment',
-    securityLevel: 'read-only',
-    requiredFields: [
-      { field: 'clusterEndpoint', label: 'Cluster API Endpoint', placeholder: 'https://k8s.example.com:6443', sensitive: false },
-      { field: 'token', label: 'Service Account Token', placeholder: '••••••••', sensitive: true },
-      { field: 'namespace', label: 'Namespace (optional)', placeholder: 'default', sensitive: false },
-    ],
-    validationSteps: ['Endpoint connectivity', 'TLS validation', 'Authentication', 'Namespace access', 'Pod list permission', 'Deployment list permission'],
-    whyNeeded: 'AskABD needs read-only access to discover namespaces, deployments, services, pods, and resource utilization.',
-  },
-};
-
 // ─── SERVICE REQUIREMENT DEFINITIONS ─────────────────────────────────────────
 // Maps each lifecycle status to its service delivery requirements.
+//
+// Found during the requirement-model audit: this file previously ALSO defined a
+// static, generic `connectorRequirements` map (PostgreSQL/AWS/Azure/GitHub/
+// Kubernetes) and attached the same fixed 2-3 connectors to every client that
+// reached a given lifecycle stage — regardless of which real AskABD services that
+// client actually has confirmed. That was a second, competing connector-requirement
+// source, disconnected from the real one: `ServiceRequirementMatrixService`
+// (`GET /oc/clients/:clientId/onboarding/requirements`), which derives each client's
+// actually-relevant connectors from their real, staff-confirmed `oc_client_services`
+// rows and the capability catalog's real `external_dependencies`. The dedicated
+// `/clients/:id/connectors` page already correctly uses that real source. Removed
+// the static list here; `client-command-center.tsx` now uses the same real source
+// via a link to that page instead of duplicating a second, generic connector UI.
 // Derived from the canonical lifecycle — does NOT duplicate statuses.
 
 export const serviceRequirements: ServiceRequirement[] = [
@@ -136,7 +69,7 @@ export const serviceRequirements: ServiceRequirement[] = [
     description: 'Confirm business owner identity after OTP verification',
     lifecycleStatus: 'otp-verified', owner: 'automatic',
     clientRequired: [], askabdRequired: ['Verify OTP completion', 'Confirm organization record', 'Validate contact information'],
-    requiredConnectors: [], requiredInputs: [],
+    requiredInputs: [],
     validationChecks: [
       { id: 'iv-otp', label: 'OTP Verified', description: 'One-time password confirmed via email' },
       { id: 'iv-org', label: 'Organization Persisted', description: 'Client record exists in database' },
@@ -153,7 +86,7 @@ export const serviceRequirements: ServiceRequirement[] = [
     lifecycleStatus: 'identity-verified', owner: 'askabd',
     clientRequired: ['Security contact', 'Compliance requirements', 'Authentication preferences'],
     askabdRequired: ['Run security checklist', 'Validate authentication config', 'Check encryption', 'Verify access policy'],
-    requiredConnectors: [], requiredInputs: ['Authentication method preference', 'Compliance standard (SOC2, ISO27001, etc.)'],
+    requiredInputs: ['Authentication method preference', 'Compliance standard (SOC2, ISO27001, etc.)'],
     validationChecks: [
       { id: 'sv-auth', label: 'Authentication Configured', description: 'SSO/OAuth/API key method defined' },
       { id: 'sv-rbac', label: 'Access Policy Defined', description: 'Role-based access control configured' },
@@ -173,7 +106,7 @@ export const serviceRequirements: ServiceRequirement[] = [
     lifecycleStatus: 'security-validated', owner: 'client',
     clientRequired: ['List all environments', 'Provide access credentials', 'Confirm network access'],
     askabdRequired: ['Validate environment access', 'Catalog environments'],
-    requiredConnectors: [], requiredInputs: ['Environment list (dev/test/staging/prod)', 'Host addresses', 'Access method', 'Firewall/VPN requirements'],
+    requiredInputs: ['Environment list (dev/test/staging/prod)', 'Host addresses', 'Access method', 'Firewall/VPN requirements'],
     validationChecks: [
       { id: 'er-list', label: 'Environments Documented', description: 'All active environments listed' },
       { id: 'er-access', label: 'Access Confirmed', description: 'Read access to each environment verified' },
@@ -191,7 +124,6 @@ export const serviceRequirements: ServiceRequirement[] = [
     lifecycleStatus: 'environment-registered', owner: 'client',
     clientRequired: ['Provide connection credentials', 'Grant required permissions', 'Open network access'],
     askabdRequired: ['Test each connector', 'Validate permissions', 'Confirm read-only access'],
-    requiredConnectors: [connectorRequirements.postgresql, connectorRequirements.aws, connectorRequirements.github],
     requiredInputs: ['Database credentials', 'Cloud account details', 'API tokens', 'SSH keys where applicable'],
     validationChecks: [
       { id: 'cc-select', label: 'Connectors Selected', description: 'Required connectors identified' },
@@ -211,7 +143,6 @@ export const serviceRequirements: ServiceRequirement[] = [
     lifecycleStatus: 'connectors-configured', owner: 'askabd',
     clientRequired: ['Approve discovery scope', 'Confirm read-only consent'],
     askabdRequired: ['Run discovery engines', 'Map applications', 'Catalog databases', 'Document infrastructure', 'Identify dependencies'],
-    requiredConnectors: [connectorRequirements.postgresql, connectorRequirements.aws],
     requiredInputs: ['Discovery scope confirmation', 'Read-only consent'],
     validationChecks: [
       { id: 'disc-scope', label: 'Scope Defined', description: 'Systems and boundaries identified' },
@@ -229,7 +160,7 @@ export const serviceRequirements: ServiceRequirement[] = [
     description: 'Active scanning of environment — read-only operations in progress',
     lifecycleStatus: 'discovery-running', owner: 'automatic',
     clientRequired: [], askabdRequired: ['Scan applications', 'Map databases', 'Catalog infrastructure', 'Identify dependencies'],
-    requiredConnectors: [], requiredInputs: [],
+    requiredInputs: [],
     validationChecks: [
       { id: 'de-apps', label: 'Applications Discovered', description: 'All applications inventoried' },
       { id: 'de-data', label: 'Data Sources Mapped', description: 'Databases and schemas catalogued' },
@@ -248,7 +179,7 @@ export const serviceRequirements: ServiceRequirement[] = [
     lifecycleStatus: 'discovery-complete', owner: 'askabd',
     clientRequired: ['Confirm discovery results', 'Provide business context'],
     askabdRequired: ['Analyze architecture', 'Assess security', 'Evaluate performance', 'Identify risks', 'Calculate migration complexity'],
-    requiredConnectors: [], requiredInputs: ['Discovery results confirmation', 'Business priorities', 'SLA requirements'],
+    requiredInputs: ['Discovery results confirmation', 'Business priorities', 'SLA requirements'],
     validationChecks: [
       { id: 'as-discovery', label: 'Discovery Reviewed', description: 'Discovery results validated' },
       { id: 'as-criteria', label: 'Criteria Defined', description: 'Assessment dimensions confirmed' },
@@ -264,7 +195,7 @@ export const serviceRequirements: ServiceRequirement[] = [
     description: 'Deep analysis engines processing discovery data',
     lifecycleStatus: 'assessment-running', owner: 'automatic',
     clientRequired: [], askabdRequired: ['Security analysis', 'Performance analysis', 'Compatibility analysis', 'Risk analysis'],
-    requiredConnectors: [], requiredInputs: [],
+    requiredInputs: [],
     validationChecks: [
       { id: 'ae-security', label: 'Security Assessed', description: 'Vulnerabilities and risks identified' },
       { id: 'ae-perf', label: 'Performance Assessed', description: 'Bottlenecks and capacity issues found' },
@@ -282,7 +213,7 @@ export const serviceRequirements: ServiceRequirement[] = [
     lifecycleStatus: 'assessment-complete', owner: 'askabd',
     clientRequired: ['Review findings', 'Confirm business priorities'],
     askabdRequired: ['Generate recommendations', 'Estimate costs', 'Define alternatives', 'Calculate impact'],
-    requiredConnectors: [], requiredInputs: ['Assessment results', 'Business priorities', 'Budget constraints'],
+    requiredInputs: ['Assessment results', 'Business priorities', 'Budget constraints'],
     validationChecks: [
       { id: 'rec-findings', label: 'Findings Analyzed', description: 'All assessment findings processed' },
       { id: 'rec-solutions', label: 'Solutions Defined', description: 'Recommended and alternative approaches' },
@@ -300,7 +231,7 @@ export const serviceRequirements: ServiceRequirement[] = [
     lifecycleStatus: 'recommendations-generated', owner: 'approval',
     clientRequired: ['Review recommendations', 'Approve approach', 'Confirm budget', 'Sign off timeline'],
     askabdRequired: ['Present recommendations', 'Answer questions', 'Provide alternatives'],
-    requiredConnectors: [], requiredInputs: ['Approval decision', 'Budget confirmation', 'Timeline acceptance'],
+    requiredInputs: ['Approval decision', 'Budget confirmation', 'Timeline acceptance'],
     validationChecks: [
       { id: 'ca-reviewed', label: 'Recommendations Reviewed', description: 'Customer has reviewed all recommendations' },
       { id: 'ca-approved', label: 'Approach Approved', description: 'Customer agreed to recommended strategy' },
@@ -318,7 +249,6 @@ export const serviceRequirements: ServiceRequirement[] = [
     lifecycleStatus: 'migration-planning', owner: 'askabd',
     clientRequired: ['Confirm migration window', 'Approve downtime plan', 'Designate migration lead'],
     askabdRequired: ['Design migration waves', 'Plan rollback', 'Define validation', 'Prepare pre-flight checks'],
-    requiredConnectors: [connectorRequirements.postgresql, connectorRequirements.aws],
     requiredInputs: ['Migration window', 'Downtime tolerance', 'Priority systems', 'Rollback requirements'],
     validationChecks: [
       { id: 'mp-source', label: 'Source Validated', description: 'Source systems confirmed accessible' },
@@ -338,7 +268,6 @@ export const serviceRequirements: ServiceRequirement[] = [
     lifecycleStatus: 'migration-approved', owner: 'askabd',
     clientRequired: ['Final approval for execution'],
     askabdRequired: ['Pre-flight validation', 'Dry run execution', 'Final readiness confirmation'],
-    requiredConnectors: [connectorRequirements.postgresql, connectorRequirements.aws],
     requiredInputs: ['Go/no-go decision', 'Dry run results acceptance'],
     validationChecks: [
       { id: 'ma-preflight', label: 'Pre-Flight Passed', description: 'All prerequisites validated' },
@@ -356,7 +285,6 @@ export const serviceRequirements: ServiceRequirement[] = [
     description: 'Active data migration — transfer, transform, and load',
     lifecycleStatus: 'migration-running', owner: 'automatic',
     clientRequired: [], askabdRequired: ['Execute migration waves', 'Monitor transfer', 'Handle exceptions'],
-    requiredConnectors: [connectorRequirements.postgresql, connectorRequirements.aws],
     requiredInputs: [],
     validationChecks: [
       { id: 'me-transfer', label: 'Transfer Complete', description: 'All objects transferred' },
@@ -375,7 +303,6 @@ export const serviceRequirements: ServiceRequirement[] = [
     lifecycleStatus: 'migration-complete', owner: 'askabd',
     clientRequired: ['Confirm application connectivity', 'Verify business functionality'],
     askabdRequired: ['Row count validation', 'Schema validation', 'Data integrity checks', 'Performance baseline comparison'],
-    requiredConnectors: [connectorRequirements.postgresql],
     requiredInputs: ['Validation acceptance criteria'],
     validationChecks: [
       { id: 'pv-data', label: 'Data Integrity', description: 'Source vs target comparison passed' },
@@ -393,7 +320,7 @@ export const serviceRequirements: ServiceRequirement[] = [
     description: 'Running automated validation suites against migrated data',
     lifecycleStatus: 'validation-running', owner: 'automatic',
     clientRequired: [], askabdRequired: ['Execute validation suites', 'Compare source/target', 'Generate report'],
-    requiredConnectors: [], requiredInputs: [],
+    requiredInputs: [],
     validationChecks: [
       { id: 've-rows', label: 'Row Counts Match', description: 'Every table row count verified' },
       { id: 've-checksum', label: 'Checksums Pass', description: 'Data checksums validated' },
@@ -411,7 +338,7 @@ export const serviceRequirements: ServiceRequirement[] = [
     lifecycleStatus: 'validation-passed', owner: 'askabd',
     clientRequired: ['Designate audit reviewer', 'Provide compliance requirements'],
     askabdRequired: ['Generate audit trail', 'Verify compliance', 'Produce audit report'],
-    requiredConnectors: [], requiredInputs: ['Compliance standard', 'Audit scope'],
+    requiredInputs: ['Compliance standard', 'Audit scope'],
     validationChecks: [
       { id: 'ga-scope', label: 'Audit Scope Defined', description: 'Compliance requirements identified' },
     ],
@@ -425,7 +352,7 @@ export const serviceRequirements: ServiceRequirement[] = [
     description: 'Governance audit execution and report generation',
     lifecycleStatus: 'audit-running', owner: 'automatic',
     clientRequired: [], askabdRequired: ['Verify compliance', 'Collect evidence', 'Generate report'],
-    requiredConnectors: [], requiredInputs: [],
+    requiredInputs: [],
     validationChecks: [
       { id: 'ax-compliance', label: 'Compliance Verified', description: 'Regulatory requirements met' },
       { id: 'ax-evidence', label: 'Evidence Complete', description: 'Full audit trail available' },
@@ -442,7 +369,7 @@ export const serviceRequirements: ServiceRequirement[] = [
     lifecycleStatus: 'audit-passed', owner: 'approval',
     clientRequired: ['Final go-live approval', 'Confirm support readiness', 'Designate on-call contacts'],
     askabdRequired: ['Production readiness check', 'Activate monitoring', 'Prepare hyper-care team'],
-    requiredConnectors: [], requiredInputs: ['Go-live date', 'On-call contacts', 'Escalation matrix'],
+    requiredInputs: ['Go-live date', 'On-call contacts', 'Escalation matrix'],
     validationChecks: [
       { id: 'gl-ready', label: 'Production Ready', description: 'All systems verified' },
       { id: 'gl-support', label: 'Support Ready', description: 'Hyper-care team on standby' },
@@ -459,7 +386,7 @@ export const serviceRequirements: ServiceRequirement[] = [
     lifecycleStatus: 'go-live', owner: 'askabd',
     clientRequired: ['Report any issues immediately', 'Confirm business functionality'],
     askabdRequired: ['24/7 monitoring', 'Rapid incident response', 'Performance tracking', 'Stability assessment'],
-    requiredConnectors: [], requiredInputs: ['Issue reports', 'User feedback'],
+    requiredInputs: ['Issue reports', 'User feedback'],
     validationChecks: [
       { id: 'hc-traffic', label: 'Traffic Flowing', description: 'Production traffic confirmed' },
       { id: 'hc-monitoring', label: 'Monitoring Active', description: '24/7 enhanced monitoring live' },
@@ -475,7 +402,7 @@ export const serviceRequirements: ServiceRequirement[] = [
     lifecycleStatus: 'hyper-care', owner: 'askabd',
     clientRequired: ['Confirm operational handover', 'Approve SLA terms'],
     askabdRequired: ['Confirm stability', 'Activate SLA monitoring', 'Complete handover documentation'],
-    requiredConnectors: [], requiredInputs: ['SLA acceptance', 'Support model confirmation'],
+    requiredInputs: ['SLA acceptance', 'Support model confirmation'],
     validationChecks: [
       { id: 'ms-stable', label: 'Stability Confirmed', description: 'No critical incidents in 2+ weeks' },
       { id: 'ms-sla', label: 'SLA Active', description: 'Service levels being measured' },
@@ -492,7 +419,7 @@ export const serviceRequirements: ServiceRequirement[] = [
     lifecycleStatus: 'managed-services', owner: 'automatic',
     clientRequired: ['Confirm alert recipients', 'Approve escalation paths'],
     askabdRequired: ['Configure monitors', 'Set alert rules', 'Define escalation'],
-    requiredConnectors: [], requiredInputs: ['Alert contacts', 'Escalation matrix', 'SLA thresholds'],
+    requiredInputs: ['Alert contacts', 'Escalation matrix', 'SLA thresholds'],
     validationChecks: [
       { id: 'cm-infra', label: 'Infrastructure Monitored', description: 'All infrastructure coverage' },
       { id: 'cm-app', label: 'Application Monitored', description: 'APM and logging active' },
@@ -508,7 +435,7 @@ export const serviceRequirements: ServiceRequirement[] = [
     description: 'Activate AI-powered root cause analysis, prediction, and recommendations',
     lifecycleStatus: 'continuous-monitoring', owner: 'automatic',
     clientRequired: [], askabdRequired: ['Activate AI engines', 'Train models', 'Enable predictions'],
-    requiredConnectors: [], requiredInputs: [],
+    requiredInputs: [],
     validationChecks: [
       { id: 'ei-data', label: 'Telemetry Flowing', description: 'Sufficient data for AI analysis' },
       { id: 'ei-models', label: 'Models Active', description: 'RCA and prediction engines running' },
@@ -581,23 +508,3 @@ export function getServiceForStatus(status: LifecycleStatus): ServiceRequirement
   return serviceRequirements.find(s => s.lifecycleStatus === status) || null;
 }
 
-/**
- * Get all connector requirements needed at or before a given lifecycle stage.
- */
-export function getRequiredConnectors(status: LifecycleStatus): RequiredConnector[] {
-  const order = statusMeta[status]?.order ?? 0;
-  const connectors: RequiredConnector[] = [];
-  const seen = new Set<string>();
-  for (const svc of serviceRequirements) {
-    const svcOrder = statusMeta[svc.lifecycleStatus]?.order ?? 0;
-    if (svcOrder <= order) {
-      for (const conn of svc.requiredConnectors) {
-        if (!seen.has(conn.provider)) {
-          seen.add(conn.provider);
-          connectors.push(conn);
-        }
-      }
-    }
-  }
-  return connectors;
-}

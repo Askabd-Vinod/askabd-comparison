@@ -24,6 +24,7 @@ import type { RouteRule, AuthorizationContext, Permission } from './types.js';
 import { buildAuthorizationContext, authorizeAny } from './engine.js';
 import type { AuthContext } from '../../contracts/index.js';
 import { ROLE_MAP } from './roles.js';
+import { StaffRoleService } from '../../services/staff-role-service.js';
 
 /**
  * Authorization middleware configuration.
@@ -37,6 +38,8 @@ export interface AuthorizationConfig {
   excludeRoutes?: readonly string[];
   /** Whether to bypass authorization in development mode */
   devBypass?: boolean;
+  /** Injectable for tests — defaults to a real, pool-backed instance. */
+  staffRoleService?: StaffRoleService;
 }
 
 const DEFAULT_AUTHORIZATION_CONFIG: AuthorizationConfig = {
@@ -55,6 +58,7 @@ export function registerAuthorizationMiddleware(
   userConfig?: Partial<AuthorizationConfig>,
 ): void {
   const cfg: AuthorizationConfig = { ...DEFAULT_AUTHORIZATION_CONFIG, ...userConfig };
+  const staffRoleService = cfg.staffRoleService ?? new StaffRoleService();
 
   server.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
     const path = request.url.split('?')[0]!;
@@ -81,8 +85,18 @@ export function registerAuthorizationMiddleware(
       return;
     }
 
-    // Build authorization context from auth
-    const roles = extractRoles(auth);
+    // Build authorization context from auth. Two sources, merged:
+    //  1. extractRoles(auth) — a real token's own claims (real askabd-identity tokens
+    //     never carry this claim today, so this is always [] in genuine production
+    //     traffic; kept for backward compatibility with tests/tooling that forge a
+    //     token carrying its own roles claim, and for a future identity-service
+    //     change that might add one).
+    //  2. staffRoleService — the REAL, server-side, database-backed source (see
+    //     migration 026_staff_role_assignment.sql). This is what makes a genuine,
+    //     unmodified real askabd-identity token resolve to real roles today.
+    const claimRoles = extractRoles(auth);
+    const dbRoles = await staffRoleService.getActiveRoles(auth.userId).catch(() => []);
+    const roles = Array.from(new Set([...claimRoles, ...dbRoles]));
     const authzContext = buildAuthorizationContext(
       auth.userId,
       auth.tenantId,

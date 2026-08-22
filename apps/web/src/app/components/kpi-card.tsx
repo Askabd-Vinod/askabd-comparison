@@ -1,6 +1,5 @@
 'use client';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
 
 interface KpiCardProps {
   href?: string;
@@ -12,40 +11,27 @@ interface KpiCardProps {
   warn?: boolean;
   icon?: string;
   sub?: string;
-  includeNewClients?: boolean; // When true, adds onboarded client count to numeric value
 }
 
 /**
  * Unified KPI tile used across the entire Operations Centre.
  * Shows value + label with a hover tooltip explaining what the metric means and the criteria behind it.
+ *
+ * Found during the data-integrity audit: this previously had an `includeNewClients`
+ * prop (never passed `true` by any caller — dead code) that added a localStorage-only
+ * "onboarded clients" count on top of the real `value` prop. Removed — every value
+ * this component displays now comes only from what its caller explicitly passes in.
  */
-export function KpiCard({ href, label, value, color, description, criteria, warn, icon, sub, includeNewClients }: KpiCardProps) {
-  const [newCount, setNewCount] = useState(0);
+export function KpiCard({ href, label, value, color, description, criteria, warn, icon, sub }: KpiCardProps) {
   const warnStyles = warn ? 'border-orange-200 bg-orange-50/50' : 'border-gray-200';
   const valueColor = color || (warn ? 'text-orange-600' : 'text-gray-900');
-
-  useEffect(() => {
-    if (includeNewClients) {
-      const stored = localStorage.getItem('askabd-onboarded-clients');
-      if (stored) {
-        try { const arr = JSON.parse(stored); setNewCount(Array.isArray(arr) ? arr.length : 0); } catch { /* ignore */ }
-      }
-    }
-  }, [includeNewClients]);
-
-  // Calculate display value (add new client count to numeric values)
-  let displayValue: string | number = value;
-  if (includeNewClients && newCount > 0 && typeof value === 'number') {
-    displayValue = value + newCount;
-  }
 
   const content = (
     <>
       <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 opacity-0 group-hover/card:opacity-100 transition-opacity" />
       {icon && <span className="text-lg mb-1 block">{icon}</span>}
       <p className={`text-xl font-extrabold ${valueColor} group-hover/card:text-purple-700 transition`}>
-        {displayValue}
-        {includeNewClients && newCount > 0 && <span className="text-[9px] font-medium text-purple-500 ml-1">+{newCount}</span>}
+        {value}
       </p>
       <p className="text-[10px] text-gray-500 uppercase tracking-wider mt-1 font-medium">{label}</p>
       {sub && <p className="text-[9px] text-gray-400 mt-0.5">{sub}</p>}

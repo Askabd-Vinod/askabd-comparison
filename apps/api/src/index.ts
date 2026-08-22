@@ -81,6 +81,20 @@ async function main(): Promise<void> {
   // This prevents intermittent first-request latency after cold start.
   await initializeDatabase();
 
+  // ─── Real Crash/Restart Recovery ───────────────────────────────────────────
+  // Any oc_operations row still marked 'running' at this point is real evidence that
+  // whatever process was executing it no longer exists (this fresh process never
+  // started it) — never left silently claiming "in progress" forever after an API
+  // restart. See operation-service.ts's recoverInterruptedOperations() for the
+  // honest 'interrupted' status this applies instead of guessing success or failure.
+  try {
+    const { operationService } = await import('./services/operation-service.js');
+    const recovered = await operationService.recoverInterruptedOperations();
+    if (recovered > 0) console.log(`[API] Recovered ${recovered} operation(s) interrupted by restart — marked 'interrupted', not left as fake "running"`);
+  } catch (err) {
+    console.error('[API] Operation recovery sweep failed (non-fatal):', (err as Error).message);
+  }
+
   // ─── Server Start ──────────────────────────────────────────────────────────
   const server = await createServer();
 

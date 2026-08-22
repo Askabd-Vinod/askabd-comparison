@@ -6,6 +6,11 @@ import { config } from './config/env.js';
 import { apiRoutes } from './routes/api-routes.js';
 import { operationsCenterRoutes } from './routes/operations-center-routes.js';
 import { platformServicesRoutes } from './routes/platform-services-routes.js';
+import { invitationRoutes } from './routes/invitation-routes.js';
+import { staffRoleRoutes } from './routes/staff-role-routes.js';
+import { crmRoutes } from './routes/crm-routes.js';
+import { clientRequestsRoutes } from './routes/client-requests-routes.js';
+import { clientDatabaseConnectionsRoutes } from './routes/client-database-connections-routes.js';
 import { registerAuthMiddleware } from './middleware/auth.js';
 import { registerRateLimitMiddleware } from './middleware/rate-limit.js';
 import { registerErrorHandler } from './middleware/error-handler.js';
@@ -56,7 +61,16 @@ export async function createServer(): Promise<FastifyInstance> {
   });
 
   // Authentication middleware (dev bypass when no JWT_SECRET configured)
-  registerAuthMiddleware(server, { publicRoutes: ['/health', '/ready', '/metrics', '/platform/startup', '/docs'] });
+  registerAuthMiddleware(server, {
+    publicRoutes: [
+      '/health', '/ready', '/metrics', '/platform/startup', '/docs',
+      // A brand-new customer has no token yet when they click their invitation link —
+      // the invitation's own token IS the authorization for these two specific
+      // actions (see routes/invitation-routes.ts). Every other invitation route
+      // (create/list/resend/revoke) stays authenticated + Admin.Access-gated.
+      '/api/v1/oc/invitations/lookup', '/api/v1/oc/invitations/accept',
+    ],
+  });
 
   // Authorization middleware (RBAC — evaluates route rules after auth)
   registerAuthorizationMiddleware(server, {
@@ -176,6 +190,11 @@ export async function createServer(): Promise<FastifyInstance> {
   });
   await server.register(apiRoutes, { prefix: '/api/v1' });
   await server.register(operationsCenterRoutes, { prefix: '/api/v1' });
+  await server.register(invitationRoutes, { prefix: '/api/v1' });
+  await server.register(staffRoleRoutes, { prefix: '/api/v1' });
+  await server.register(crmRoutes, { prefix: '/api/v1' });
+  await server.register(clientRequestsRoutes, { prefix: '/api/v1' });
+  await server.register(clientDatabaseConnectionsRoutes, { prefix: '/api/v1' });
   await server.register(platformServicesRoutes);
   return server;
 }

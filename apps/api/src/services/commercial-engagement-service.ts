@@ -90,13 +90,13 @@ export class CommercialEngagementService {
       clientId, data.name, data.description || null,
       data.engagementType || 'transformation', data.currency || 'USD',
       data.startDate || null, data.targetEndDate || null,
-      data.owner || null, data.createdBy || 'admin',
+      data.owner || null, data.createdBy || 'unknown-staff',
     ]);
     const engagement = rows[0];
 
     await this.audit.createAuditEntry({
       entityType: 'engagement', entityId: engagement.id, entityName: data.name,
-      action: 'created', actor: data.createdBy || 'admin',
+      action: 'created', actor: data.createdBy || 'unknown-staff',
       details: { clientId, engagementType: data.engagementType || 'transformation' },
       evidence: [`Engagement "${data.name}" created for client ${clientId}`],
     });
@@ -104,7 +104,7 @@ export class CommercialEngagementService {
     await this.workflow.emitEvent({
       eventType: 'ENGAGEMENT_CREATED', clientId,
       entityType: 'engagement', entityId: engagement.id, entityName: data.name,
-      actor: data.createdBy || 'admin', severity: 'info',
+      actor: data.createdBy || 'unknown-staff', severity: 'info',
       payload: { engagementType: data.engagementType || 'transformation' },
     });
 
@@ -179,7 +179,7 @@ export class CommercialEngagementService {
 
     if (transition.newStatus === 'approved') {
       updates.push(`approved_by = $${params.length + 1}`);
-      params.push(transition.actor || 'admin');
+      params.push(transition.actor || 'unknown-staff');
       updates.push(`approved_at = NOW()`);
     }
 
@@ -195,7 +195,7 @@ export class CommercialEngagementService {
 
     await this.audit.createAuditEntry({
       entityType: 'engagement', entityId: engagementId, entityName: engagement.name,
-      action: 'status_changed', actor: transition.actor || 'admin',
+      action: 'status_changed', actor: transition.actor || 'unknown-staff',
       details: { from: currentStatus, to: transition.newStatus, reason: transition.reason },
       evidence: [`Engagement status: ${currentStatus} → ${transition.newStatus}`],
     });
@@ -203,7 +203,7 @@ export class CommercialEngagementService {
     await this.workflow.emitEvent({
       eventType: 'ENGAGEMENT_STATUS_CHANGED', clientId,
       entityType: 'engagement', entityId: engagementId, entityName: engagement.name,
-      actor: transition.actor || 'admin', severity: 'info',
+      actor: transition.actor || 'unknown-staff', severity: 'info',
       payload: { from: currentStatus, to: transition.newStatus },
     });
 
@@ -214,7 +214,7 @@ export class CommercialEngagementService {
   // SERVICE SELECTION
   // ═══════════════════════════════════════════════════════════════════════════
 
-  async addService(engagementId: string, clientId: string, data: AddServiceInput) {
+  async addService(engagementId: string, clientId: string, data: AddServiceInput, actor: string = 'unknown-staff') {
     // Verify engagement exists and belongs to client
     const engagement = await this.getEngagement(engagementId, clientId);
     if (!engagement) return { success: false, error: 'engagement_not_found' };
@@ -308,7 +308,7 @@ export class CommercialEngagementService {
     // the commercial write (already committed above) as a failure to the caller.
     this.audit.createAuditEntry({
       entityType: 'engagement_service', entityId: service.id, entityName: capability.name,
-      action: 'service_selected', actor: 'admin',
+      action: 'service_selected', actor,
       details: { engagementId, serviceId: data.serviceId, bundleId: data.bundleId },
       evidence: [`Service "${capability.name}" added to engagement ${engagement.name}`],
     }).catch(() => {});
@@ -316,14 +316,14 @@ export class CommercialEngagementService {
     this.workflow.emitEvent({
       eventType: 'ENGAGEMENT_SERVICE_SELECTED', clientId,
       entityType: 'engagement_service', entityId: service.id, entityName: capability.name,
-      actor: 'admin', severity: 'info',
+      actor, severity: 'info',
       payload: { engagementId, serviceId: data.serviceId },
     }).catch(() => {});
 
     return { success: true, service };
   }
 
-  async removeService(engagementId: string, clientId: string, serviceId: string) {
+  async removeService(engagementId: string, clientId: string, serviceId: string, actor: string = 'unknown-staff') {
     const engagement = await this.getEngagement(engagementId, clientId);
     if (!engagement) return { success: false, error: 'engagement_not_found' };
 
@@ -372,7 +372,7 @@ export class CommercialEngagementService {
 
     this.audit.createAuditEntry({
       entityType: 'engagement_service', entityId: serviceId, entityName: serviceId,
-      action: 'service_removed', actor: 'admin',
+      action: 'service_removed', actor,
       details: { engagementId, serviceId },
       evidence: [`Service "${serviceId}" removed from engagement ${engagement.name}`],
     }).catch(() => {});
@@ -380,7 +380,7 @@ export class CommercialEngagementService {
     this.workflow.emitEvent({
       eventType: 'ENGAGEMENT_SERVICE_REMOVED', clientId,
       entityType: 'engagement_service', entityId: serviceId,
-      actor: 'admin', severity: 'info',
+      actor, severity: 'info',
       payload: { engagementId, serviceId },
     }).catch(() => {});
 
@@ -414,7 +414,7 @@ export class CommercialEngagementService {
     return rows[0] || null;
   }
 
-  async setPricing(engagementId: string, clientId: string, data: PricingInput) {
+  async setPricing(engagementId: string, clientId: string, data: PricingInput, actor: string = 'unknown-staff') {
     const engagement = await this.getEngagement(engagementId, clientId);
     if (!engagement) return { success: false, error: 'engagement_not_found' };
 
@@ -432,7 +432,7 @@ export class CommercialEngagementService {
 
     await this.audit.createAuditEntry({
       entityType: 'engagement_pricing', entityId: rows[0].id, entityName: engagement.name,
-      action: 'pricing_updated', actor: 'admin',
+      action: 'pricing_updated', actor,
       details: { engagementId, total, billingModel: data.billingModel || 'FIXED_PRICE' },
       evidence: [`Pricing set for engagement ${engagement.name}: ${engagement.currency} ${total}`],
     });
@@ -440,7 +440,7 @@ export class CommercialEngagementService {
     await this.workflow.emitEvent({
       eventType: 'PRICING_UPDATED', clientId,
       entityType: 'engagement_pricing', entityId: rows[0].id, entityName: engagement.name,
-      actor: 'admin', severity: 'info',
+      actor, severity: 'info',
       payload: { engagementId, total, currency: engagement.currency },
     });
 
@@ -533,7 +533,7 @@ export class CommercialEngagementService {
   // PROPOSALS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  async createProposal(engagementId: string, clientId: string, data: CreateProposalInput) {
+  async createProposal(engagementId: string, clientId: string, data: CreateProposalInput, actor: string = 'unknown-staff') {
     const engagement = await this.getEngagement(engagementId, clientId);
     if (!engagement) return { success: false, error: 'engagement_not_found' };
 
@@ -551,14 +551,14 @@ export class CommercialEngagementService {
     `, [
       engagementId, clientId, nextVersion,
       data.title || `Proposal for ${engagement.name}`,
-      data.createdBy || 'admin', data.validUntil || null,
+      data.createdBy || actor, data.validUntil || null,
     ]);
 
     const proposal = rows[0];
 
     await this.audit.createAuditEntry({
       entityType: 'proposal', entityId: proposal.id, entityName: proposal.title,
-      action: 'created', actor: data.createdBy || 'admin',
+      action: 'created', actor: data.createdBy || 'unknown-staff',
       details: { engagementId, version: nextVersion },
       evidence: [`Proposal v${nextVersion} created for engagement ${engagement.name}`],
     });
@@ -566,7 +566,7 @@ export class CommercialEngagementService {
     await this.workflow.emitEvent({
       eventType: 'PROPOSAL_CREATED', clientId,
       entityType: 'proposal', entityId: proposal.id, entityName: proposal.title,
-      actor: data.createdBy || 'admin', severity: 'info',
+      actor: data.createdBy || 'unknown-staff', severity: 'info',
       payload: { engagementId, version: nextVersion },
     });
 
@@ -611,7 +611,7 @@ export class CommercialEngagementService {
 
     if (newStatus === 'accepted') {
       updates.push(`approved_by = $${params.length + 1}`);
-      params.push(actor || 'admin');
+      params.push(actor || 'unknown-staff');
       updates.push(`approved_at = NOW()`);
     }
 
@@ -629,7 +629,7 @@ export class CommercialEngagementService {
 
     await this.audit.createAuditEntry({
       entityType: 'proposal', entityId: proposalId, entityName: proposal.title || '',
-      action: 'status_changed', actor: actor || 'admin',
+      action: 'status_changed', actor: actor || 'unknown-staff',
       details: { from: currentStatus, to: newStatus, version: proposal.version },
       evidence: [`Proposal status: ${currentStatus} → ${newStatus}`],
     });
@@ -637,7 +637,7 @@ export class CommercialEngagementService {
     await this.workflow.emitEvent({
       eventType, clientId: proposal.client_id,
       entityType: 'proposal', entityId: proposalId, entityName: proposal.title,
-      actor: actor || 'admin', severity: 'info',
+      actor: actor || 'unknown-staff', severity: 'info',
       payload: { from: currentStatus, to: newStatus, version: proposal.version },
     });
 

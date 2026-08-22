@@ -4,7 +4,9 @@
  * Persists results to PostgreSQL. Never modifies source systems.
  */
 
+import { randomUUID } from 'node:crypto';
 import { sharedPool } from './db-pool.js';
+import { getSecretProvider } from './secrets-provider.js';
 
 const dbPool = sharedPool;
 
@@ -34,16 +36,48 @@ export interface DiscoveryRun {
 export class DiscoveryService {
 
   /**
+   * Real, connected PostgreSQL connections from the multi-connection database
+   * feature (oc_client_database_connections — client-database-connection-service.ts),
+   * shaped to look like an oc_connectors row so discoverPostgreSQL() can use
+   * them unmodified. Added 2026-08-22 SDLC-completion pass: found that a
+   * client could have real, tested, currently-connected database connections
+   * (created via the actual Connector Configuration UI, using getSecretProvider()
+   * for real credential resolution — exactly like this service's password
+   * handling already does) and Discovery would still refuse to run, because it
+   * only ever looked at the separate, older oc_connectors catalog. This does
+   * not change oc_connectors behavior at all — it's purely additive.
+   */
+  private async getConnectedDatabaseConnections(clientId: string): Promise<{ provider: string; name: string; configuration: any }[]> {
+    try {
+      const res = await dbPool.query(
+        `SELECT name, host, port, database_name, username, password_ref FROM oc_client_database_connections WHERE client_id = $1 AND status = 'connected'`,
+        [clientId]
+      );
+      const out: { provider: string; name: string; configuration: any }[] = [];
+      for (const row of res.rows) {
+        const password = row.password_ref ? await getSecretProvider().getSecret(row.password_ref).catch(() => '') : '';
+        out.push({
+          provider: 'postgresql', name: row.name,
+          configuration: { host: row.host, port: row.port, database: row.database_name, username: row.username, password: password || '' },
+        });
+      }
+      return out;
+    } catch {
+      return [];
+    }
+  }
+
+  /**
    * Check if a client has the prerequisites for discovery
    */
   async checkPrerequisites(clientId: string): Promise<{ ready: boolean; missing: string[] }> {
     const missing: string[] = [];
     try {
-      const res = await dbPool.query(
-        "SELECT provider, status FROM oc_connectors WHERE client_id = $1 AND status = 'connected'",
-        [clientId]
-      );
-      if (res.rows.length === 0) {
+      const [connRes, dbConns] = await Promise.all([
+        dbPool.query("SELECT provider, status FROM oc_connectors WHERE client_id = $1 AND status = 'connected'", [clientId]),
+        this.getConnectedDatabaseConnections(clientId),
+      ]);
+      if (connRes.rows.length === 0 && dbConns.length === 0) {
         missing.push('No connected connectors. At least one validated connector is required.');
       }
     } catch {
@@ -54,17 +88,20 @@ export class DiscoveryService {
 
   /**
    * Start a discovery run for a client.
-   * Uses ONLY connectors with status='connected' in the database.
+   * Uses connectors with status='connected' in oc_connectors, PLUS any
+   * connected real database connections from oc_client_database_connections.
    */
   async startDiscovery(clientId: string): Promise<DiscoveryRun> {
-    const runId = `disc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    // randomUUID, not Math.random() — a genuinely collision-safe suffix.
+    const runId = `disc-${Date.now()}-${randomUUID().replace(/-/g, '').slice(0, 8)}`;
     const startedAt = new Date().toISOString();
 
     // Get connected connectors from database
-    const connRes = await dbPool.query(
-      "SELECT provider, configuration FROM oc_connectors WHERE client_id = $1 AND status = 'connected'",
-      [clientId]
-    );
+    const [connResRaw, dbConnections] = await Promise.all([
+      dbPool.query("SELECT provider, name, configuration FROM oc_connectors WHERE client_id = $1 AND status = 'connected'", [clientId]),
+      this.getConnectedDatabaseConnections(clientId),
+    ]);
+    const connRes = { rows: [...connResRaw.rows, ...dbConnections] };
 
     if (connRes.rows.length === 0) {
       const failedRun: DiscoveryRun = {
@@ -78,7 +115,7 @@ export class DiscoveryService {
       return failedRun;
     }
 
-    const connectorsUsed = connRes.rows.map((r: any) => r.provider);
+    const connectorsUsed = connRes.rows.map((r: any) => r.name || r.provider);
     const resources: DiscoveredResource[] = [];
     const evidence: string[] = [`Discovery started at ${startedAt}`, `Connectors: ${connectorsUsed.join(', ')}`];
     let warnings = 0;
@@ -86,13 +123,14 @@ export class DiscoveryService {
 
     // Execute discovery for each connected provider
     for (const row of connRes.rows) {
+      const label = row.name || row.provider;
       try {
         const providerResources = await this.discoverProvider(row.provider, row.configuration, clientId);
         resources.push(...providerResources);
-        evidence.push(`${row.provider}: ${providerResources.length} resources discovered`);
+        evidence.push(`${label}: ${providerResources.length} resources discovered`);
       } catch (err) {
         errors++;
-        evidence.push(`${row.provider}: Discovery failed — ${(err as Error).message}`);
+        evidence.push(`${label}: Discovery failed — ${(err as Error).message}`);
       }
     }
 

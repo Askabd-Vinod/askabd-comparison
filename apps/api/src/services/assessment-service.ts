@@ -4,6 +4,7 @@
  * Every finding must reference discovery evidence.
  */
 
+import { randomUUID } from 'node:crypto';
 import { sharedPool } from './db-pool.js';
 
 const dbPool = sharedPool;
@@ -39,7 +40,9 @@ export class AssessmentService {
    * Start an assessment based on a discovery run's results
    */
   async startAssessment(clientId: string, discoveryRunId: string): Promise<AssessmentResult> {
-    const assessmentId = `assess-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    // randomUUID, not Math.random() — a genuinely collision-safe suffix, not a
+    // weak pseudo-random one (found during a fabrication/ID-safety sweep).
+    const assessmentId = `assess-${Date.now()}-${randomUUID().replace(/-/g, '').slice(0, 8)}`;
     const startedAt = new Date().toISOString();
 
     // Load discovery results

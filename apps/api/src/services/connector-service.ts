@@ -26,6 +26,8 @@ export interface ValidationStep {
 export interface ConnectionTestResult {
   provider: string;
   clientId: string;
+  /** Set by testConnection() after dispatch — see ConnectorConfig.name. */
+  name?: string;
   status: 'connected' | 'failed' | 'partial';
   steps: ValidationStep[];
   testedAt: string;
@@ -38,6 +40,14 @@ export interface ConnectorConfig {
   provider: string;
   clientId: string;
   fields: Record<string, string>;
+  /**
+   * Real multi-instance support (migration 035): identifies WHICH connection
+   * of this provider type this is — a client can have "AWS Production" and
+   * "AWS Development" simultaneously, each a distinct named instance.
+   * Defaults to the provider id itself, preserving the exact previous
+   * single-instance behavior for every existing caller that doesn't pass one.
+   */
+  name?: string;
 }
 
 export class ConnectorService {
@@ -49,6 +59,10 @@ export class ConnectorService {
    */
   async testConnection(config: ConnectorConfig): Promise<ConnectionTestResult> {
     const { provider, clientId, fields } = config;
+    // Real multi-instance identity — defaults to the provider id itself, so every
+    // existing single-instance caller (never passing `name`) behaves identically
+    // to before this migration.
+    const name = config.name?.trim() || provider;
 
     let result: ConnectionTestResult;
     switch (provider.toLowerCase()) {
@@ -71,6 +85,7 @@ export class ConnectorService {
         result = await this.testGeneric(provider, clientId, fields);
         break;
     }
+    result.name = name;
 
     // Persist to database
     await this.persistResult(result, fields).catch(() => { /* non-blocking */ });
@@ -83,9 +98,20 @@ export class ConnectorService {
    */
   async getConnectors(clientId: string): Promise<any[]> {
     try {
-      const res = await dbPool.query('SELECT id, provider, status, security_level, configuration, last_tested_at, last_test_duration_ms, last_test_mode, validation_steps, error_message, updated_at FROM oc_connectors WHERE client_id = $1 ORDER BY provider', [clientId]);
+      const res = await dbPool.query('SELECT id, provider, name, status, security_level, configuration, last_tested_at, last_test_duration_ms, last_test_mode, validation_steps, error_message, updated_at FROM oc_connectors WHERE client_id = $1 ORDER BY provider, name', [clientId]);
       return res.rows;
     } catch { return []; }
+  }
+
+  /**
+   * Real removal — a client may configure a connector instance and later decide
+   * it's no longer needed (e.g. a decommissioned AWS Dev account). Scoped by
+   * clientId as well as id so a caller can never remove another client's row by
+   * guessing an opaque connector id.
+   */
+  async removeConnector(id: string, clientId: string): Promise<boolean> {
+    const res = await dbPool.query('DELETE FROM oc_connectors WHERE id = $1 AND client_id = $2', [id, clientId]);
+    return (res.rowCount ?? 0) > 0;
   }
 
   /**
@@ -107,7 +133,7 @@ export class ConnectorService {
   /**
    * Save connector configuration (non-secret fields only)
    */
-  async saveConfiguration(clientId: string, provider: string, fields: Record<string, string>, securityLevel: string = 'read-only'): Promise<void> {
+  async saveConfiguration(clientId: string, provider: string, fields: Record<string, string>, securityLevel: string = 'read-only', name?: string): Promise<void> {
     // Strip sensitive fields before persisting
     const safeFields: Record<string, string> = {};
     for (const [k, v] of Object.entries(fields)) {
@@ -117,25 +143,27 @@ export class ConnectorService {
         safeFields[k] = v ? '••••••••' : ''; // Mask but indicate presence
       }
     }
+    const resolvedName = name?.trim() || provider;
 
     await dbPool.query(`
-      INSERT INTO oc_connectors (client_id, provider, status, security_level, configuration, updated_at)
-      VALUES ($1, $2, 'configured', $3, $4, NOW())
-      ON CONFLICT (client_id, provider) DO UPDATE SET
-        status = 'configured', configuration = $4, security_level = $3, updated_at = NOW()
-    `, [clientId, provider, securityLevel, JSON.stringify(safeFields)]);
+      INSERT INTO oc_connectors (client_id, provider, name, status, security_level, configuration, updated_at)
+      VALUES ($1, $2, $3, 'configured', $4, $5, NOW())
+      ON CONFLICT (client_id, provider, name) DO UPDATE SET
+        status = 'configured', configuration = $5, security_level = $4, updated_at = NOW()
+    `, [clientId, provider, resolvedName, securityLevel, JSON.stringify(safeFields)]);
   }
 
   private async persistResult(result: ConnectionTestResult, _fields: Record<string, string>): Promise<void> {
     const { provider, clientId, status, steps, totalDurationMs, error, mode } = result;
+    const name = result.name?.trim() || provider;
 
     // Update connector status
     await dbPool.query(`
-      INSERT INTO oc_connectors (client_id, provider, status, last_tested_at, last_test_duration_ms, last_test_mode, validation_steps, error_message, updated_at)
-      VALUES ($1, $2, $3, NOW(), $4, $5, $6, $7, NOW())
-      ON CONFLICT (client_id, provider) DO UPDATE SET
-        status = $3, last_tested_at = NOW(), last_test_duration_ms = $4, last_test_mode = $5, validation_steps = $6, error_message = $7, updated_at = NOW()
-    `, [clientId, provider, status, totalDurationMs, mode, JSON.stringify(steps), error || '']);
+      INSERT INTO oc_connectors (client_id, provider, name, status, last_tested_at, last_test_duration_ms, last_test_mode, validation_steps, error_message, updated_at)
+      VALUES ($1, $2, $3, $4, NOW(), $5, $6, $7, $8, NOW())
+      ON CONFLICT (client_id, provider, name) DO UPDATE SET
+        status = $4, last_tested_at = NOW(), last_test_duration_ms = $5, last_test_mode = $6, validation_steps = $7, error_message = $8, updated_at = NOW()
+    `, [clientId, provider, name, status, totalDurationMs, mode, JSON.stringify(steps), error || '']);
 
     // Insert test history
     await dbPool.query(`

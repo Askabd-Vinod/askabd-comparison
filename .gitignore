@@ -10,3 +10,11 @@ dist/
 .env.*.local
 !.env.example
 !.env.staging.example
+
+# Local upload storage (real client files — never commit)
+apps/api/uploads/
+
+# Terraform local cache/providers — never commit
+infra/aws/.terraform/
+*.tfstate
+*.tfstate.*

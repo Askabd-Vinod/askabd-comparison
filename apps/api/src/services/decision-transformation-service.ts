@@ -92,12 +92,12 @@ export class DecisionTransformationService {
 
   // ─── DECISIONS ──────────────────────────────────────────────────────────────
 
-  async createDecision(gapId: string, clientId: string, data: Partial<Decision>): Promise<Decision> {
+  async createDecision(gapId: string, clientId: string, data: Partial<Decision>, actor: string = 'unknown-staff'): Promise<Decision> {
     if (data.selectedOptionId) await this.selectOption(gapId, data.selectedOptionId);
     const { rows } = await sharedPool.query(`
       INSERT INTO oc_decisions (gap_id, client_id, selected_option_id, decision_maker, rationale, alternatives_considered, risks_accepted, assumptions, evidence, status)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *
-    `, [gapId, clientId, data.selectedOptionId, data.decisionMaker || 'admin', data.rationale,
+    `, [gapId, clientId, data.selectedOptionId, data.decisionMaker || actor, data.rationale,
       JSON.stringify(data.alternativesConsidered || []), JSON.stringify(data.risksAccepted || []),
       JSON.stringify([]), JSON.stringify([]), data.status || 'approved']);
     return this.mapDecision(rows[0]);
@@ -136,7 +136,18 @@ export class DecisionTransformationService {
   }
 
   async updateTransformationStatus(id: string, status: string, outcome?: string): Promise<Transformation | null> {
-    const updates = status === 'completed' ? 'status = $1, actual_outcome = $2, completed_at = NOW(), updated_at = NOW()' : status === 'in_progress' ? 'status = $1, started_at = COALESCE(started_at, NOW()), updated_at = NOW()' : 'status = $1, updated_at = NOW()';
+    // Found during the 2026-08-22 live browser UAT: the 'in_progress' (and
+    // default) branches never referenced $2 in their SQL text even though it
+    // was still bound in the params array — Postgres can't infer an unused
+    // placeholder's type ("could not determine data type of parameter $2"),
+    // so every "Start" click failed with a real 500. Every branch now
+    // references $2 (explicitly cast, since NULL alone is also untypeable)
+    // via a no-op COALESCE when no outcome is given, so it's always well-typed.
+    const updates = status === 'completed'
+      ? 'status = $1, actual_outcome = COALESCE($2::text, actual_outcome), completed_at = NOW(), updated_at = NOW()'
+      : status === 'in_progress'
+      ? 'status = $1, actual_outcome = COALESCE($2::text, actual_outcome), started_at = COALESCE(started_at, NOW()), updated_at = NOW()'
+      : 'status = $1, actual_outcome = COALESCE($2::text, actual_outcome), updated_at = NOW()';
     const { rows } = await sharedPool.query(`UPDATE oc_transformations SET ${updates} WHERE id = $3 RETURNING *`, [status, outcome || null, id]);
     return rows.length > 0 ? this.mapTransformation(rows[0]) : null;
   }

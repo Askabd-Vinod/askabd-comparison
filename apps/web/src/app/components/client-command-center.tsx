@@ -6,12 +6,17 @@ import {
   type LifecycleState, type LifecycleStatus
 } from '../lib/onboarding-lifecycle';
 import {
-  calculateClientDeliveryStatus, getServiceForStatus, connectorRequirements,
-  type ClientDeliveryStatus, type RequiredConnector, type ServiceRequirement
+  calculateClientDeliveryStatus, getServiceForStatus,
+  type ClientDeliveryStatus, type ServiceRequirement
 } from '../lib/service-readiness';
 import { logAuditEvent } from '../lib/operations-api';
 import { RequirementWorkspace } from './requirement-workspace';
 import { PhaseHeader, type PhaseStatus } from './phase-header';
+
+interface RelevantConnector {
+  connectorId: string; connectorName: string; category: string;
+  classification: 'required' | 'optional'; status: string; lastTestedAt: string | null;
+}
 
 /** Maps the real 27-stage lifecycle model onto the shared PhaseHeader's fixed
  *  status vocabulary. The lifecycle itself has no "blocked" concept today —
@@ -31,9 +36,7 @@ interface Props {
 export function ClientCommandCenter({ clientId, clientName }: Props) {
   const [state, setState] = useState<LifecycleState | null>(null);
   const [delivery, setDelivery] = useState<ClientDeliveryStatus | null>(null);
-  const [connStates, setConnStates] = useState<Record<string, 'not-configured' | 'configured' | 'testing' | 'connected' | 'failed'>>({});
-  const [connFields, setConnFields] = useState<Record<string, Record<string, string>>>({});
-  const [testResult, setTestResult] = useState<Record<string, { checks: { step: string; pass: boolean }[]; error?: string; mode?: 'real' | 'demo' }>>({});
+  const [relevantConnectors, setRelevantConnectors] = useState<RelevantConnector[] | null>(null);
 
   useEffect(() => {
     const ls = getLifecycleState(clientId);
@@ -48,11 +51,14 @@ export function ClientCommandCenter({ clientId, clientName }: Props) {
         setDelivery(calculateClientDeliveryStatus(clientId, clientName, serverState.status));
       }
     });
-    // Load saved connector states
-    try {
-      const saved = localStorage.getItem(`askabd-conn-${clientId}`);
-      if (saved) { const p = JSON.parse(saved); setConnStates(p.states || {}); setConnFields(p.fields || {}); }
-    } catch { /* skip */ }
+    // Real, per-client connector relevance — the same authoritative source
+    // (ServiceRequirementMatrixService) the dedicated /clients/:id/connectors page uses.
+    // Never the static, generic per-lifecycle-stage list this component used to show.
+    const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4200';
+    fetch(`${API}/api/v1/oc/clients/${clientId}/onboarding/requirements`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => { if (data) setRelevantConnectors(data.relevantConnectors || []); })
+      .catch(() => { /* leave null — rendered as "not yet available", never fabricated */ });
   }, [clientId, clientName]);
 
   if (!state || !delivery) {
@@ -78,81 +84,6 @@ export function ClientCommandCenter({ clientId, clientName }: Props) {
     automatic: 'AUTOMATIC',
     approval: 'APPROVAL REQUIRED',
   };
-
-  function saveConnState(newStates: typeof connStates, newFields: typeof connFields) {
-    setConnStates(newStates);
-    setConnFields(newFields);
-    localStorage.setItem(`askabd-conn-${clientId}`, JSON.stringify({ states: newStates, fields: newFields }));
-  }
-
-  function handleFieldChange(provider: string, field: string, value: string) {
-    const next = { ...connFields, [provider]: { ...(connFields[provider] || {}), [field]: value } };
-    setConnFields(next);
-  }
-
-  async function testConnection(conn: RequiredConnector) {
-    const fields = connFields[conn.provider] || {};
-    const newStates = { ...connStates, [conn.provider]: 'testing' as const };
-    saveConnState(newStates, connFields);
-    setTestResult(prev => ({ ...prev, [conn.provider]: undefined as any }));
-
-    // Call REAL backend API for connection testing
-    const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4200';
-    try {
-      const res = await fetch(`${API}/api/v1/oc/connectors/test`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider: conn.provider, clientId, fields }),
-      });
-
-      if (res.ok) {
-        const result = await res.json();
-        const finalState = result.status === 'connected' ? 'connected' : 'failed';
-        const finalStates = { ...connStates, [conn.provider]: finalState as any };
-        saveConnState(finalStates, connFields);
-        setTestResult(prev => ({
-          ...prev,
-          [conn.provider]: {
-            checks: result.steps.map((s: any) => ({ step: s.step, pass: s.pass, error: s.error })),
-            error: result.error,
-            mode: result.mode,
-          }
-        }));
-      } else {
-        const finalStates = { ...connStates, [conn.provider]: 'failed' as any };
-        saveConnState(finalStates, connFields);
-        setTestResult(prev => ({ ...prev, [conn.provider]: { checks: [{ step: 'API Request', pass: false }], error: 'Connection test API returned an error' } }));
-      }
-    } catch (err) {
-      // Retry once silently before showing error
-      try {
-        await new Promise(r => setTimeout(r, 2000));
-        const retryRes = await fetch(API + '/api/v1/oc/connectors/test', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ provider: conn.provider, clientId, fields: connFields[conn.provider] || {} }),
-        });
-        if (retryRes.ok) {
-          const result = await retryRes.json();
-          const finalState = result.status === 'connected' ? 'connected' : 'failed';
-          const finalStates = { ...connStates, [conn.provider]: finalState as any };
-          saveConnState(finalStates, connFields);
-          setTestResult(prev => ({
-            ...prev,
-            [conn.provider]: {
-              checks: result.steps.map((s: any) => ({ step: s.step, pass: s.pass, error: s.error })),
-              error: result.error,
-              mode: result.mode,
-            }
-          }));
-          return;
-        }
-      } catch { /* retry also failed */ }
-      const finalStates = { ...connStates, [conn.provider]: 'failed' as any };
-      saveConnState(finalStates, connFields);
-      setTestResult(prev => ({ ...prev, [conn.provider]: { checks: [{ step: 'Connectivity', pass: false }], error: 'Service temporarily unavailable. Please wait and retry.' } }));
-    }
-  }
 
   // Check if lifecycle page has actionable phase
   const lifecycleUrl = `/clients/${clientId}/lifecycle`;
@@ -224,88 +155,33 @@ export function ClientCommandCenter({ clientId, clientName }: Props) {
         <RequirementWorkspace clientId={clientId} serviceId={currentService.serviceId} serviceName={currentService.serviceName} />
       )}
 
-      {/* Required Connections — Configuration & Testing */}
-      {currentService && currentService.requiredConnectors.length > 0 && (
+      {/* Required Connections — real, per-client relevance (never a generic static list).
+          Configuration and live testing happen on the dedicated Connectors page, which
+          already owns that real workflow — this is a status summary, not a second UI. */}
+      {relevantConnectors === null ? null : relevantConnectors.length === 0 ? (
         <div className="bg-white rounded-xl border p-5">
-          <h4 className="text-xs font-bold text-gray-900 mb-3">🔌 Required Connections</h4>
-          <div className="space-y-4">
-            {currentService.requiredConnectors.map((conn) => {
-              const cState = connStates[conn.provider] || 'not-configured';
-              const fields = connFields[conn.provider] || {};
-              const results = testResult[conn.provider];
-              return (
-                <div key={conn.provider} className={`rounded-lg border p-4 ${cState === 'connected' ? 'border-green-200 bg-green-50/30' : cState === 'failed' ? 'border-red-200 bg-red-50/30' : 'border-gray-200'}`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <p className="text-xs font-bold text-gray-800">{conn.provider}</p>
-                      <p className="text-[10px] text-gray-500">{conn.purpose}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-[8px] font-bold uppercase px-1.5 py-0.5 rounded ${conn.securityLevel === 'read-only' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>{conn.securityLevel}</span>
-                      <span className={`w-2.5 h-2.5 rounded-full ${cState === 'connected' ? 'bg-green-500' : cState === 'failed' ? 'bg-red-500' : cState === 'testing' ? 'bg-yellow-500 animate-pulse' : 'bg-gray-300'}`} />
-                      <span className={`text-[9px] font-medium ${cState === 'connected' ? 'text-green-600' : cState === 'failed' ? 'text-red-600' : cState === 'testing' ? 'text-yellow-600' : 'text-gray-400'}`}>
-                        {cState === 'connected' ? 'Connected' : cState === 'failed' ? 'Failed' : cState === 'testing' ? 'Testing...' : cState === 'configured' ? 'Configured' : 'Not Configured'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Why needed */}
-                  <p className="text-[9px] text-gray-500 mb-3 italic">{conn.whyNeeded}</p>
-
-                  {/* Configuration Fields */}
-                  <div className="grid grid-cols-2 gap-2 mb-3">
-                    {conn.requiredFields.map(f => (
-                      <div key={f.field}>
-                        <label className="text-[9px] text-gray-500 font-medium">{f.label}</label>
-                        <input
-                          type={f.sensitive ? 'password' : 'text'}
-                          placeholder={f.placeholder}
-                          value={fields[f.field] || ''}
-                          onChange={e => handleFieldChange(conn.provider, f.field, e.target.value)}
-                          className="w-full mt-0.5 border rounded px-2 py-1 text-[10px] focus:ring-1 focus:ring-purple-500 focus:border-purple-500"
-                        />
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Test Connection Button */}
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => testConnection(conn)}
-                      disabled={cState === 'testing'}
-                      className="text-[10px] font-semibold bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white px-3 py-1.5 rounded transition"
-                    >
-                      {cState === 'testing' ? 'Testing...' : 'Test Connection'}
-                    </button>
-                    {cState === 'configured' || Object.keys(fields).length > 0 ? (
-                      <button onClick={() => { const ns = {...connStates, [conn.provider]: 'configured' as const}; saveConnState(ns, connFields); }} className="text-[10px] text-gray-500 hover:text-gray-700">Save Configuration</button>
-                    ) : null}
-                  </div>
-
-                  {/* Validation Results */}
-                  {results && (
-                    <div className="mt-3 pt-2 border-t space-y-1">
-                      {results.mode && <p className="text-[8px] font-bold uppercase text-gray-400 mb-1">{results.mode === 'demo' ? '⚠ DEMO MODE — SIMULATED' : '✓ REAL VALIDATION'}</p>}
-                      {results.checks.map((c: any, i: number) => (
-                        <div key={i} className="flex items-center gap-2 text-[9px]">
-                          <span className={`w-3 h-3 rounded-full flex items-center justify-center ${c.pass ? 'bg-green-500' : 'bg-red-500'}`}>
-                            <span className="text-white text-[7px] font-bold">{c.pass ? '✓' : '✗'}</span>
-                          </span>
-                          <span className={c.pass ? 'text-green-700' : 'text-red-700'}>{c.step}</span>
-                          <span className={`ml-auto font-medium ${c.pass ? 'text-green-600' : 'text-red-600'}`}>{c.pass ? 'PASS' : 'FAIL'}</span>
-                        </div>
-                      ))}
-                      {results.error && (
-                        <div className="mt-2 bg-red-50 border border-red-200 rounded p-2">
-                          <p className="text-[9px] text-red-700 font-medium">Failed: {results.error}</p>
-                          <p className="text-[9px] text-red-600 mt-0.5">Resolution: Verify credentials, network access, and permissions. Then retry.</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
+          <h4 className="text-xs font-bold text-gray-900 mb-1">🔌 Required Connections</h4>
+          <p className="text-[10px] text-gray-500">Not yet available — no services are confirmed for this client yet, so no connector requirements have been calculated.</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-xs font-bold text-gray-900">🔌 Required Connections</h4>
+            <Link href={`/clients/${clientId}/connectors`} className="text-[10px] font-semibold text-purple-600 hover:text-purple-800">Configure & Test →</Link>
+          </div>
+          <div className="space-y-1.5">
+            {relevantConnectors.map(conn => (
+              <div key={conn.connectorId} className="flex items-center justify-between text-[10px] py-1 border-b border-gray-50 last:border-0">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${conn.status === 'connected' ? 'bg-green-500' : conn.status === 'failed' ? 'bg-red-500' : 'bg-gray-300'}`} />
+                  <span className="font-medium text-gray-700">{conn.connectorName}</span>
+                  {conn.classification === 'required' && <span className="text-[7px] font-bold text-red-500 bg-red-50 px-1 rounded">REQ</span>}
                 </div>
-              );
-            })}
+                <span className={`font-medium ${conn.status === 'connected' ? 'text-green-600' : conn.status === 'failed' ? 'text-red-600' : 'text-gray-400'}`}>
+                  {conn.status === 'connected' ? 'Connected' : conn.status === 'failed' ? 'Failed' : conn.status === 'not_configured' ? 'Not configured' : conn.status}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -317,6 +193,7 @@ export function ClientCommandCenter({ clientId, clientName }: Props) {
         </Link>
         <Link href={`/clients/${clientId}/services`} className="text-xs text-gray-600 hover:text-purple-600 font-medium">Services</Link>
         <Link href={`/clients/${clientId}/connectors`} className="text-xs text-gray-600 hover:text-purple-600 font-medium">Connectors</Link>
+        <Link href={`/clients/${clientId}/invitations`} className="text-xs text-gray-600 hover:text-purple-600 font-medium">Invitations</Link>
         <Link href={`/clients/${clientId}/edit`} className="text-xs text-gray-600 hover:text-purple-600 font-medium">Edit Client</Link>
       </div>
     </div>

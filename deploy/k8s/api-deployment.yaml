@@ -29,16 +29,26 @@ spec:
             secretKeyRef:
               name: comparison-secrets
               key: database-url
-        # Without this, NODE_ENV=production still correctly fails closed (401 on every
-        # authenticated request, never a DEV-bypass fallback — see
-        # apps/api/src/middleware/auth.ts) but authentication would be entirely unusable
-        # in this deployment, since no verification key was ever wired in. See
-        # deploy/k8s/secrets.yaml for the placeholder this references.
+        # Without at least one of JWT_SECRET / JWKS_URL, NODE_ENV=production still
+        # correctly fails closed (401 on every authenticated request, never a DEV-bypass
+        # fallback — see apps/api/src/middleware/auth.ts) but authentication would be
+        # entirely unusable. JWKS_URL is the real path for the actual askabd-identity
+        # service (EdDSA-signed tokens — JWT_SECRET/HS256 can never verify them; see
+        # deploy/k8s/secrets.yaml). auth.ts checks jwksUrl first when both are set.
         - name: JWT_SECRET
           valueFrom:
             secretKeyRef:
               name: comparison-secrets
               key: jwt-secret
+        - name: JWKS_URL
+          valueFrom:
+            secretKeyRef:
+              name: comparison-secrets
+              key: jwks-url
+        - name: JWT_ISSUER
+          value: "askabd-identity"
+        - name: JWT_AUDIENCE
+          value: "askabd-platform"
         - name: GATEWAY_URL
           value: "http://gateway-service:3000"
         resources:
