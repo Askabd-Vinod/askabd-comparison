@@ -35,6 +35,28 @@ export async function discoveryIntakeRoutes(server: FastifyInstance): Promise<vo
     reply.status(201).send({ source });
   });
 
+  // Real document/file ingestion (migration 045) — @fastify/multipart is
+  // registered globally in server.ts (20MB limit, matching this route's
+  // own check in the service layer).
+  server.post('/oc/clients/:clientId/discovery-sources/document', async (req: FastifyRequest, reply: FastifyReply) => {
+    const { clientId } = req.params as { clientId: string };
+    const data = await (req as any).file();
+    if (!data) return reply.status(400).send({ error: { code: 'missing_file', message: 'No file provided' } });
+
+    const chunks: Buffer[] = [];
+    for await (const chunk of data.file) chunks.push(chunk as Buffer);
+    const buffer = Buffer.concat(chunks);
+
+    const title = (data.fields?.title?.value as string) || data.filename || 'Untitled document';
+    const auth = getAuth(req);
+    try {
+      const source = await service.submitDocument(clientId, { title, fileName: data.filename || 'unnamed', mimeType: data.mimetype || 'application/octet-stream', buffer }, auth?.userId ?? null);
+      reply.status(201).send({ source });
+    } catch (err) {
+      reply.status(400).send({ error: { code: 'invalid_document', message: (err as Error).message } });
+    }
+  });
+
   server.get('/oc/discovery-sources/:id', async (req: FastifyRequest, reply: FastifyReply) => {
     const { id } = req.params as { id: string };
     const source = await service.getSource(id);

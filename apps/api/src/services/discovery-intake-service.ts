@@ -16,8 +16,20 @@
  * (traceability-engine.ts), so a later Business Requirement created from
  * this source can trace all the way back to the original client narrative.
  */
+import { Readable } from 'node:stream';
 import { sharedPool } from './db-pool.js';
 import { TraceabilityEngine } from './traceability-engine.js';
+import { DocumentStorageService } from './document-storage-service.js';
+
+export type ExtractionStatus = 'not_applicable' | 'extracted' | 'not_supported' | 'failed';
+
+// Real, honest scope limit (see migration 045's own doc comment): no
+// PDF/DOCX/XLSX parser exists anywhere in this codebase yet. Real text
+// extraction here covers only formats that are already text — everything
+// else is stored for real but honestly marked 'not_supported', never faked.
+const ALLOWED_MIME_TYPES = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain', 'text/csv', 'image/png', 'image/jpeg'];
+const TEXT_EXTRACTABLE_MIME_TYPES = new Set(['text/plain', 'text/csv']);
+const MAX_DOCUMENT_SIZE_BYTES = 20 * 1024 * 1024; // matches the existing onboarding-document upload limit
 
 /**
  * A distinct error class rather than string-matching the message (e.g.
@@ -49,6 +61,12 @@ export interface DiscoverySource {
   rawContent: string;
   status: SourceStatus;
   submittedBy: string | null;
+  storageReference: string | null;
+  originalFileName: string | null;
+  mimeType: string | null;
+  fileSize: number | null;
+  checksum: string | null;
+  extractionStatus: ExtractionStatus;
   createdAt: string;
   updatedAt: string;
 }
@@ -68,6 +86,8 @@ export interface DiscoveryExtraction {
 type SourceRow = {
   id: string; client_id: string; source_type: SourceType; title: string; raw_content: string;
   status: SourceStatus; submitted_by: string | null; created_at: Date; updated_at: Date;
+  storage_reference: string | null; original_file_name: string | null; mime_type: string | null;
+  file_size: number | null; checksum: string | null; extraction_status: ExtractionStatus;
 };
 type ExtractionRow = {
   id: string; source_id: string; client_id: string; field_name: string; field_value: string;
@@ -78,6 +98,8 @@ function toSource(r: SourceRow): DiscoverySource {
   return {
     id: r.id, clientId: r.client_id, sourceType: r.source_type, title: r.title, rawContent: r.raw_content,
     status: r.status, submittedBy: r.submitted_by, createdAt: r.created_at.toISOString(), updatedAt: r.updated_at.toISOString(),
+    storageReference: r.storage_reference, originalFileName: r.original_file_name, mimeType: r.mime_type,
+    fileSize: r.file_size, checksum: r.checksum, extractionStatus: r.extraction_status || 'not_applicable',
   };
 }
 function toExtraction(r: ExtractionRow): DiscoveryExtraction {
@@ -123,6 +145,61 @@ export class DiscoveryIntakeService {
     if (!row) throw new Error('discovery_sources insert returned no row');
     const source = toSource(row);
     await audit(source.id, 'discovery_source.submitted', submittedBy, { clientId, sourceType: source.sourceType });
+    return source;
+  }
+
+  /**
+   * Universal Discovery — real document/file ingestion (migration 045).
+   * Stores the real file (checksum, size, real bytes via the shared
+   * DocumentStorageService), and extracts real text ONLY for formats that
+   * need no new parsing dependency (plain text, CSV — already text). Every
+   * other allowed format is stored for real but honestly marked
+   * extraction_status='not_supported' — never a fabricated or silently
+   * empty extraction. See migration 045's own doc comment for the full
+   * scope rationale.
+   */
+  async submitDocument(clientId: string, input: { title: string; fileName: string; mimeType: string; buffer: Buffer }, submittedBy: string | null): Promise<DiscoverySource> {
+    if (!ALLOWED_MIME_TYPES.includes(input.mimeType)) {
+      throw new Error(`File type ${input.mimeType} is not allowed. Accepted: PDF, DOCX, PNG, JPEG, TXT, CSV.`);
+    }
+    if (input.buffer.length > MAX_DOCUMENT_SIZE_BYTES) {
+      throw new Error('File too large. Maximum size is 20 MB.');
+    }
+
+    const created = await sharedPool.query<SourceRow>(
+      `INSERT INTO discovery_sources (client_id, source_type, title, raw_content, submitted_by)
+       VALUES ($1, 'document', $2, '', $3) RETURNING *`,
+      [clientId, input.title.trim(), submittedBy]
+    );
+    const createdRow = created.rows[0];
+    if (!createdRow) throw new Error('discovery_sources insert returned no row');
+    const sourceId = createdRow.id;
+
+    const storage = new DocumentStorageService();
+    const stored = await storage.saveDiscoveryDocument(clientId, sourceId, input.fileName, Readable.from(input.buffer));
+
+    let extractionStatus: ExtractionStatus;
+    let rawContent = '';
+    if (TEXT_EXTRACTABLE_MIME_TYPES.has(input.mimeType)) {
+      try {
+        rawContent = input.buffer.toString('utf-8');
+        extractionStatus = 'extracted';
+      } catch {
+        extractionStatus = 'failed';
+      }
+    } else {
+      extractionStatus = 'not_supported';
+    }
+
+    const updated = await sharedPool.query<SourceRow>(
+      `UPDATE discovery_sources SET storage_reference = $1, original_file_name = $2, mime_type = $3, file_size = $4, checksum = $5, extraction_status = $6, raw_content = $7, updated_at = NOW()
+       WHERE id = $8 RETURNING *`,
+      [stored.storageReference, input.fileName, input.mimeType, stored.fileSize, stored.checksum, extractionStatus, rawContent, sourceId]
+    );
+    const updatedRow = updated.rows[0];
+    if (!updatedRow) throw new Error('discovery_sources update returned no row');
+    const source = toSource(updatedRow);
+    await audit(source.id, 'discovery_source.document_uploaded', submittedBy, { clientId, mimeType: input.mimeType, fileSize: stored.fileSize, extractionStatus });
     return source;
   }
 

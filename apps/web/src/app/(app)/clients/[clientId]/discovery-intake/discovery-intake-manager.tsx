@@ -8,10 +8,21 @@ export type SourceType = 'free_text' | 'document' | 'meeting_notes' | 'email' | 
 export type SourceStatus = 'submitted' | 'reviewed' | 'archived';
 export type ExtractionConfidence = 'high' | 'medium' | 'low' | 'unverified';
 
+export type ExtractionStatus = 'not_applicable' | 'extracted' | 'not_supported' | 'failed';
+
 export interface DiscoverySource {
   id: string; clientId: string; sourceType: SourceType; title: string; rawContent: string;
   status: SourceStatus; submittedBy: string | null; createdAt: string; updatedAt: string;
+  originalFileName?: string | null; mimeType?: string | null; fileSize?: number | null;
+  extractionStatus?: ExtractionStatus;
 }
+
+const EXTRACTION_STATUS_META: Record<ExtractionStatus, { label: string; className: string }> = {
+  not_applicable: { label: 'Text', className: 'bg-gray-100 text-gray-500' },
+  extracted: { label: 'Text Extracted', className: 'bg-green-100 text-green-700' },
+  not_supported: { label: 'Extraction Not Yet Supported', className: 'bg-amber-100 text-amber-700' },
+  failed: { label: 'Extraction Failed', className: 'bg-red-100 text-red-700' },
+};
 export interface DiscoveryExtraction {
   id: string; sourceId: string; fieldName: string; fieldValue: string; evidenceQuote: string;
   confidence: ExtractionConfidence; extractedBy: string | null; createdAt: string;
@@ -87,8 +98,14 @@ function SourceRow({ source, onChanged }: { source: DiscoverySource; onChanged: 
             <span className="text-xs font-medium">{source.title}</span>
             <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">{SOURCE_TYPE_LABEL[source.sourceType]}</span>
             <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded uppercase ${STATUS_CLASS[source.status]}`}>{source.status}</span>
+            {source.sourceType === 'document' && source.extractionStatus && source.extractionStatus !== 'not_applicable' && (
+              <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${EXTRACTION_STATUS_META[source.extractionStatus].className}`}>{EXTRACTION_STATUS_META[source.extractionStatus].label}</span>
+            )}
           </div>
-          <p className="text-[9px] text-gray-400 mt-0.5">{new Date(source.createdAt).toLocaleString('en-AU')}{source.submittedBy ? ` · ${source.submittedBy}` : ''}</p>
+          <p className="text-[9px] text-gray-400 mt-0.5">
+            {new Date(source.createdAt).toLocaleString('en-AU')}{source.submittedBy ? ` · ${source.submittedBy}` : ''}
+            {source.originalFileName ? ` · ${source.originalFileName}${source.fileSize ? ` (${(source.fileSize / 1024).toFixed(0)} KB)` : ''}` : ''}
+          </p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <button onClick={toggle} aria-expanded={expanded} aria-controls={panelId} className="text-[10px] font-medium text-purple-600 hover:text-purple-800">
@@ -180,9 +197,12 @@ function SourceRow({ source, onChanged }: { source: DiscoverySource; onChanged: 
 export function DiscoveryIntakeManager({ clientId, initialSources }: { clientId: string; initialSources: DiscoverySource[] }) {
   const [sources, setSources] = useState(initialSources);
   const [showForm, setShowForm] = useState(false);
+  const [mode, setMode] = useState<'text' | 'file'>('text');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_SOURCE_FORM);
+  const [fileTitle, setFileTitle] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   async function refresh() {
     const res = await fetch(`${API}/api/v1/oc/clients/${clientId}/discovery-sources`);
@@ -206,35 +226,78 @@ export function DiscoveryIntakeManager({ clientId, initialSources }: { clientId:
     finally { setSaving(false); }
   }
 
+  async function handleUpload(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedFile) { setError('Choose a file to upload.'); return; }
+    setSaving(true); setError(null);
+    try {
+      const body = new FormData();
+      if (fileTitle.trim()) body.append('title', fileTitle.trim());
+      body.append('file', selectedFile);
+      const res = await fetch(`${API}/api/v1/oc/clients/${clientId}/discovery-sources/document`, { method: 'POST', body });
+      if (!res.ok) { const b = await res.json().catch(() => ({})); setError(b?.error?.message || 'Could not upload this file.'); return; }
+      setFileTitle(''); setSelectedFile(null);
+      setShowForm(false);
+      await refresh();
+    } catch { setError('Could not reach the server. Please try again.'); }
+    finally { setSaving(false); }
+  }
+
   const active = sources.filter(s => s.status !== 'archived');
   const archived = sources.filter(s => s.status === 'archived');
 
   return (
     <div>
       <div className="flex justify-end mb-4">
-        <Action variant="primary" onClick={() => setShowForm(v => !v)}>{showForm ? 'Cancel' : '+ Submit Problem Statement'}</Action>
+        <Action variant="primary" onClick={() => setShowForm(v => !v)}>{showForm ? 'Cancel' : '+ Add Discovery Source'}</Action>
       </div>
 
       {showForm && (
-        <form onSubmit={handleCreate} className="bg-white rounded-xl border p-5 mb-6 space-y-3">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Title *</label>
-            <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Checkout abandonment issue" className="w-full border rounded-md px-3 py-2 text-sm" />
+        <div className="bg-white rounded-xl border p-5 mb-6">
+          <div className="flex gap-1 mb-3 border-b">
+            <button type="button" onClick={() => { setMode('text'); setError(null); }} className={`text-xs font-medium px-3 py-2 border-b-2 ${mode === 'text' ? 'border-purple-600 text-purple-600' : 'border-transparent text-gray-500'}`}>Type Problem Statement</button>
+            <button type="button" onClick={() => { setMode('file'); setError(null); }} className={`text-xs font-medium px-3 py-2 border-b-2 ${mode === 'file' ? 'border-purple-600 text-purple-600' : 'border-transparent text-gray-500'}`}>Upload a Document</button>
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Source type</label>
-            <select value={form.sourceType} onChange={e => setForm(f => ({ ...f, sourceType: e.target.value as SourceType }))} className="w-full border rounded-md px-3 py-2 text-sm">
-              {Object.entries(SOURCE_TYPE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Problem statement, in the client's own words *</label>
-            <textarea value={form.rawContent} onChange={e => setForm(f => ({ ...f, rawContent: e.target.value }))} rows={4} placeholder="Describe the problem exactly as told to you — this raw text is preserved as the real evidence source for any later findings." className="w-full border rounded-md px-3 py-2 text-sm" />
-            <p className="text-[9px] text-gray-400 mt-0.5">Kept verbatim — real structured findings can later be tagged from this text, each with a required exact-quote back-reference.</p>
-          </div>
-          {error && <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">{error}</div>}
-          <Action type="submit" variant="primary" loading={saving}>Submit</Action>
-        </form>
+
+          {mode === 'text' ? (
+            <form onSubmit={handleCreate} className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Title *</label>
+                <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Checkout abandonment issue" className="w-full border rounded-md px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Source type</label>
+                <select value={form.sourceType} onChange={e => setForm(f => ({ ...f, sourceType: e.target.value as SourceType }))} className="w-full border rounded-md px-3 py-2 text-sm">
+                  {Object.entries(SOURCE_TYPE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Problem statement, in the client's own words *</label>
+                <textarea value={form.rawContent} onChange={e => setForm(f => ({ ...f, rawContent: e.target.value }))} rows={4} placeholder="Describe the problem exactly as told to you — this raw text is preserved as the real evidence source for any later findings." className="w-full border rounded-md px-3 py-2 text-sm" />
+                <p className="text-[9px] text-gray-400 mt-0.5">Kept verbatim — real structured findings can later be tagged from this text, each with a required exact-quote back-reference.</p>
+              </div>
+              {error && <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">{error}</div>}
+              <Action type="submit" variant="primary" loading={saving}>Submit</Action>
+            </form>
+          ) : (
+            <form onSubmit={handleUpload} className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
+                <input value={fileTitle} onChange={e => setFileTitle(e.target.value)} placeholder="Defaults to the file name if left blank" className="w-full border rounded-md px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">File *</label>
+                <input type="file" accept=".pdf,.docx,.txt,.csv,.png,.jpg,.jpeg" onChange={e => setSelectedFile(e.target.files?.[0] || null)} className="w-full text-sm" />
+                <p className="text-[9px] text-gray-400 mt-0.5">
+                  PDF, DOCX, TXT, CSV, PNG, JPEG — up to 20 MB. Real text is currently extracted automatically for TXT and CSV files;
+                  other formats are stored securely and can be reviewed directly, with real text extraction for them a planned fast-follow — never fabricated in the meantime.
+                </p>
+              </div>
+              {error && <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">{error}</div>}
+              <Action type="submit" variant="primary" loading={saving} disabled={!selectedFile}>Upload</Action>
+            </form>
+          )}
+        </div>
       )}
 
       {active.length === 0 ? (

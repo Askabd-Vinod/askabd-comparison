@@ -150,9 +150,27 @@ wire into as each capability needs them, not standalone features.
   evidence-quote-verification error's own wording; fixed with a proper
   `DiscoverySourceNotFoundError` class instead of message-sniffing). Full
   UI (`(app)/clients/[clientId]/discovery-intake`) following the canonical
-  pattern. **Document/file ingestion (PDF/Word/spreadsheet/screenshot) is
-  NOT built — a real fast-follow, deliberately out of scope for this pass,
-  not faked.** See `docs/enterprise-operations-progress.md` for full detail.
+  pattern. ✅ **Document/file ingestion — DONE (2026-08-23)**, real scope:
+  migration 045 extends `discovery_sources` (not a parallel table) with
+  real file metadata (storage reference, original filename, MIME type,
+  size, checksum) + an honest `extraction_status`. Reuses the existing
+  `DocumentStorageService`/`StorageProvider` (a new `saveDiscoveryDocument`
+  method on the same class, same underlying provider — not a second
+  storage service) for real multipart upload, real checksums, a real 20MB
+  limit, and the same allowed-MIME-type discipline as the existing
+  onboarding-document upload route. **A real, deliberate scope decision,
+  not a silent gap**: no PDF/DOCX/XLSX parsing library exists anywhere in
+  this codebase (confirmed by inspection before writing code) — real text
+  extraction is built only for formats needing zero new dependencies
+  (plain text, CSV); every other allowed format (PDF/DOCX/PNG/JPEG) is
+  stored for real (real bytes, real checksum) but honestly marked
+  `extraction_status='not_supported'`, never a fabricated or silently-empty
+  extraction. 6 real tests (real multipart bodies, real extraction proof
+  for TXT/CSV, honest not_supported proof for PDF, disallowed-type
+  rejection, RBAC, default-title-from-filename), 6/6 passing. UI extends
+  the existing Discovery Intake page (a mode toggle between typing free
+  text and uploading a file) — never a second page. See
+  `docs/enterprise-operations-progress.md` for full detail.
 - ✅ **DONE (2026-08-22)** — **Current State Assessment** (Part 2): extended
   the existing `assessment-service.ts`/`oc_assessments` shape (migration
   043 adds one `domain` column, CHECK-constrained to the 7 real values,

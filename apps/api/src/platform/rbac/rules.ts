@@ -370,6 +370,7 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   // Staff-managed, same precedent as CRM/Business Requirements above.
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/discovery-sources', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/clients/:clientId/discovery-sources', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/discovery-sources/document', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/discovery-sources/:id', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/discovery-sources/:id/review', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/discovery-sources/:id/archive', permissions: ['Admin.Access'] },

@@ -35,6 +35,19 @@ export class DocumentStorageService {
   }
 
   /**
+   * Save a discovery-source document (Universal Discovery document
+   * ingestion, migration 045) — a genuinely different logical path shape
+   * from the onboarding-requirement documents above (no serviceId/
+   * requirementKey), but the SAME real storage provider underneath. Reuses
+   * this class rather than a second document-storage service.
+   */
+  async saveDiscoveryDocument(clientId: string, sourceId: string, fileName: string, stream: Readable): Promise<StoredDocument> {
+    const storageReference = `discovery/${clientId}/${sourceId}/${fileName}`;
+    const { checksum, fileSize } = await this.provider.save(storageReference, stream);
+    return { storageReference, checksum, fileSize };
+  }
+
+  /**
    * Check if a stored document exists
    */
   exists(storageReference: string): boolean | Promise<boolean> {

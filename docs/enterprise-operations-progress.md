@@ -17,14 +17,17 @@ engineering decision and continue" rather than blocking on Phase 1 first).
 ## Current Task
 
 All of Phase 1 (Evidence audit, Versioning Engine, Approval Workflow
-Engine, Traceability Engine) is done. Phase 2 item 3 (Business Requirements
-Intelligence), item 1's free-text half (Universal Discovery intake), item 2
-(Current State Assessment extension), and the Gap Analysis extension are
-also done — see entries below. **Next session should continue Phase 2**:
-Universal Discovery's document/file-ingestion fast-follow (PDF/Word/
-spreadsheet/screenshot — genuinely not started, not faked). All three Phase
-1 engines now have real consumers: Traceability is used by Discovery Intake
-and Gap Analysis (problem→gap, requirement→gap, gap→recommendation,
+Engine, Traceability Engine) is done. All of Phase 2 item 1 (Universal
+Discovery — both the free-text half AND the document/file-ingestion
+fast-follow), item 2 (Current State Assessment extension), item 3
+(Business Requirements Intelligence), and the Gap Analysis extension are
+also done — see entries below. **Phase 2's real-time-analysis items are
+now genuinely complete.** Next session should continue with the remaining
+roadmap items past Phase 2 (Phase 3 — Documents + Traceability, per
+`docs/enterprise-operations-roadmap.md`: the Document Generation Engine,
+Part 7, is flagged there as "the largest gap"). All three Phase 1 engines
+now have real consumers: Traceability is used by Discovery Intake and Gap
+Analysis (problem→gap, requirement→gap, gap→recommendation,
 gap→transformation); Approval Workflow is used by Gap Analysis's risk-
 acceptance flow. Versioning Engine still has no wired consumer — reach for
 it as soon as a real capability needs full version history beyond a simple
@@ -622,6 +625,83 @@ sandbox blocked the final step was to proceed via the DB+HTTP standard
 instead of any workaround. This is recorded honestly here rather than
 implied as done.
 
+## Completed This Session — Universal Discovery document/file ingestion (2026-08-23, continued)
+
+The deliberately-deferred half of Phase 2 item 1, closing it out
+completely. Existing document-upload infrastructure inspected first, per
+standing instruction — found real, working infrastructure
+(`DocumentStorageService`/`StorageProvider`, real multipart handling, real
+checksums) already serving the FIXED onboarding-requirement catalog
+(`oc_client_service_documents`, tied to a specific `serviceId`/
+`requirementKey`) — a genuinely different concept from Discovery's own
+free-form documents, so extended the storage layer with a new method
+rather than either duplicating a storage service or forcing Discovery
+documents into the requirement-shaped table.
+
+1. **Migration 045** — additive columns on `discovery_sources` (not a
+   parallel table): `storage_reference`, `original_file_name`,
+   `mime_type`, `file_size`, `checksum`, and an honest `extraction_status`
+   (`not_applicable`/`extracted`/`not_supported`/`failed`). `'document'`
+   was already a valid `source_type` on this table (migration 042) — this
+   is genuinely the same concept, now with a real file attached.
+2. **`document-storage-service.ts`** gains `saveDiscoveryDocument` — a new
+   method on the EXISTING class, using the exact same `StorageProvider`
+   singleton underneath as the onboarding-document upload path, just a
+   different logical path shape (`discovery/${clientId}/${sourceId}/...`
+   vs. the existing `${clientId}/${serviceId}/${requirementKey}/...`).
+3. **`discovery-intake-service.ts`**'s new `submitDocument` — the real
+   substance and the real, deliberate scope boundary: **no PDF/DOCX/XLSX
+   parsing library exists anywhere in this codebase**, confirmed by
+   inspecting `package.json` before writing any code. Adding one mid-session
+   without time to properly vet it (native bindings, ESM compatibility)
+   would have been a real risk. Real text extraction is therefore built
+   ONLY for formats that need zero new dependencies — plain text and CSV,
+   which are already text. Every other allowed format (PDF, DOCX, PNG,
+   JPEG) is genuinely stored (real bytes, real checksum, real size) but
+   honestly marked `extraction_status='not_supported'` — never a
+   fabricated or silently-empty extraction pretending to be real. A real
+   20MB size limit and a real allowed-MIME-type check (matching the
+   existing onboarding-document route's own list) are enforced before
+   any file is written.
+4. **Routes + RBAC** — one new multipart route
+   (`POST /oc/clients/:clientId/discovery-sources/document`), gated
+   `Admin.Access` in `rules.ts`, reusing `@fastify/multipart` which is
+   already registered globally in `server.ts` (same 20MB limit).
+5. **Tests** — `discovery-document-ingestion.test.ts`, 6 real tests
+   against real Postgres + real multipart bodies (hand-built
+   boundary-delimited `multipart/form-data`, not a mocked upload): a real
+   `.txt` file genuinely extracted into `raw_content`; a real `.csv` file
+   likewise; a real (structurally-fake but byte-real) `.pdf` file proven
+   to be honestly stored with `extraction_status='not_supported'` and an
+   EMPTY `raw_content` (never fabricated); a disallowed file type rejected
+   with no orphan row left behind; RBAC denial for a customer token; and
+   the default-title-from-filename behavior. **6/6 passing, first try.**
+   `afterAll` cleanup verified to leave zero orphan files in local storage
+   (confirmed via direct filesystem check after the run, not assumed).
+6. **UI** — extended the existing Discovery Intake page (never a second
+   page): a real mode toggle between "Type Problem Statement" and "Upload
+   a Document," a real `<input type="file">` + `FormData` upload, and an
+   honest extraction-status badge on document-type source cards
+   ("Text Extracted" / "Extraction Not Yet Supported" / "Extraction
+   Failed") so staff can see at a glance which documents still need a
+   human read-through rather than assuming everything was processed.
+7. **A real runtime issue found and fixed during verification** (not a
+   test, not code — infrastructure): after this pass's production builds,
+   the Web dev server first went fully unreachable (connection refused),
+   then came back as a real HTTP 500 after a first restart attempt.
+   Root-caused properly rather than just restarted blindly: the dev
+   server's `.next` cache had gone stale from the production build, AND
+   (found on closer inspection) an earlier zombie process was still
+   genuinely holding port 3001, so a plain restart raced against it and
+   failed with a real `EADDRINUSE`. Fixed by finding the actual PID via
+   `netstat`, force-killing it, clearing `.next`, and restarting cleanly —
+   confirmed via direct `curl` polling, not assumed.
+8. **Full regression, clean isolated runs**: API **512/512** (506 + 6
+   new), Web **33/33**. `tsc --noEmit` and `npm run build` clean for both
+   services. `npm run health`: 11/11 (after the real fix in item 7 above).
+   Zero leftover test-fixture clients; both protected real clients
+   confirmed intact; zero orphan uploaded files.
+
 ## Failed Tests
 
 **New session continuation (Gap Analysis extension, 2026-08-23)**: Two
@@ -770,76 +850,82 @@ one. The one test failure above was correctly diagnosed as non-code.
 
 ## Database Migrations
 
-**44 applied** (see `docs/enterprise-operations-gap-analysis.md` Section 1
+**45 applied** (see `docs/enterprise-operations-gap-analysis.md` Section 1
 for the full list through 037; `038_business_requirements.sql`,
 `039_entity_versioning_engine.sql`, `040_approval_workflow_engine.sql`,
 `041_traceability_engine.sql`, `042_discovery_intake.sql`,
-`043_assessment_domains.sql`, and `044_gap_analysis_extension.sql` — the
-last also documenting a real, pre-existing schema drift (an undeclared
-`constraints JSONB` column with 153 real rows) discovered while writing
-it — all applied to the live DEV database and verified via `\d`).
+`043_assessment_domains.sql`, `044_gap_analysis_extension.sql`, and
+`045_discovery_document_ingestion.sql` — all applied to the live DEV
+database and verified via `\d`).
 
 ## Last Verified Commit
 
-`22e6755` on `feature/reliability-hardening` (pushed to origin — confirmed
-`9d1a9d7..22e6755`). `main` confirmed unchanged at `b63f797`.
+Pending this turn's commit (Discovery document/file ingestion) on
+`feature/reliability-hardening`. Prior verified commit: `a5ac782` (pushed
+to origin). `main` confirmed unchanged at `b63f797`.
 
 ## Last Playwright Verification
 
 Unauthenticated access to every new/extended page across this session
 (`/clients/:clientId/business-requirements`,
 `/clients/:clientId/discovery-intake`, the extended
-`/clients/:clientId/assessment`, and now the extended
-`/clients/:clientId/gaps`) was live-verified in the real browser — clean
-redirect to `/staff/login`, zero console errors, no data exposed, for all
-four. A full authenticated walkthrough was genuinely attempted this pass
-(not just deferred) — a real temporary staff identity was created and
-verified end-to-end via askabd-identity's API, but the final step
-(granting it a role) was blocked by the sandbox's permission classifier as
-a raw-SQL privilege grant, and the user's explicit decision was to proceed
-via the existing DB+HTTP test standard rather than any workaround. See
-`docs/enterprise-operations-progress.md`'s explicit per-capability
-verification-level table (Playwright-verified vs API/DB-verified) for the
-Gap Analysis work specifically. The real DB+HTTP integration suites
-(`business-requirements.test.ts` 15, `discovery-intake.test.ts` 11,
+`/clients/:clientId/assessment`, and the extended `/clients/:clientId/gaps`)
+was live-verified in the real browser — clean redirect to `/staff/login`,
+zero console errors, no data exposed, for all four. A full authenticated
+walkthrough was genuinely attempted this session (not just deferred) — a
+real temporary staff identity was created and verified end-to-end via
+askabd-identity's API, but the final step (granting it a role) was blocked
+by the sandbox's permission classifier as a raw-SQL privilege grant, and
+the user's explicit decision was to proceed via the existing DB+HTTP test
+standard rather than any workaround. See the Gap Analysis extension
+entry's explicit per-capability verification-level table
+(Playwright-verified vs API/DB-verified) for the exact breakdown. The real
+DB+HTTP integration suites (`business-requirements.test.ts` 15,
+`discovery-intake.test.ts` 11, `discovery-document-ingestion.test.ts` 6,
 `assessment-domains.test.ts` 15, `gap-analysis-extension.test.ts` 25) are
-the substitute evidence for the backend half of all four capabilities.
+the substitute evidence for the backend half of all these capabilities.
 
 ## Last Health Check
 
 `npm run health`: **11/11 green**, confirmed at the end of this session —
-this pass also hit and fixed a real (not test) runtime failure: the Web
-dev server went fully unreachable after the production builds ran
-(diagnosed as the build disrupting the dev server's port binding, fixed by
-restarting it, not merely reported as down).
+this pass hit and fixed a second real (not test) runtime failure of the
+same general shape as before: the Web dev server first went unreachable,
+then came back as a real 500 after a first restart attempt, root-caused to
+a genuinely stale `.next` cache AND a zombie process still actually
+holding port 3001 (found via `netstat`, not assumed) — fixed by
+force-killing the real PID, clearing the cache, and restarting cleanly.
 
 ## Regression — final confirmed baseline this session
 
-- **API: 506/506 passing** (406 baseline → 421 Business Requirements → 433
+- **API: 512/512 passing** (406 baseline → 421 Business Requirements → 433
   Versioning Engine → 444 Approval Workflow Engine → 455 Traceability
   Engine → 466 Discovery Intake → 481 Assessment Domains → 506 Gap
-  Analysis extension; every addition confirmed via a clean, fully isolated
-  full-suite run)
-- **Identity: 219/219 passing** (clean, fully isolated run, confirmed at
-  the very end of this pass with nothing else running — see Failed Tests
-  above for two self-inflicted CPU-contention timeouts earlier in this
-  same pass, both confirmed non-regressions via isolated re-runs)
+  Analysis extension → 512 Discovery document ingestion; every addition
+  confirmed via a clean, fully isolated full-suite run)
+- **Identity: 219/219 passing** (clean, fully isolated run earlier this
+  session; not re-run this pass since no identity code changed — see
+  Failed Tests above for two self-inflicted CPU-contention timeouts
+  earlier in this session, both confirmed non-regressions via isolated
+  re-runs)
 - **Web: 33/33 passing** (clean, fully isolated run, no flakes — includes
-  the extended Gap Analysis UI)
-- `tsc --noEmit` clean and `npm run build` clean for all three services
-  (API, Identity, Web) — genuine production builds, not just typecheck
-- `npm run health`: 11/11 green (after diagnosing and fixing the real Web
-  dev server outage described above)
+  the extended Gap Analysis UI and the new document-upload UI)
+- `tsc --noEmit` clean and `npm run build` clean for API and Web this pass
+  (Identity unaffected, not re-built) — genuine production builds, not
+  just typecheck
+- `npm run health`: 11/11 green (after diagnosing and fixing a second real
+  Web dev-server outage this session, described above)
 - Both protected real clients confirmed intact via direct DB query,
   timestamps unchanged: `AskABD Manual UAT 2026` (created 2026-08-15) and
   `Test1` (created 2026-08-19T21:53:45Z — exact match to every prior
   session's audit record)
-- Zero leftover test-fixture clients from this session's new test suite
-  (`afterAll` cleanup-by-exact-id confirmed working via direct query)
+- Zero leftover test-fixture clients from this session's new test suites
+  (`afterAll` cleanup-by-exact-id confirmed working via direct query);
+  zero orphan uploaded files left in local storage by the document-
+  ingestion tests (confirmed via direct filesystem check)
 - No orphan/duplicate record sweep re-run this session beyond the above —
   the prior session's sixth and eighth passes both confirmed clean, and
-  this session's only schema change (migration 038) is a new, additive,
-  empty-by-default table with no way to have introduced orphans elsewhere
+  this session's schema changes are all new, additive columns/tables with
+  no way to have introduced orphans elsewhere
 
 ## Real client data on the system (protected, never modify without an
 explicit, scoped test)
