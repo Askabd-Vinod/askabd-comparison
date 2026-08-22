@@ -860,9 +860,8 @@ database and verified via `\d`).
 
 ## Last Verified Commit
 
-Pending this turn's commit (Discovery document/file ingestion) on
-`feature/reliability-hardening`. Prior verified commit: `a5ac782` (pushed
-to origin). `main` confirmed unchanged at `b63f797`.
+`a4a57ee` on `feature/reliability-hardening` (pushed to origin — confirmed
+`a5ac782..a4a57ee`). `main` confirmed unchanged at `b63f797`.
 
 ## Last Playwright Verification
 
