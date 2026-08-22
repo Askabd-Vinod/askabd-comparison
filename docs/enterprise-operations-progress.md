@@ -8,28 +8,28 @@ last-known-good state and the exact next task.
 
 ## Current Phase
 
-**Phase 2, item 3 — Requirement quality/completeness classification** (per
-`docs/enterprise-operations-roadmap.md`; Phase 0 and the Phase 1 shared
-engines — Evidence/Versioning/Approval/Traceability — are still ahead in
-strict roadmap order, but this item was self-contained and fully additive,
-so it was safe to build now under the "make the safest reversible
-engineering decision and continue" rule rather than block on Phase 1 first).
-Correcting a phase-numbering slip from earlier this session: this work was
-referred to as "Phase 1" in-session; the roadmap actually places it under
-**Phase 2**. First vertical slice (Business Requirements Intelligence) is
-complete, tested, and committed.
+**Phase 1 is now fully complete.** Phase 2, item 3 (Requirement
+quality/completeness classification — Business Requirements Intelligence)
+was also built this session, ahead of strict roadmap order since it was
+self-contained and fully additive (safe under "make the safest reversible
+engineering decision and continue" rather than blocking on Phase 1 first).
 
 ## Current Task
 
-Phase 2 item 3's first vertical slice is done. Phase 1's Generic Versioning
-Engine, the Evidence-engine audit (concluded: do not build — see roadmap),
-and the Generic Approval Workflow Engine are now also done (see entries
-below). **Next session should build Phase 1's last remaining item, the
-generic Traceability Engine** (`traceability_links` table + service,
-supporting the BR→FR→TR→EWR→EWP→Task→TC→Defect→Deployment→UAT→Production
-chain from Part 8, generic enough for any two linked entities), which
-closes out Phase 1 entirely — then move to the rest of Phase 2 (Universal
-Discovery, Current State Assessment, Gap Analysis extension). Re-read this
+All of Phase 1 (Evidence audit, Versioning Engine, Approval Workflow
+Engine, Traceability Engine) and Phase 2 item 3 (Business Requirements
+Intelligence) are done, tested, and committed. **Next session should start
+the rest of Phase 2**: Universal Discovery capability (Part 1 — free-text
+problem-statement intake first), Current State Assessment extension (Part
+2 — extend the existing `assessment-service.ts` Source/Evidence/Confidence
+shape to the other six categories), and the Gap Analysis extension (Part 4
++ 6 — extend the real `oc_gaps`/`oc_gap_options` foundation from migration
+037 with the brief's full field set, verifying what's already present
+first). The three new Phase 1 engines (Versioning, Approval Workflow,
+Traceability) have no route/UI surface yet — genuinely backend-only
+building blocks; Phase 2 work should wire into them as each capability
+needs versioning/approval/traceability, rather than each reinventing its
+own mechanism (the whole point of building them first). Re-read this
 file first and confirm `npm run health` is still green (services may need
 `npm run dev:all` again if the machine was restarted between sessions; the
 Web dev-server health check specifically needs `/staff/login` pre-warmed
@@ -279,6 +279,58 @@ in `docs/enterprise-operations-roadmap.md`.
    11/11. No UI/route surface yet — same as the Versioning Engine, this is
    a backend-only shared engine with no consumer wired up this pass.
 
+## Completed This Session — Phase 1, Generic Traceability Engine (2026-08-22, continued) — Phase 1 now fully complete
+
+The last remaining Phase 1 shared-foundation item, supporting the
+BR→FR→TR→EWR→EWP→Task→TC→Defect→Deployment→UAT→Production chain from Part
+8 of the governing brief, generic enough for any two linked entities:
+
+1. **Migration 041** — `traceability_links` (`source_type`/`source_id`/
+   `target_type`/`target_id`/`link_type` — derives_from/implements/tests/
+   blocks/depends_on/relates_to). `UNIQUE (source_type, source_id,
+   target_type, target_id, link_type)` makes linking naturally idempotent.
+   Applied to the live DEV database, verified via `\d`.
+2. **`traceability-engine.ts`** — `link` (idempotent — recording the same
+   real triple twice returns the original row, never a duplicate or an
+   overwrite), `unlink` (real hard delete, honestly reports whether
+   anything was actually removed), `getOutboundLinks`/`getInboundLinks`
+   (direct one-hop lookup), and the real substance: `getForwardChain`/
+   `getBackwardChain` — full multi-hop traversal via a genuine Postgres
+   recursive CTE with an explicit path-based cycle guard and a hard depth
+   ceiling (25, regardless of what a caller requests). Two directions
+   written out as separate, explicit SQL strings rather than built by
+   dynamic column-name string manipulation, specifically to avoid a real
+   bug class (a first draft of this file did attempt the dynamic-string
+   approach and was self-caught as fragile/incorrect before ever running —
+   rewritten to explicit SQL before the first test run, not after finding
+   a failure).
+3. **Tests** — `traceability-engine.test.ts`, 11 real tests against real
+   Postgres: idempotent linking, multiple simultaneous link types between
+   the same two entities, real unlink with an honest true/false result,
+   direct inbound lookup, a real 4-node forward chain in correct depth
+   order, a real backward chain, a **diamond-shaped graph** (two paths
+   converging on one node — proven to report that node via both real
+   paths, not silently collapsed), a **genuinely cyclic graph** (A→B→C→A —
+   proven to terminate with a bounded result, never hang or return
+   unbounded depth), a real `maxDepth` limit proof, and honest empty-array
+   returns for an entity with no links (never a fabricated single-node
+   chain). **11/11 passing, first try** after the one self-caught fix
+   above — no defects found during testing itself.
+4. **Full regression, clean isolated run**: API **455/455** (444 + 11 new),
+   zero flakes this time (no repeated-rerun pollution — this was the first
+   full-suite run since a natural gap). `npm run health`: 11/11.
+
+**Phase 1 is now fully complete**: Evidence engine (audited, concluded not
+to build), Versioning Engine, Approval Workflow Engine, Traceability
+Engine. All three built engines are genuinely backend-only so far — no
+route or UI wired to any of them yet. That is intentional, not an
+oversight: they are shared building blocks for Phase 2+ features (Document
+Generation approval, Gap Resolution versioning, the full BR→...→Production
+trace) to reach for as each is actually needed, not standalone features in
+their own right. Wiring one in prematurely, before a real caller needs it,
+would risk guessing at an API shape a real consumer later has to bend
+around.
+
 ## Failed Tests
 
 **Session 1 (Phase 0)**: One transient failure, root-caused and closed, not
@@ -383,16 +435,17 @@ one. The one test failure above was correctly diagnosed as non-code.
 
 ## Database Migrations
 
-**40 applied** (see `docs/enterprise-operations-gap-analysis.md` Section 1
+**41 applied** (see `docs/enterprise-operations-gap-analysis.md` Section 1
 for the full list through 037; `038_business_requirements.sql`,
-`039_entity_versioning_engine.sql`, and `040_approval_workflow_engine.sql`
-added this session, all applied to the live DEV database and verified via
-`\d`).
+`039_entity_versioning_engine.sql`, `040_approval_workflow_engine.sql`, and
+`041_traceability_engine.sql` added this session, all applied to the live
+DEV database and verified via `\d`).
 
 ## Last Verified Commit
 
-`51712b1` on `feature/reliability-hardening` (pushed to origin — confirmed
-`b8a4c0e..51712b1`). `main` confirmed unchanged at `b63f797`.
+Pending this turn's commit (Generic Traceability Engine — closes out Phase
+1) on `feature/reliability-hardening`. Prior verified commit: `7904167`
+(pushed to origin). `main` confirmed unchanged at `b63f797`.
 
 ## Last Playwright Verification
 
@@ -415,14 +468,16 @@ recurring, harmless characteristic of this dev environment).
 
 ## Regression — final confirmed baseline this session
 
-- **API: 444/444 passing** (406 baseline → 421 Business Requirements → 433
-  Versioning Engine → 444 Approval Workflow Engine; every addition
-  confirmed via a clean, fully isolated full-suite run — see Failed Tests
-  above for two separate self-inflicted-rerun stories this session, both
-  fully investigated and closed as non-regressions unrelated to the new code)
+- **API: 455/455 passing** (406 baseline → 421 Business Requirements → 433
+  Versioning Engine → 444 Approval Workflow Engine → 455 Traceability
+  Engine; every addition confirmed via a clean, fully isolated full-suite
+  run — see Failed Tests above for two separate self-inflicted-rerun
+  stories earlier this session, both fully investigated and closed as
+  non-regressions unrelated to the new code; the final Traceability Engine
+  run was clean with zero flakes)
 - **Identity: 219/219 passing** (clean, fully isolated run, no flakes)
-- **Web: 33/33 passing** (clean run, no flakes; unaffected — neither new
-  engine has a UI/route surface yet)
+- **Web: 33/33 passing** (clean run, no flakes; unaffected — none of the
+  three new Phase 1 engines has a UI/route surface yet)
 - `npm run health`: 11/11 green
 - Both protected real clients confirmed intact via direct DB query,
   timestamps unchanged: `AskABD Manual UAT 2026` (created 2026-08-15) and

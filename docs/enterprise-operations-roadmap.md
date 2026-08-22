@@ -99,15 +99,30 @@ Priority P1 items that unlock everything else:
   audit trail, not inferred from current status alone. 11 real tests,
   11/11 passing, including both DB-constraint proofs. See
   `docs/enterprise-operations-progress.md` for full detail.
-- **Generic Traceability engine**: `traceability_links` table + service,
-  supporting the BR→FR→TR→EWR→EWP→Task→TC→Defect→Deployment→UAT→Production
-  chain from Part 8, but generic enough for any two linked entities.
+- ✅ **DONE (2026-08-22)** — **Generic Traceability engine**:
+  `traceability_links` table (migration 041) + `traceability-engine.ts`.
+  Supports the BR→FR→TR→EWR→EWP→Task→TC→Defect→Deployment→UAT→Production
+  chain from Part 8, generic enough for any two linked entities. Idempotent
+  linking (recording the same link twice is a no-op, not a duplicate row),
+  real direct inbound/outbound lookup, and real multi-hop chain traversal
+  in both directions via a genuine recursive CTE with an explicit path-based
+  cycle guard and a hard depth ceiling (25) — proven on an actual 3-node
+  cyclic graph (A→B→C→A) that the traversal terminates rather than hanging,
+  and on a diamond-shaped graph that a convergent node is reported via both
+  real paths rather than silently collapsed or duplicated wrongly. 11 real
+  tests, 11/11 passing. See `docs/enterprise-operations-progress.md` for
+  full detail.
 
-These four are foundational because Phases 2–7 all want to version, approve,
-and trace the things they create. Building them first avoids each later
-phase inventing its own ad hoc mechanism (which is exactly the
+**Phase 1 is now fully complete** (2026-08-22): Evidence engine (audited,
+concluded not to build), Versioning engine, Approval Workflow engine,
+Traceability engine — all done, tested, committed. These four were
+foundational because Phases 2–7 all want to version, approve, and trace
+the things they create. Building them first avoids each later phase
+inventing its own ad hoc mechanism (which is exactly the
 duplicate-capability risk the gap analysis's Section 4 flags as the
-platform's one real ongoing hazard).
+platform's one real ongoing hazard). None of the three built engines has a
+route/UI surface yet — they are backend building blocks for Phase 2+ to
+wire into as each capability needs them, not standalone features.
 
 ---
 
