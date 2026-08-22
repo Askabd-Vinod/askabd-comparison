@@ -327,9 +327,8 @@ live DEV database and verified via `\d`).
 
 ## Last Verified Commit
 
-Pending this turn's commit (Generic Versioning Engine) on
-`feature/reliability-hardening`. Prior verified commit: `2415f82`
-(pushed to origin). `main` confirmed unchanged at `b63f797`.
+`78a0ee4` on `feature/reliability-hardening` (pushed to origin — confirmed
+`2415f82..78a0ee4`). `main` confirmed unchanged at `b63f797`.
 
 ## Last Playwright Verification
 
