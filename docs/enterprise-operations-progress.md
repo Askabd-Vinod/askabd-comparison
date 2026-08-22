@@ -391,9 +391,8 @@ added this session, all applied to the live DEV database and verified via
 
 ## Last Verified Commit
 
-Pending this turn's commit (Generic Approval Workflow Engine + Evidence
-audit) on `feature/reliability-hardening`. Prior verified commit: `b8a4c0e`
-(pushed to origin). `main` confirmed unchanged at `b63f797`.
+`51712b1` on `feature/reliability-hardening` (pushed to origin — confirmed
+`b8a4c0e..51712b1`). `main` confirmed unchanged at `b63f797`.
 
 ## Last Playwright Verification
 
