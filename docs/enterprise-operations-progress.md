@@ -519,9 +519,8 @@ session, all applied to the live DEV database and verified via `\d`).
 
 ## Last Verified Commit
 
-Pending this turn's commit (Universal Discovery free-text intake) on
-`feature/reliability-hardening`. Prior verified commit: `1a421fe` (pushed
-to origin). `main` confirmed unchanged at `b63f797`.
+`e21a913` on `feature/reliability-hardening` (pushed to origin — confirmed
+`1a421fe..e21a913`). `main` confirmed unchanged at `b63f797`.
 
 ## Last Playwright Verification
 
