@@ -17,19 +17,21 @@ engineering decision and continue" rather than blocking on Phase 1 first).
 ## Current Task
 
 All of Phase 1 (Evidence audit, Versioning Engine, Approval Workflow
-Engine, Traceability Engine) and Phase 2 item 3 (Business Requirements
-Intelligence) are done, tested, and committed. **Next session should start
-the rest of Phase 2**: Universal Discovery capability (Part 1 — free-text
-problem-statement intake first), Current State Assessment extension (Part
-2 — extend the existing `assessment-service.ts` Source/Evidence/Confidence
-shape to the other six categories), and the Gap Analysis extension (Part 4
-+ 6 — extend the real `oc_gaps`/`oc_gap_options` foundation from migration
-037 with the brief's full field set, verifying what's already present
-first). The three new Phase 1 engines (Versioning, Approval Workflow,
-Traceability) have no route/UI surface yet — genuinely backend-only
-building blocks; Phase 2 work should wire into them as each capability
-needs versioning/approval/traceability, rather than each reinventing its
-own mechanism (the whole point of building them first). Re-read this
+Engine, Traceability Engine) is done. Phase 2 item 3 (Business Requirements
+Intelligence) and Phase 2 item 1's free-text half (Universal Discovery
+intake) are also done — see entries below. **Next session should continue
+Phase 2**: Universal Discovery's document/file-ingestion fast-follow
+(PDF/Word/spreadsheet/screenshot — genuinely not started, not faked),
+Current State Assessment extension (Part 2 — extend the existing
+`assessment-service.ts` Source/Evidence/Confidence shape to the other six
+categories), and the Gap Analysis extension (Part 4 + 6 — extend the real
+`oc_gaps`/`oc_gap_options` foundation from migration 037 with the brief's
+full field set, verifying what's already present first). The Phase 1
+engines now have their first real consumer (Discovery Intake uses
+Traceability); Versioning and Approval Workflow still have no wired
+consumer yet — reach for them as soon as a real capability needs
+versioning or a real approval step, rather than reinventing either. Re-read
+this
 file first and confirm `npm run health` is still green (services may need
 `npm run dev:all` again if the machine was restarted between sessions; the
 Web dev-server health check specifically needs `/staff/login` pre-warmed
@@ -331,6 +333,80 @@ their own right. Wiring one in prematurely, before a real caller needs it,
 would risk guessing at an API shape a real consumer later has to bend
 around.
 
+## Completed This Session — Phase 2 item 1, Universal Discovery (free-text intake) (2026-08-22, continued)
+
+The real, human-authored starting point of the discovery journey (Part 8):
+before building, confirmed this was genuinely new — `discovery-service.ts`
+does live, connector-based TECHNICAL discovery (real credentials against
+real databases/repos); `problem-universe-service.ts` stores already-
+CLASSIFIED problem records. Neither captures the client's own raw, free-
+text problem narrative. Document/file ingestion (PDF/Word/spreadsheet/
+screenshot) is a real fast-follow — deliberately not built this pass.
+
+1. **Migration 042** — `discovery_sources` (the raw text itself, preserved
+   verbatim, `ON DELETE CASCADE` from `oc_clients`) + `discovery_extractions`
+   (real, staff-tagged structured findings, `confidence` defaulting to
+   `unverified` — same honest-default convention as
+   `oc_business_requirements.quality_status`). Applied to the live DEV
+   database, verified via `\d`.
+2. **`discovery-intake-service.ts`** — `submitSource`/`markReviewed`/
+   `archiveSource`/`extractField`. The real substance: `extractField`
+   requires a real `evidenceQuote` and **verifies, server-side, that the
+   quote is an actual verbatim substring of the source's raw content**
+   before allowing the extraction to save — never an unverifiable claim.
+   No real AI/NLP extraction exists in this platform (confirmed via
+   `ai-copilot.tsx`'s own honest "not connected to a real AI backend"
+   disclosure), so every extraction is explicitly a real, attributed STAFF
+   action, matching Part 34's "never present generated suggestions as
+   verified facts" — there is nothing generated here to mislabel. Each
+   extraction is also linked to its source via the new Traceability Engine
+   (`derives_from`) — the first real consumer of that Phase 1 engine, so a
+   later Business Requirement built from a finding can trace all the way
+   back to the client's original words.
+3. **A real bug found and fixed during testing** (not assumed correct):
+   the route handler originally used `message.includes('not found')` to
+   distinguish "source doesn't exist" (404) from "bad evidence quote"
+   (400). The evidence-quote-verification error's own wording — "...that
+   exact text does not appear there" in an earlier draft was "...it was
+   not found there" — contained the substring "not found," so a bad-quote
+   submission was misrouted to 404 instead of 400. Caught by the real test
+   suite on the first run (`expected 404 to be 400`), not by inspection.
+   **Fixed properly**, not patched around: added a real
+   `DiscoverySourceNotFoundError` class (the same `instanceof`-based
+   pattern as `approval-workflow-engine.ts`'s `InvalidTransitionError`)
+   so the route checks a real type, never a message substring. Reworded
+   the quote-verification message too, but the type check is the actual
+   fix — a future wording change can no longer silently break this again.
+4. **Routes + RBAC** — `discovery-intake-routes.ts`, 7 new Admin.Access
+   RBAC rules (same staff-only precedent as CRM/Business Requirements),
+   registered in `server.ts`.
+5. **Tests** — `discovery-intake.test.ts`, 11 real tests against real
+   Postgres + real Fastify routing + real RBAC/tenant middleware: RBAC
+   denial, real submission with real actor attribution, empty-content
+   rejection, the full review/archive lifecycle, a successful real
+   extraction, the bad-evidence-quote rejection (the case that caught the
+   bug above), the missing-evidence-quote rejection, the 404-on-nonexistent-
+   source case, and a real proof that the Traceability Engine link was
+   actually created. **11/11 passing** after the one real fix.
+6. **UI** — new `(app)/clients/[clientId]/discovery-intake` page +
+   manager, following the canonical pattern: a submission form for the raw
+   problem statement, an expandable per-source detail view showing the raw
+   text plus every real extracted finding (with its confidence badge and
+   its evidence quote rendered as a literal blockquote so a reader can see
+   exactly what was cited), and a real extraction form that mirrors the
+   backend's own verification rule in its helper text. New "Problem
+   Intake" tab added to `client-tabs.tsx`.
+7. **Verification**: `tsc --noEmit` clean on both `apps/api` and
+   `apps/web`. Unauthenticated access to the new page live-verified in the
+   real browser — clean redirect to `/staff/login`, zero console errors.
+   Same pre-existing credential constraint as Business Requirements
+   prevented a full authenticated Playwright walkthrough this pass — the
+   11-test real DB+HTTP suite is the substitute evidence.
+8. **Full regression, clean isolated run**: API **466/466** (455 + 11
+   new), Web **33/33**. `npm run health`: 11/11. Zero leftover test-fixture
+   clients (confirmed via direct query). Both protected real clients
+   confirmed intact.
+
 ## Failed Tests
 
 **Session 1 (Phase 0)**: One transient failure, root-caused and closed, not
@@ -435,28 +511,30 @@ one. The one test failure above was correctly diagnosed as non-code.
 
 ## Database Migrations
 
-**41 applied** (see `docs/enterprise-operations-gap-analysis.md` Section 1
+**42 applied** (see `docs/enterprise-operations-gap-analysis.md` Section 1
 for the full list through 037; `038_business_requirements.sql`,
-`039_entity_versioning_engine.sql`, `040_approval_workflow_engine.sql`, and
-`041_traceability_engine.sql` added this session, all applied to the live
-DEV database and verified via `\d`).
+`039_entity_versioning_engine.sql`, `040_approval_workflow_engine.sql`,
+`041_traceability_engine.sql`, and `042_discovery_intake.sql` added this
+session, all applied to the live DEV database and verified via `\d`).
 
 ## Last Verified Commit
 
-`e3d116c` on `feature/reliability-hardening` (pushed to origin — confirmed
-`7904167..e3d116c`). `main` confirmed unchanged at `b63f797`.
+Pending this turn's commit (Universal Discovery free-text intake) on
+`feature/reliability-hardening`. Prior verified commit: `1a421fe` (pushed
+to origin). `main` confirmed unchanged at `b63f797`.
 
 ## Last Playwright Verification
 
-Unauthenticated access to the new `/clients/:clientId/business-requirements`
-page was live-verified in the real browser this session — clean redirect to
-`/staff/login`, zero console errors, no data exposed. A full authenticated
-walkthrough (create requirement → confirm quality badge + real findings
-render → refresh → confirm persistence → failure path) was **not**
+Unauthenticated access to both new pages this session
+(`/clients/:clientId/business-requirements` and
+`/clients/:clientId/discovery-intake`) was live-verified in the real
+browser — clean redirect to `/staff/login`, zero console errors, no data
+exposed, for both. A full authenticated walkthrough of either was **not**
 completed — blocked on the same pre-existing credential constraint recorded
-under Pending Tasks item 2, not silently skipped. The 15-test real DB+HTTP
-integration suite (`business-requirements.test.ts`) is the substitute
-evidence for the backend half of this capability.
+under Pending Tasks item 2, not silently skipped. The real DB+HTTP
+integration suites (`business-requirements.test.ts` 15 tests,
+`discovery-intake.test.ts` 11 tests) are the substitute evidence for the
+backend half of both capabilities.
 
 ## Last Health Check
 
@@ -467,16 +545,18 @@ recurring, harmless characteristic of this dev environment).
 
 ## Regression — final confirmed baseline this session
 
-- **API: 455/455 passing** (406 baseline → 421 Business Requirements → 433
+- **API: 466/466 passing** (406 baseline → 421 Business Requirements → 433
   Versioning Engine → 444 Approval Workflow Engine → 455 Traceability
-  Engine; every addition confirmed via a clean, fully isolated full-suite
-  run — see Failed Tests above for two separate self-inflicted-rerun
-  stories earlier this session, both fully investigated and closed as
-  non-regressions unrelated to the new code; the final Traceability Engine
-  run was clean with zero flakes)
-- **Identity: 219/219 passing** (clean, fully isolated run, no flakes)
-- **Web: 33/33 passing** (clean run, no flakes; unaffected — none of the
-  three new Phase 1 engines has a UI/route surface yet)
+  Engine → 466 Discovery Intake; every addition confirmed via a clean,
+  fully isolated full-suite run — see Failed Tests above for two separate
+  self-inflicted-rerun stories earlier this session, both fully
+  investigated and closed as non-regressions unrelated to the new code;
+  the Traceability Engine and Discovery Intake runs were both clean with
+  zero flakes)
+- **Identity: 219/219 passing** (clean, fully isolated run earlier this
+  session — not re-run this turn since no identity-service code changed)
+- **Web: 33/33 passing** (clean, fully isolated run, no flakes — includes
+  the new Discovery Intake UI, unaffected)
 - `npm run health`: 11/11 green
 - Both protected real clients confirmed intact via direct DB query,
   timestamps unchanged: `AskABD Manual UAT 2026` (created 2026-08-15) and

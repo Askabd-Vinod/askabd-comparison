@@ -12,6 +12,7 @@ import { crmRoutes } from './routes/crm-routes.js';
 import { clientRequestsRoutes } from './routes/client-requests-routes.js';
 import { clientDatabaseConnectionsRoutes } from './routes/client-database-connections-routes.js';
 import { businessRequirementsRoutes } from './routes/business-requirements-routes.js';
+import { discoveryIntakeRoutes } from './routes/discovery-intake-routes.js';
 import { registerAuthMiddleware } from './middleware/auth.js';
 import { registerRateLimitMiddleware } from './middleware/rate-limit.js';
 import { registerErrorHandler } from './middleware/error-handler.js';
@@ -197,6 +198,7 @@ export async function createServer(): Promise<FastifyInstance> {
   await server.register(clientRequestsRoutes, { prefix: '/api/v1' });
   await server.register(clientDatabaseConnectionsRoutes, { prefix: '/api/v1' });
   await server.register(businessRequirementsRoutes, { prefix: '/api/v1' });
+  await server.register(discoveryIntakeRoutes, { prefix: '/api/v1' });
   await server.register(platformServicesRoutes);
   return server;
 }

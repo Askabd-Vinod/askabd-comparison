@@ -353,6 +353,17 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   { method: 'POST', path: '/api/v1/oc/business-requirements/:id/flag-conflict', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/business-requirements/:id/history', permissions: ['Admin.Access'] },
 
+  // ─── Universal Discovery — free-text intake (migration 042,
+  // discovery-intake-routes.ts) ─────────────────────────────────────────────
+  // Staff-managed, same precedent as CRM/Business Requirements above.
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/discovery-sources', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/discovery-sources', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/discovery-sources/:id', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/discovery-sources/:id/review', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/discovery-sources/:id/archive', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/discovery-sources/:id/extractions', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/discovery-sources/:id/extractions', permissions: ['Admin.Access'] },
+
   // ─── Client Requests — staff management (real customer self-service backend,
   // 2026-08-20) ──────────────────────────────────────────────────────────────
   // Staff review/approve/reject is Admin.Access-gated, same as every other

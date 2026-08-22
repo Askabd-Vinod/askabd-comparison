@@ -22,6 +22,7 @@ const tabs = [
   { label: 'Environments', segment: '/environments' },
   { label: 'Connectors', segment: '/connectors' },
   { label: 'Discovery', segment: '/discovery' },
+  { label: 'Problem Intake', segment: '/discovery-intake' },
   { label: 'Assessment', segment: '/assessment' },
   { label: 'Gap Analysis', segment: '/gaps' },
   { label: 'Problem Universe', segment: '/problems' },

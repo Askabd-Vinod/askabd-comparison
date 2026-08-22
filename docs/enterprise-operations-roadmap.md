@@ -128,11 +128,31 @@ wire into as each capability needs them, not standalone features.
 
 ## Phase 2 — Discovery + requirements + gaps
 
-- **Universal Discovery capability** (Part 1): free-text problem statement
-  intake first (cheapest, highest value); document/file ingestion
-  (PDF/Word/spreadsheet/screenshot) as a fast-follow, each format landing in
-  a `discovery_sources` / `discovery_extractions` pair with real
-  Source/Evidence/Confidence per extracted field — never silently assumed.
+- ✅ **DONE — free-text intake only (2026-08-22)** — **Universal Discovery
+  capability** (Part 1): `discovery_sources` / `discovery_extractions`
+  (migration 042) + `discovery-intake-service.ts`. Confirmed genuinely new
+  before building — distinct from `discovery-service.ts` (live
+  connector-based TECHNICAL discovery: tables/repos via real credentials)
+  and `problem-universe-service.ts` (already-CLASSIFIED problem records).
+  This is the real upstream starting point: the client's own raw,
+  free-text problem narrative, preserved verbatim. Extraction of structured
+  fields from that raw text is a real STAFF action — never a fabricated
+  "AI extracted this" claim, since no real NLP/AI backend exists in this
+  platform yet (confirmed via `ai-copilot.tsx`'s own honest disclosure) —
+  every extraction requires a real evidence quote that is verified,
+  server-side, to actually appear verbatim in the source text before it can
+  be saved. Wired into the new Traceability Engine (Phase 1): each
+  extraction is linked to its source via a real `derives_from` link, so a
+  later Business Requirement built from a finding can trace all the way
+  back to the client's original words. 11 real tests, 11/11 passing — found
+  and fixed one real bug along the way (a `message.includes('not found')`
+  string-match in the route handler false-positived on the
+  evidence-quote-verification error's own wording; fixed with a proper
+  `DiscoverySourceNotFoundError` class instead of message-sniffing). Full
+  UI (`(app)/clients/[clientId]/discovery-intake`) following the canonical
+  pattern. **Document/file ingestion (PDF/Word/spreadsheet/screenshot) is
+  NOT built — a real fast-follow, deliberately out of scope for this pass,
+  not faked.** See `docs/enterprise-operations-progress.md` for full detail.
 - **Current State Assessment** (Part 2): extend the existing
   `assessment-service.ts` shape (already Source/Evidence/Confidence/Status
   for infrastructure) to the other six categories (Business, Application,
