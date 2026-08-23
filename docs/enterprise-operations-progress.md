@@ -2147,9 +2147,9 @@ database and verified via direct query).
 
 ## Last Verified Commit
 
-**Update (2026-08-23, Technology Adapter Registry pass)**: as of this
-entry the branch tip (about to be committed) sits on top of `982d7e1` on
-`feature/reliability-hardening`, previously pushed to origin. `main`
+**Update (2026-08-23, Technology Adapter Registry pass)**: `34b2103` on
+`feature/reliability-hardening`, pushed to origin — confirmed
+`982d7e1..34b2103`. `main`
 reconfirmed unchanged at `b63f797` throughout. Commits since `d415a54`
 (each is its own "Completed This Session" entry above with full detail,
 not repeated here): `d761afc` (docs), `02ddeb5` (Master Autonomous Client
