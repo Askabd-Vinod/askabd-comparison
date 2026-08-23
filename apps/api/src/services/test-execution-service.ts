@@ -13,6 +13,7 @@
  */
 import { sharedPool } from './db-pool.js';
 import { TestDefectService, type DefectStatus } from './test-defect-service.js';
+import { maskSecrets } from './secret-masking.js';
 
 export type ExecutionStatus = 'pass' | 'fail' | 'blocked' | 'skipped' | 'not_executed' | 'not_applicable';
 
@@ -70,12 +71,19 @@ export class TestExecutionService {
       if (!input.actualResult?.trim() || !input.evidence?.length) throw new MissingEvidenceError(input.status);
     }
 
+    // Defense-in-depth: real, deterministic secret masking applied at the point of
+    // persistence — a human tester could paste an error message or evidence note
+    // that happens to contain a real credential (e.g. copy-pasted from a stack
+    // trace). See secret-masking.ts.
+    const maskedActualResult = maskSecrets(input.actualResult || '');
+    const maskedEvidence = (input.evidence || []).map(e => ({ ...e, description: maskSecrets(e.description) }));
+
     const res = await sharedPool.query<Row>(
       `INSERT INTO test_executions (test_case_id, client_id, run_id, status, environment, device, browser, actual_result, evidence, executed_by, duration_ms, retest_of_execution_id)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
       [testCaseId, clientId, input.runId ?? null, input.status, input.environment || testCase.environment || '',
-        input.device || testCase.device || '', input.browser || testCase.browser || '', input.actualResult || '',
-        JSON.stringify(input.evidence || []), actor, input.durationMs ?? null, input.retestOfExecutionId ?? null]
+        input.device || testCase.device || '', input.browser || testCase.browser || '', maskedActualResult,
+        JSON.stringify(maskedEvidence), actor, input.durationMs ?? null, input.retestOfExecutionId ?? null]
     );
     let execution = toExecution(res.rows[0]!);
 

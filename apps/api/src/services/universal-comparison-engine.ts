@@ -21,6 +21,8 @@
  */
 import { sharedPool } from './db-pool.js';
 import { getSecretProvider } from './secrets-provider.js';
+import { ConnectionSecurityService, ConnectivityBlockedError } from './connection-security-service.js';
+import { maskSecrets } from './secret-masking.js';
 
 export type ComparisonObjectStatus = 'match' | 'mismatch' | 'missing' | 'extra' | 'unknown';
 
@@ -131,6 +133,16 @@ export class UniversalComparisonEngine {
    * database connections belonging to the SAME client — never a
    * self-referential duplicate query. Persists real, per-table results,
    * never a fabricated summary.
+   *
+   * Real, enforced connectivity-security gate (Secure Client Environment
+   * Connectivity Engine, migration 050): before ever attempting a real
+   * connection, both sides' security profiles are checked via
+   * `ConnectionSecurityService.assertReadyForConnection`. If either
+   * requires a VPN that is not recorded as connected, this run is marked
+   * `failed` with a real, safe BLOCKED diagnostic — the real connection
+   * attempt is never made. Every persisted error message is passed
+   * through `maskSecrets()` first, defense-in-depth against a driver
+   * error message that happens to echo a connection string.
    */
   async runDatabaseSchemaComparison(clientId: string, leftConnectionId: string, rightConnectionId: string, actor: string | null): Promise<ComparisonRun> {
     if (leftConnectionId === rightConnectionId) {
@@ -151,13 +163,29 @@ export class UniversalComparisonEngine {
     if (!runRow) throw new Error('comparison_runs insert returned no row');
     const runId = runRow.id;
 
+    const security = new ConnectionSecurityService();
+    for (const [label, connectionId] of [[left.label, leftConnectionId], [right.label, rightConnectionId]] as const) {
+      try {
+        await security.assertReadyForConnection('oc_client_database_connections', connectionId);
+      } catch (err) {
+        if (err instanceof ConnectivityBlockedError) {
+          const failed = await sharedPool.query<RunRow>(
+            `UPDATE comparison_runs SET status = 'failed', error_message = $1, completed_at = NOW() WHERE id = $2 RETURNING *`,
+            [maskSecrets(`${label}: ${err.message}`), runId]
+          );
+          return toRun(failed.rows[0]!);
+        }
+        throw err;
+      }
+    }
+
     const [leftInspect, rightInspect] = await Promise.all([inspectSchema(left.config), inspectSchema(right.config)]);
 
     if (leftInspect.error || rightInspect.error) {
       const message = [leftInspect.error && `${left.label}: ${leftInspect.error}`, rightInspect.error && `${right.label}: ${rightInspect.error}`].filter(Boolean).join(' | ');
       const failed = await sharedPool.query<RunRow>(
         `UPDATE comparison_runs SET status = 'failed', error_message = $1, completed_at = NOW() WHERE id = $2 RETURNING *`,
-        [message, runId]
+        [maskSecrets(message), runId]
       );
       return toRun(failed.rows[0]!);
     }

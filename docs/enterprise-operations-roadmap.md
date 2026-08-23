@@ -43,6 +43,36 @@ report's own "explicitly not done" list:
 
 ---
 
+## Platform Security — Secure Client Environment Connectivity Engine
+
+- ✅ **DONE (2026-08-23) — first vertical slice** — per an explicit,
+  extremely detailed user directive framed as "a core AskABD platform
+  requirement," not tied to a single feature phase (this platform will
+  connect to confidential client VPS/VPC/databases/APIs/environments, and
+  every connection must be classified, least-privilege, auditable, and
+  never leak a secret). Built a real, honestly-scoped first vertical
+  slice: a generic `client_connection_security` model (data
+  classification, VPN status, permission scope, network path) layered
+  over the existing connector tables, a real ENFORCED guard
+  (`ConnectionSecurityService.assertReadyForConnection`) proven against
+  the Universal Comparison Engine's real connection attempt — a
+  required-but-unconnected VPN genuinely refuses the real connection,
+  never silently proceeds — a real secret-masking filter applied at
+  persistence to the two highest-risk fields found so far, a real,
+  closed-by-default external-integration allowlist wired into the
+  Testing Engine's adapter architecture, and a real, computed Client
+  Security Report. 19 real tests, 19/19 passing. **Explicitly NOT built
+  this pass, honestly stated, not fabricated**: this sandbox has no
+  client network to connect to, so no real VPN tunnel, WireGuard/IPSec
+  configuration, bastion host, or client-side agent binary was (or could
+  be) provisioned — the model records real staff-entered CONFIGURATION
+  and STATUS, not a live, actively-monitored tunnel. See
+  `docs/enterprise-operations-progress.md` for the full write-up,
+  including the Security Definition of Done, honestly marked per the
+  user's own ~21-item checklist.
+
+---
+
 ## Phase 1 — Foundation / shared engines
 
 Priority P1 items that unlock everything else:

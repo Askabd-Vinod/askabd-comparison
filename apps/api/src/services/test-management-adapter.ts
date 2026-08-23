@@ -66,7 +66,28 @@ const ADAPTERS: Record<string, () => TestManagementAdapter> = {
   azure_devops: () => new AzureDevOpsAdapter(),
 };
 
-/** No per-client external-tool configuration exists yet (real, honest — see Known Limitations) — always resolves to the real internal adapter for now. */
-export function getAdapter(provider: string = 'internal'): TestManagementAdapter {
-  return (ADAPTERS[provider] ?? ADAPTERS.internal)!();
+/** A real, safe adapter that refuses every push — used when a provider is not on this client's real allowlist. */
+class BlockedAdapter implements TestManagementAdapter {
+  readonly name: string;
+  constructor(private reason: string, provider: string) { this.name = provider; }
+  async pushTestCase(): Promise<AdapterOutcome> { return { ok: false, reason: this.reason }; }
+  async pushExecution(): Promise<AdapterOutcome> { return { ok: false, reason: this.reason }; }
+  async pushDefect(): Promise<AdapterOutcome> { return { ok: false, reason: this.reason }; }
+}
+
+/**
+ * Real, enforced allowlist check — "Before sending client information
+ * externally: verify Integration configured / Authorization exists."
+ * `internal` never needs allowlisting (it never leaves this platform).
+ * Every other provider is refused with a real, safe BlockedAdapter unless
+ * the client has explicitly enabled it via `client_integration_allowlist`
+ * (integration-allowlist-service.ts) — never a silent "allowed by
+ * default" for an external destination.
+ */
+export async function getAdapter(clientId: string, provider: string = 'internal'): Promise<TestManagementAdapter> {
+  if (provider === 'internal' || !ADAPTERS[provider]) return new InternalReportAdapter();
+  const { IntegrationAllowlistService } = await import('./integration-allowlist-service.js');
+  const allowed = await new IntegrationAllowlistService().isAllowed(clientId, provider);
+  if (!allowed) return new BlockedAdapter(`"${provider}" is not on this client's integration allowlist — enable it explicitly before pushing client data externally.`, provider);
+  return ADAPTERS[provider]!();
 }

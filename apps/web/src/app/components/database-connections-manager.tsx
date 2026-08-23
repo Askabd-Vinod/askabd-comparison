@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback, useId } from 'react';
 import { Action } from './button';
+import { ConnectionSecurityPanel } from './connection-security-panel';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4200';
 
@@ -136,6 +137,7 @@ function ConnectionCard({ conn, onTest, onRemove, onSaved, testingId }: {
                   </div>
                 </div>
               )}
+              <ConnectionSecurityPanel clientId={conn.clientId} sourceType="oc_client_database_connections" sourceId={conn.id} />
             </>
           ) : (
             <div className="space-y-2.5">

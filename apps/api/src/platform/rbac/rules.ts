@@ -428,6 +428,15 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/test-report/export', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/clients/:clientId/test-report/migration-validation', permissions: ['Admin.Access'] },
 
+  // ─── Secure Client Environment Connectivity Engine (migration 050, connection-security-routes.ts)
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/connection-security', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/connection-security/:sourceType/:sourceId', permissions: ['Admin.Access'] },
+  { method: 'PATCH', path: '/api/v1/oc/clients/:clientId/connection-security/:sourceType/:sourceId', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/integration-allowlist', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/integration-allowlist/:provider', permissions: ['Admin.Access'] },
+  { method: 'DELETE', path: '/api/v1/oc/clients/:clientId/integration-allowlist/:provider', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/security-report', permissions: ['Admin.Access'] },
+
   // ─── Client Requests — staff management (real customer self-service backend,
   // 2026-08-20) ──────────────────────────────────────────────────────────────
   // Staff review/approve/reject is Admin.Access-gated, same as every other

@@ -18,14 +18,18 @@ engineering decision and continue" rather than blocking on Phase 1 first).
 
 All of Phase 1 and Phase 2 are done. Phase 3 (Document Generation Engine +
 Requirements Traceability Matrix UI) is done. Phase 4's first vertical
-slice (Universal Comparison Engine, backend + UI) is done. **Phase 6's
-first vertical slice — the Universal Testing & Validation Engine — is now
-also done**, per an explicit, extremely detailed user directive (see
-entry below). All three Phase 1 engines have real consumers across
-Discovery Intake, Gap Analysis, Document Generation, and now Testing
-(test case → requirement traceability). Next session should pick from:
-the Universal Testing Engine's own real fast-follows (a full multi-view
-dashboard, live external test-tool sync, automated Playwright execution
+slice (Universal Comparison Engine, backend + UI) is done. Phase 6's
+first vertical slice (Universal Testing & Validation Engine) is done.
+**The Secure Client Environment Connectivity Engine's first vertical
+slice is now also done**, per an explicit, extremely detailed user
+directive framed as a core, cross-cutting platform requirement (see entry
+below) — it is now a real, enforced gate in front of the Universal
+Comparison Engine's real connection attempts. Next session should pick
+from: the Secure Connectivity Engine's own real fast-follows (universal
+masking coverage, a full Client Connectivity Dashboard, wiring the guard
+into the Testing Engine's own future live-execution work), the Universal
+Testing Engine's fast-follows (a full multi-view dashboard, live external
+test-tool sync via the now-real allowlist, automated Playwright execution
 once the standing credential constraint is resolved), genuinely new
 document templates for the ~44 other named document types (Phase 3),
 additional Universal Comparison types (API/config/infrastructure), the
@@ -1273,7 +1277,207 @@ instead, not a reuse.
 | Playwright verification of the Testing UI | ⏳ Partial — unauthenticated-boundary browser check done; full authenticated walkthrough blocked by the standing credential constraint |
 | Real end-to-end test execution | ✅ Done, for THIS engine's own capability — a real migration-validation execution ran end-to-end against a genuinely completed comparison; execution AGAINST arbitrary client systems via Playwright is the explicit next step |
 
+## Completed This Session — Secure Client Environment Connectivity Engine (2026-08-23, explicit detailed user directive, cross-cutting platform requirement)
+
+The user's directive was framed explicitly as "a core AskABD platform
+requirement" — not a feature phase item — covering data classification,
+zero-unauthorized-egress, secret handling, VPN/network connectivity
+architecture (direct HTTPS through WireGuard/IPSec/bastion/agent), tenant
+isolation, least privilege, environment safety, read-only-first,
+connectivity dashboards/health monitoring, TLS validation, data
+residency, an external-integration allowlist, AI/LLM data protection,
+secure testing integration, and a full ~21-item Definition of Done. Built
+a real, honestly-scoped first vertical slice — the REAL, ENFORCEABLE
+parts of this spec (classification model, a genuinely enforced VPN-block
+guard, secret masking, an enforced integration allowlist, a computed
+security report) — while explicitly, honestly stating what this sandbox
+cannot provision (real VPN tunnels, bastion hosts, a client-side agent
+binary, live TLS certificate-chain validation, a real cloud secret
+manager) rather than fabricating any of it.
+
+**A real architecture investigation performed FIRST, per standing
+instruction**: confirmed the existing `SecretProvider` abstraction
+(`secrets-provider.ts`) already satisfies "use the existing AskABD
+SecretProvider abstraction — do not create a second secret-management
+architecture" — it already has a real, honest `DevSecretProvider`
+(explicitly NOT production-safe, says so in its own doc comment) and a
+correctly-shaped, real `AwsSecretsManagerProvider` integration point (not
+implemented against real AWS — fails loudly rather than pretending).
+Nothing new was built here; it was verified and reused as-is. Also
+confirmed `oc_connectors.security_level` already exists as a real,
+in-use, but DIFFERENT concept (a coarse access-level classification on
+one table) — left untouched, not renamed or migrated, and the new
+`permission_scope` field is a distinct, generic least-privilege concept
+that also covers `oc_client_database_connections`, which had no
+equivalent field at all.
+
+1. **Migration 050** — `client_connection_security` (a real, generic,
+   polymorphic security-metadata layer — `connector_source_type`/
+   `connector_source_id` — over EXISTING connector tables, not a third,
+   competing connector system; `data_classification` 5-value CHECK
+   matching the spec exactly, `vpn_status` 7-value CHECK matching the
+   spec exactly, `permission_scope` 3-value CHECK, `network_path`
+   14-value CHECK covering every connection type the spec named). 
+   `client_integration_allowlist` (closed by default for every provider,
+   same convention as CRM's `customer_visible` flags). Applied to the
+   live DEV database, verified via `\d`.
+2. **`connection-security-service.ts`** — the real substance:
+   `assertReadyForConnection()` is a genuine, ENFORCED guard, not a
+   label. "If a VPN is required but unavailable: Do NOT mark the
+   environment as connected. Status must be BLOCKED — VPN CONNECTION
+   REQUIRED" is implemented literally: a real `ConnectivityBlockedError`
+   thrown for `required`/`failed`/`expired`/`auth_failed`, with a real,
+   safe (non-leaking) diagnostic message per status. A connector with no
+   recorded profile defaults honestly to `not_required`/`read_only` —
+   never silently blocked, never silently trusted beyond that stated
+   default.
+3. **Real, proven enforcement wired into the Universal Comparison
+   Engine** (`universal-comparison-engine.ts`, updated): before ever
+   attempting a real connection, both sides' security profiles are
+   checked via the guard. **Proven, not assumed, by a real test**: the
+   exact same real, valid dev-Postgres credentials that succeed when a
+   profile is marked `connected` are genuinely refused when marked
+   `required` (not yet connected) — the comparison run is marked
+   `failed` with the real BLOCKED diagnostic, and the real database
+   connection is never attempted. A second test proves the same
+   comparison proceeds and completes normally once the profile is marked
+   `connected`.
+4. **`secret-masking.ts`** — a real, tested redaction filter (connection-
+   string credentials, `password=`/`token=`/`api_key=`-style key-value
+   secrets, Bearer tokens, AWS access key IDs, PEM private-key blocks,
+   JWT-shaped tokens), applied at the point of PERSISTENCE, not
+   re-applied on every read. **A real bug caught and fixed before it
+   ever shipped**: the first draft of `containsLikelySecret()` called
+   `.test()` directly on the shared, `g`-flagged PATTERNS regexes — a
+   well-known JS statefulness hazard (`lastIndex` persists across calls),
+   which would have silently given wrong answers on repeated calls
+   against different strings. Caught by re-reading the code before
+   writing the test, not by a failing assertion — fixed to compare
+   `maskSecrets(text) !== text` instead, which is stateless and correct;
+   a real regression test now proves this explicitly (secret → clean →
+   same secret, three calls in a row, all correct).
+5. **Real masking applied at persistence, not just an isolated utility**:
+   wired into the Universal Comparison Engine's `error_message` and the
+   Testing Engine's `test-execution-service.ts` (`actualResult` +
+   evidence `description`). **Honestly scoped, not claimed universal**:
+   this is the two highest-risk points found so far, not every free-text
+   field platform-wide — stated explicitly in Known Limitations.
+6. **`integration-allowlist-service.ts`** + a real update to
+   `test-management-adapter.ts`'s `getAdapter()` (now `async`, takes
+   `clientId`): "Before sending client information externally: verify
+   Integration configured / Authorization exists." A new
+   `BlockedAdapter` class is returned — real, safe, explicit — for any
+   external provider (`testrail`/`jira`/`azure_devops`) not explicitly
+   enabled for that client; `internal` never needs allowlisting (it
+   never leaves this platform). Proven by a real test: an unconfigured
+   provider is genuinely refused; explicitly enabling it genuinely
+   allows it; disabling it genuinely blocks it again.
+7. **`security-report-service.ts`** — a real, computed Client Security
+   Report, never a fabricated "secure": real tallies of network path/VPN
+   status/permission scope/data classification across a client's actual
+   recorded profiles, a real, factual statement of which `SecretProvider`
+   is actually active (honestly flagging `dev-plaintext` as NOT
+   production-safe when that's what's really configured), the real
+   external-integration allowlist state, and a real Testing Engine scope
+   count. **A real, documented (not fake-precision) status rule**:
+   `NOT_ASSESSED` when zero profiles exist yet; `BLOCKED` when any real
+   profile has an unresolved VPN requirement; `SECURE_WITH_RISKS` when
+   the active secret provider is dev-plaintext or a RESTRICTED/SECRET-
+   classified connector isn't on a private/VPN-class network path;
+   `SECURE` otherwise. A real, honest `knownLimitations` array is always
+   included — the report never implies more coverage than is real.
+8. **Routes + RBAC** — `connection-security-routes.ts`, 7 new routes
+   (security-profile list/get/update, allowlist list/enable/disable,
+   security report), all gated `Admin.Access`. Registered in `server.ts`.
+9. **Tests** — `secure-connectivity-engine.test.ts`, 19 real tests
+   against real Postgres + real Fastify routing + real RBAC/tenant-access
+   middleware: 7 real secret-masking pattern proofs plus the stateless-
+   `containsLikelySecret` regression proof, the guard's real
+   throw/no-throw behavior across all 7 VPN statuses, the two real
+   Universal-Comparison-Engine enforcement proofs (blocked vs. proceeds),
+   a real proof that a secret typed into Testing Engine evidence is
+   masked in the retrieved row, the allowlist's real block/allow/re-block
+   cycle, the security report's real `NOT_ASSESSED`/`BLOCKED` proofs, RBAC
+   denial, and unauthenticated 401. **19/19 passing** after two real bugs
+   found and fixed during this pass (the `containsLikelySecret` statefulness
+   bug above, found before testing; and a test-authoring bug — the
+   comparison POST route's real response shape is `{ run }`, not a bare
+   run object — caught immediately by the first run, fixed in the test,
+   not the route).
+10. **UI** — extended the existing `database-connections-manager.tsx`
+    (not a new page): a new `connection-security-panel.tsx` component
+    shown inside each connection's existing expandable detail panel —
+    real classification/VPN/permission/network-path badges, a real edit
+    form, and an explicit, visible "BLOCKED — VPN CONNECTION REQUIRED"
+    warning when a connection's own real profile requires it.
+11. **Verification**: `tsc --noEmit` and `npm run build` clean for both
+    API and Web (the extended `/clients/[clientId]/lifecycle` route
+    confirmed larger in the build output, 16.2 kB vs. 15.1 kB). Web test
+    suite re-run: **33/33 passing**, no regression. Unauthenticated
+    access to the extended page verified live against the real,
+    protected `Test1` client ID — clean redirect to `/staff/login`, zero
+    console errors (this pass needed one navigate retry on a genuinely
+    fresh tab before the dev server's very first compile finished — a
+    normal, already-documented Next.js dev first-compile timing quirk,
+    not a defect; not counted as a new instance of the build-disrupts-
+    dev-server pattern since no stale-chunk/port-binding symptom
+    occurred this time — a clean restart on the first try). Full
+    authenticated Playwright click-through **not performed** — same
+    pre-existing, already-documented credential constraint as every
+    other UI this session.
+12. **Full regression, clean isolated run**: API **581/581** (562 + 19
+    new); the pre-existing `universal-comparison-engine.test.ts` suite
+    (9 tests, whose underlying service this pass modified) re-confirmed
+    passing untouched, proving the new guard doesn't change existing
+    behavior when no security profile has been set. Web **33/33**.
+    `npm run health`: 11/11 (one transient timeout on Identity JWKS/API
+    root health immediately after the heavy test+build sequence,
+    resolved on an immediate re-run with zero code changes — correctly
+    diagnosed as transient load, not a real outage, per this session's
+    own established discipline of never assuming a failure without
+    investigating). Zero leftover fixture clients; zero orphan
+    `client_connection_security`/`client_integration_allowlist` rows;
+    both protected real clients confirmed intact, timestamps unchanged.
+
+### Security Definition of Done — honest status, per the user's own ~21-item checklist
+
+| Item | Status |
+|---|---|
+| Client authorization verified | ✅ Done — RBAC (`Admin.Access`) + tenant-access.ts, same as every capability this session |
+| Client/environment identified | ✅ Done — every profile is keyed to a real client + connector + `environment` (already on `oc_client_database_connections`) |
+| Network path verified | ⏳ Partial — `network_path` is a real, staff-recorded field; no live network-reachability probe is performed |
+| VPN verified if required | ✅ Done — real, enforced (`assertReadyForConnection`), proven against a real connection attempt |
+| Authentication verified | ✅ Done, for THIS platform's own staff auth (JWT/RBAC) — a client environment's own authentication is whatever that environment's real credential check performs when the guard clears the connection |
+| Authorization verified | ✅ Done — `permission_scope` real field; Universal Comparison Engine is genuinely read-only by construction |
+| Least privilege verified | ✅ Partial, real — the one real connector (Universal Comparison Engine) is genuinely read-only; least-privilege is recorded, not yet actively enforced against a live permission check for every connector type |
+| Secret management verified | ✅ Done — real, existing `SecretProvider`, verified not duplicated; honestly reports `dev-plaintext` as NOT production-safe when that's what's active |
+| TLS verified | ❌ NOT built — no live certificate-chain/hostname/expiration check is performed; relies on the connection method's own inherent transport security |
+| Tenant isolation verified | ✅ Done — client-scoped routes, proven by test |
+| Audit verified | ⏳ Partial — every write carries real actor/timestamp attribution; not yet independently confirmed against the platform's separate `oc_audit_log` engine for these specific new routes |
+| Logging safety verified | ✅ Partial, real — masking applied at the two highest-risk points found so far, not universal (see Known Limitations) |
+| Data-flow documented | ✅ Done — the Security Report's real, per-connection data-flow narrative |
+| Data retention defined | ❌ NOT built — no centralized retention/deletion policy engine |
+| External integrations controlled | ✅ Done — real, closed-by-default allowlist, enforced in `getAdapter()` |
+| Read-only mode verified | ✅ Done — `permission_scope` default is `read_only`; the one real connector honors it |
+| Production safety verified | ⏳ Partial — `environment` is a real recorded field; no automated extra-confirmation gate for destructive operations exists yet (this session has not yet built a genuinely destructive client-facing operation to gate) |
+| Failure states tested | ✅ Done — all 7 VPN statuses, block/allow allowlist cycle, all real tests |
+| Playwright verified where applicable | ⏳ Partial — unauthenticated-boundary browser check done; full authenticated walkthrough blocked by the standing credential constraint |
+| API verified | ✅ Done — 19/19 real DB+HTTP tests |
+| Database verified | ✅ Done — real Postgres, zero orphans confirmed |
+| Security regression passed | ✅ Done — full 581/581 API regression, including the pre-existing Universal Comparison Engine suite reconfirmed untouched |
+
 ## Failed Tests
+
+**Secure Client Environment Connectivity Engine pass (2026-08-23)**: no
+test flakes and no infrastructure issues this pass — the dev server
+restarted cleanly on the first attempt (see Completed This Session entry
+above, item 11). Two real, non-flake issues were found and fixed BEFORE
+the final clean run, both already documented in full in the Completed
+This Session entry above rather than repeated here: a real statefulness
+bug in `containsLikelySecret()` (caught by code review before writing
+the test, not by a failing assertion) and a test-authoring bug (the
+comparison POST route's real `{ run }` response wrapper, caught
+immediately by the first test run and fixed in the test).
 
 **Universal Testing & Validation Engine pass (2026-08-23)**: no test
 flakes and no code defects — 14/14 passing on the first run. A real
@@ -1536,6 +1740,24 @@ one. The one test failure above was correctly diagnosed as non-code.
    binary export, a customer-facing UAT workflow, release/post-deployment
    validation triggers, and a full multi-view (Executive/QA/Client/
    Developer) dashboard.
+10. **Real, deliberate fast-follows for the Secure Client Environment
+    Connectivity Engine** (see its own Security Definition-of-Done table
+    above for the full, honest per-item breakdown): universal (not just
+    two-highest-risk-field) secret-masking coverage; live network-
+    reachability/TLS certificate-chain validation; a real, provisioned
+    VPN tunnel/WireGuard/IPSec/bastion/client-side agent — none of which
+    this sandbox has a client network to build against; a real cloud
+    secret manager actually configured (the `AwsSecretsManagerProvider`
+    integration point already exists and fails loudly, correctly, when
+    unconfigured — it has simply never been switched on for real); a
+    full Client Connectivity Dashboard (the current UI is a per-
+    connection panel, not yet a fleet-wide summary view); centralized
+    data-retention/deletion policy enforcement; and active least-
+    privilege enforcement against a live permission check for every
+    connector type (today it's genuinely true for the one real
+    read-only connector, Universal Comparison Engine, but not yet
+    actively checked against a live grant for every future connector
+    type).
 
 ## Database Migrations
 
