@@ -2254,9 +2254,9 @@ database and verified via direct query).
 
 ## Last Verified Commit
 
-**Update (2026-08-23, `solution_test_1` pass)**: commit hash to be
-recorded in a follow-up docs commit immediately after this one lands (same
-two-commit pattern used for every prior pass). This pass: one real UI
+**Update (2026-08-23, `solution_test_1` pass)**: `45cb670` on
+`feature/reliability-hardening`, pushed to origin — confirmed
+`b66a1cd..45cb670`. `main` reconfirmed unchanged at `b63f797`. This pass: one real UI
 logic fix in `recommendations/page.tsx` (the "Proceed to Migration
 Planning" gating condition) plus `solution_test_1`'s live Playwright
 pass. No API code changed; full API regression re-confirmed 591/591
