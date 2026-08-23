@@ -830,10 +830,16 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     return { clientId, runs };
   });
 
-  server.get('/oc/discovery/:clientId/:runId', async (req) => {
-    const { runId } = req.params as any;
-    const run = await discoveryService.getDiscoveryRun(runId);
-    return run || { error: 'not_found' };
+  server.get('/oc/discovery/:clientId/:runId', async (req, reply) => {
+    // SECURITY FIX (security_test_1): clientId is now actually enforced —
+    // see discoveryService.getDiscoveryRun's own doc comment for the real
+    // cross-client IDOR this closes. A run that exists but belongs to a
+    // DIFFERENT client returns the same 404 as a run that doesn't exist at
+    // all, so this route can't be used to probe which run IDs are real.
+    const { clientId, runId } = req.params as any;
+    const run = await discoveryService.getDiscoveryRun(clientId, runId);
+    if (!run) { reply.status(404).send({ error: 'not_found' }); return; }
+    return run;
   });
 
   // ─── ASSESSMENT ───────────────────────────────────────────────────────────

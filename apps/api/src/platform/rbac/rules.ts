@@ -567,4 +567,39 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/health-score', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/health-snapshot', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/clients/:clientId/engagements', permissions: ['Admin.Access'] },
+
+  // ─── security_test_1 systemic sweep (2026-08-23) ──────────────────────────
+  // Per the Security Testing Addendum: extended the mechanical route audit
+  // beyond '/oc/clients/:clientId/...' to EVERY route carrying a `:clientId`
+  // param, any prefix (143 routes checked). Found 17 more real gaps —
+  // staff-only capabilities (Lifecycle, Connectors, one Discovery/Assessment
+  // detail route each, Recommendations, Migration Runs, the entire
+  // client-services/RequirementWorkspace family used by the real Security
+  // Validation lifecycle stage, real-time Events, and Jira links) that fell
+  // through to defaultPolicy:'authenticated'. Cross-referenced against BOTH
+  // apps/web/src/app/(app) (+ its shared components/lib) AND
+  // apps/web/src/app/(portal) call sites — 8 of the 17
+  // client-services/document routes had zero caller anywhere BUT
+  // RequirementWorkspace.tsx, which only (app)/lifecycle/page.tsx and
+  // (app)/dynamic-overview.tsx (via client-command-center.tsx) ever mount,
+  // confirming staff-only. The sibling base routes '/oc/discovery/:clientId'
+  // and '/oc/assessment/:clientId' ARE genuinely portal-called and are
+  // deliberately NOT listed here, matching the established pattern.
+  { method: 'GET', path: '/api/v1/oc/lifecycle/:clientId', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/lifecycle/:clientId/history', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/connectors/:clientId', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/discovery/:clientId/:runId', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/assessment/:clientId/domain/:domain', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/recommendations/:clientId', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/migration/runs/:clientId', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/client-services/:clientId/:serviceId/requirements', permissions: ['Admin.Access'] },
+  { method: 'PUT', path: '/api/v1/oc/client-services/:clientId/:serviceId/requirements/:requirementKey', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/client-services/:clientId/:serviceId/requirements/:requirementKey/history', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/client-services/:clientId/:serviceId/readiness', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/client-services/:clientId/:serviceId/requirements/:requirementKey/documents/:documentId/validate', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/client-services/:clientId/:serviceId/requirements/:requirementKey/documents', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/client-services/:clientId/:serviceId/requirements/:requirementKey/documents', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/events/stream/:clientId', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/events/:clientId', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/jira/links/:clientId', permissions: ['Admin.Access'] },
 ] as const;

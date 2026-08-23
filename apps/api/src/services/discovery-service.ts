@@ -336,11 +336,26 @@ export class DiscoveryService {
   }
 
   /**
-   * Get a specific discovery run
+   * Get a specific discovery run, scoped to the given client.
+   *
+   * SECURITY FIX (security_test_1, 2026-08-23): previously took only `runId`
+   * and queried `WHERE id = $1` with no `client_id` check at all, even
+   * though the route (`GET /oc/discovery/:clientId/:runId`) carries a real
+   * `clientId` in the URL. tenant-access.ts only validates that the caller
+   * is authorized for the `clientId` PATH SEGMENT — it never verifies the
+   * RESOURCE returned actually belongs to that client. That made this a
+   * real, exploitable cross-client IDOR: an identity legitimately
+   * tenant-mapped to Client A could put Client A's own id in the URL
+   * (passing tenant-access) together with ANY OTHER client's real `runId`,
+   * and receive that other client's full discovery run — hostnames,
+   * applications, databases, real evidence quotes. Found via a mechanical
+   * audit of every route carrying two ID params, per the Security Testing
+   * Addendum's "same class of vulnerability" requirement. Now requires and
+   * enforces `client_id = $2`.
    */
-  async getDiscoveryRun(runId: string): Promise<any | null> {
+  async getDiscoveryRun(clientId: string, runId: string): Promise<any | null> {
     try {
-      const res = await dbPool.query('SELECT * FROM oc_discovery_runs WHERE id = $1', [runId]);
+      const res = await dbPool.query('SELECT * FROM oc_discovery_runs WHERE id = $1 AND client_id = $2', [runId, clientId]);
       return res.rows[0] || null;
     } catch { return null; }
   }

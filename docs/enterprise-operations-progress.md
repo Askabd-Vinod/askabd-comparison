@@ -115,7 +115,32 @@ itself (the earlier session's `$2`-param fix held). Rows #17, #18, #19, and
 #25 of the coverage matrix were corrected in place — #18 was honestly
 downgraded from PASS to PASS_WITH_RISKS since its RBAC claim of "Enforced"
 had been factually wrong until this pass. See its own "Completed This
-Session" entry below. **Next up, per the standing "continue automatically"
+Session" entry below. **A "SECURITY TESTING ADDENDUM" directive was then
+adopted**: for `security_test_1` and every future security feature, perform
+a system-wide security-impact review (50-point checklist) and, for every
+protected route, the 7-scenario matrix (unauthenticated/customer-own/
+customer-other-client/insufficient-role/staff/malformed-ID/unauthorized-ID)
+— never assume RBAC config alone proves security; execute the real request
+and verify the real response. `security_test_1` (Secure Connectivity
+Engine, row #55, and the Discovery Engine's detail route, row #9)
+investigated the real Security Validation lifecycle stage's own RBAC,
+found 17 more gaps via the same sweep technique, then — per the addendum's
+mandatory same-class audit — found a genuinely DIFFERENT and more serious
+vulnerability class: 2 real object-level-authorization (IDOR) bugs where
+`clientId` was present and tenant-access-checked but the actual DB query
+never verified the returned/mutated resource belonged to that client
+(`GET /oc/discovery/:clientId/:runId`, and `GET/PATCH .../connection-
+security/:sourceType/:sourceId`). Both fixed at the query layer and proven
+with real 2-client fixtures — not just RBAC rules. Also ran 2 real
+path-traversal attack attempts against the document-upload route (both
+safely contained, verified on disk) and completed the FIRST-EVER live,
+end-to-end walkthrough of the real Security Validation stage, ending in a
+real, confirmed lifecycle stage transition. 2 more real findings honestly
+disclosed but not fixed this pass (a CORS `credentials:true` + wildcard
+-origin misconfiguration, low exploitability since this API's auth is
+Bearer-header-only; and client-supplied-only MIME validation on document
+upload, no content sniffing). See its own "Completed This Session" entry
+below. **Next up, per the standing "continue automatically"
 authorization**:
 `testing_engine_test_1`, and onward down the named list in
 `docs/eoc-feature-coverage-matrix.md`'s own execution order, ending in
@@ -2706,6 +2731,93 @@ methodology into a full mechanical audit of the whole route surface.
    BLOCKED_EXTERNAL_DEPENDENCY** (80 rows total, reconciled) — the honest
    result of correcting 2 rows' prior over-claimed security status, not a
    regression.
+
+## Completed This Session — security_test_1: the Security Testing Addendum, 17 more RBAC gaps + 2 real IDOR fixes + the real Security Validation stage live for the first time (2026-08-23, continued)
+
+Started as a standard RBAC investigation of the real Security Validation
+lifecycle stage (Secure Connectivity Engine, row #55) — found 17 more
+client-scoped routes with no RBAC rule (same sweep technique as
+`transformation_test_1`), including the entire 8-route `client-services`/
+`RequirementWorkspace` family that IS this stage's real UI. Per the newly
+-adopted Security Testing Addendum's mandatory "audit for the same
+vulnerability class" rule, then audited every route carrying a SECOND
+opaque ID alongside `:clientId` (18 routes) and found a genuinely
+DIFFERENT, more serious class:
+
+1. **Real object-level-authorization (IDOR) #1**: `GET /oc/discovery/
+   :clientId/:runId` — the route didn't even read `clientId` from params;
+   `discoveryService.getDiscoveryRun(runId)` queried by `runId` alone. Any
+   identity tenant-mapped to Client A could put Client A's own id in the
+   URL (passing tenant-access.ts's own check) together with ANY OTHER
+   client's real `runId` and receive that client's full discovery run —
+   real hostnames, applications, databases, evidence quotes. Fixed:
+   `getDiscoveryRun(clientId, runId)` now enforces `client_id`; a
+   cross-client attempt and a same-client attempt both proven with a real
+   2-client fixture — the cross-client attempt returns the same `404`
+   shape as "doesn't exist" (no existence-probing), the same-client
+   attempt returns the real run.
+2. **Real object-level-authorization (IDOR) #2**: `GET/PATCH /oc/clients/
+   :clientId/connection-security/:sourceType/:sourceId` —
+   `ConnectionSecurityService.getOrCreate`/`updateProfile` looked up/wrote
+   rows by `(sourceType, sourceId)` alone, never cross-checking the row's
+   real `client_id` against the URL's `clientId`. A mismatched pair could
+   silently read or overwrite another client's real VPN status/permission
+   scope/network path/data classification. Fixed with a new
+   `ConnectionSecurityOwnershipError` → `404`; verified the target
+   client's real profile is genuinely unchanged after a blocked
+   cross-client PATCH attempt, not just that the response was denied.
+3. **Real attack-attempt evidence, not just code review**: 2 real
+   path-traversal attempts against the document-upload route (a `File`
+   -object filename and a hand-crafted raw multipart body, the second
+   bypassing the browser's own filename sanitization) — both real uploads
+   succeeded but landed exactly inside the intended per-client directory,
+   verified directly on disk. Positive, evidenced proof the existing
+   `LocalStorageProvider.validateReference()` protection (and/or the
+   multipart parser's own filename handling) genuinely holds, not assumed
+   from reading the code alone.
+4. **The real Security Validation stage walked end-to-end live for the
+   first time this entire program**: a fresh QA client auto-progressed
+   from `otp-verified` straight to Security Validation (existing,
+   unmodified auto-populate logic); all 5 real requirements saved live
+   through the real UI (Authentication Configuration, Compliance
+   Certification, Security Contact — Encryption/Network Restrictions left
+   `not_provided`, both genuinely optional); a real PDF uploaded for the
+   required Compliance Certificate; "✓ All requirements satisfied" reached
+   with 0 blockers; **"Complete Security Validation →" clicked and the
+   real lifecycle stage genuinely transitioned** (Step 5/20 → 6/20, 22% →
+   28%, Security Validation → Environment Registration) — the first
+   confirmed live proof of this transition anywhere in the program.
+5. **2 more real findings honestly disclosed, deliberately NOT fixed this
+   pass**: (a) `apps/api/src/server.ts`'s CORS config combines
+   `credentials: true` with a reflect-any-Origin default when
+   `CORS_ORIGIN` is unset — a real, if currently low-exploitability
+   (confirmed this API's auth is 100% `Authorization: Bearer`
+   header-based, no cookie ever read for auth) misconfiguration; not
+   touched live this pass specifically to avoid risking the running dev
+   server this suite's own live verification depended on. (b) document
+   -upload MIME validation is client-supplied-only (the multipart part's
+   own `Content-Type`), trivially spoofable, no magic-byte content
+   sniffing — real, moderate, disclosed gap.
+
+All 17 RBAC gaps gated `Admin.Access`; both IDOR fixes at the query/service
+layer. New file `apps/api/tests/security-test-1.test.ts` (7 real tests: a
+17-route customer-403 sweep, an unauthenticated-401 spot check, an
+admin-success check against the real requirement catalog, and 3 real
+2-client IDOR proofs). Full API regression: **631/631 passing** (624 + 7
+new). `tsc --noEmit` clean both apps. Full FK-ordered + entity_id-ordered
+cleanup (54 rows across 8 tables, including 3 real uploaded documents and
+15 real audit rows), zero orphans verified; both protected clients
+confirmed unchanged; the 3 real physical uploaded files also manually
+removed from `apps/api/uploads/` (a real, minor, disclosed gap in
+`cleanup-qa-client.mjs` itself — it only ever sweeps DB rows, not disk
+files; not urgent since these are local dev artifacts, not a security or
+data-integrity issue). Full write-up:
+`docs/evidence/security/security_test_1/security_test_1.md`.
+`docs/eoc-feature-coverage-matrix.md` rows #9 and #55 corrected in place
+(row #55: IMPLEMENTED → PASS_WITH_RISKS, now genuinely live-verified);
+summary counts re-run mechanically and now read **20 PASS / 19
+PASS_WITH_RISKS / 24 IMPLEMENTED / 15 NOT_STARTED / 2
+BLOCKED_EXTERNAL_DEPENDENCY** (80 rows total, reconciled).
 
 ## Failed Tests
 

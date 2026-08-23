@@ -59,13 +59,43 @@ export class ConnectivityBlockedError extends Error {
   }
 }
 
+export class ConnectionSecurityOwnershipError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConnectionSecurityOwnershipError';
+  }
+}
+
 export class ConnectionSecurityService {
+  /**
+   * SECURITY FIX (security_test_1, 2026-08-23): the underlying table's real
+   * uniqueness is on (connector_source_type, connector_source_id) alone —
+   * correct, since connector_source_id is already a globally-unique
+   * per-connection UUID, never shared across clients. But the ROUTE
+   * (`GET/PATCH /oc/clients/:clientId/connection-security/:sourceType/
+   * :sourceId`) carries its own, separately-supplied `clientId` that was
+   * never cross-checked against the row's real owner — a confused-deputy /
+   * object-level-authorization gap (found via the same mechanical dual-ID
+   * route audit as the discovery-run IDOR fixed alongside this). A caller
+   * could put ANY clientId in the URL together with a real sourceId
+   * belonging to a DIFFERENT client and silently read (or, in
+   * updateProfile below, silently overwrite) that other client's real
+   * security profile — VPN status, permission scope, network path, data
+   * residency. Now explicitly verified: an existing row whose real
+   * client_id does not match the caller's clientId throws rather than
+   * being silently returned or reused.
+   */
   async getOrCreate(clientId: string, sourceType: ConnectorSourceType, sourceId: string): Promise<ConnectionSecurityProfile> {
     const existing = await sharedPool.query<Row>(
       `SELECT * FROM client_connection_security WHERE connector_source_type = $1 AND connector_source_id = $2`,
       [sourceType, sourceId]
     );
-    if (existing.rows[0]) return toProfile(existing.rows[0]);
+    if (existing.rows[0]) {
+      if (existing.rows[0].client_id !== clientId) {
+        throw new ConnectionSecurityOwnershipError(`This ${sourceType} does not belong to this client.`);
+      }
+      return toProfile(existing.rows[0]);
+    }
     const inserted = await sharedPool.query<Row>(
       `INSERT INTO client_connection_security (client_id, connector_source_type, connector_source_id) VALUES ($1,$2,$3)
        ON CONFLICT (connector_source_type, connector_source_id) DO UPDATE SET connector_source_type = EXCLUDED.connector_source_type
@@ -98,6 +128,14 @@ export class ConnectionSecurityService {
     if (!existing) {
       if (!clientId) throw new Error(`No security profile exists for ${sourceType}/${sourceId} and no clientId was provided to create one.`);
       await this.getOrCreate(clientId, sourceType, sourceId);
+    } else if (clientId && existing.clientId !== clientId) {
+      // SECURITY FIX (security_test_1): see getOrCreate's doc comment —
+      // without this check, a caller could overwrite ANOTHER client's real
+      // security profile just by supplying a mismatched clientId/sourceId
+      // pair. The route always passes clientId; internal callers that
+      // pre-validate ownership themselves (e.g. the comparison engine's
+      // pre-connection guard) still work unchanged since they never pass one.
+      throw new ConnectionSecurityOwnershipError(`This ${sourceType} does not belong to this client.`);
     }
     const res = await sharedPool.query<Row>(
       `UPDATE client_connection_security SET
