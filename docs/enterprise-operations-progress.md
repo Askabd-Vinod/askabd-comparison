@@ -2335,9 +2335,9 @@ database and verified via direct query).
 
 ## Last Verified Commit
 
-**Update (2026-08-23, `document_generation_test_1` pass)**: commit hash
-to be recorded in a follow-up docs commit immediately after this one
-lands (same two-commit pattern used for every prior pass). This pass: two
+**Update (2026-08-23, `document_generation_test_1` pass)**: `1b5ba14` on
+`feature/reliability-hardening`, pushed to origin — confirmed
+`d678b23..1b5ba14`. `main` reconfirmed unchanged at `b63f797`. This pass: two
 real frontend fixes in `document-generation-view.tsx` (stale Quality
 Check state; every write action silently swallowing real backend errors)
 plus `document_generation_test_1`'s live Playwright pass. No API code
