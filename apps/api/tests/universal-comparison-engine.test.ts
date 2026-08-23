@@ -107,6 +107,16 @@ async function makeUnresolvableConnection(clientId: string, name: string) {
   return res.rows[0].id;
 }
 
+/** A real row for a connector_type this platform has no real adapter for yet — proves the Technology Adapter Registry gate (migration 051), not mocked. */
+async function makeUnsupportedConnection(clientId: string, name: string, connectorType: 'oracle' | 'mongodb') {
+  const res = await sharedPool.query(
+    `INSERT INTO oc_client_database_connections (client_id, name, connector_type, host, port, database_name, username, password_ref, environment)
+     VALUES ($1, $2, $3, 'localhost', 5442, 'comparison', 'comp_user', NULL, 'development') RETURNING id`,
+    [clientId, name, connectorType]
+  );
+  return res.rows[0].id;
+}
+
 describe('Universal Comparison Engine — real, independently-connected schema comparison', () => {
   it('comparing the same real database against itself via two SEPARATE real connections reports a real MATCH on every real table', async () => {
     const app = await buildApp();
@@ -148,6 +158,51 @@ describe('Universal Comparison Engine — real, independently-connected schema c
     expect(run.status).toBe('failed');
     expect(run.errorMessage).toBeTruthy();
     expect(run.results).toEqual([]); // never a fabricated partial result set
+    await app.close();
+  });
+
+  it('a connector_type with no real adapter yet (oracle) produces a real, persisted failed run with an honest ADAPTER_REQUIRED diagnostic — never a bare exception, never a fabricated result', async () => {
+    const app = await buildApp();
+    const clientId = await makeClient(`Compare Adapter Required ${randomUUID().slice(0, 8)}`);
+    const admin = await adminToken();
+    const leftId = await makeRealConnection(clientId, 'Real Postgres Side');
+    const rightId = await makeUnsupportedConnection(clientId, 'Oracle Side', 'oracle');
+
+    const res = await app.inject({
+      method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/database-schema`,
+      headers: { authorization: `Bearer ${admin}` }, payload: { leftConnectionId: leftId, rightConnectionId: rightId },
+    });
+    expect(res.statusCode).toBe(201); // a real run record is created — never a bare 400 with nothing persisted
+    const run = res.json().run;
+    expect(run.status).toBe('failed');
+    expect(run.errorMessage).toContain('ADAPTER_REQUIRED');
+    expect(run.errorMessage).toContain('oracle');
+    expect(run.results).toEqual([]); // never a fabricated partial result set
+
+    // Real persistence check, independent of the HTTP response.
+    const persisted = await sharedPool.query('SELECT status, error_message FROM comparison_runs WHERE id = $1', [run.id]);
+    expect(persisted.rows[0].status).toBe('failed');
+    expect(persisted.rows[0].error_message).toContain('ADAPTER_REQUIRED');
+    await app.close();
+  });
+
+  it('a connector_type never registered in the Technology Adapter Registry at all produces an honest UNKNOWN_TECHNOLOGY diagnostic, never a crash', async () => {
+    const app = await buildApp();
+    const clientId = await makeClient(`Compare Unknown Tech ${randomUUID().slice(0, 8)}`);
+    const admin = await adminToken();
+    const leftId = await makeRealConnection(clientId, 'Real Postgres Side');
+    const rightId = await makeUnsupportedConnection(clientId, 'Mystery Side', 'mongodb' as any);
+    // Overwrite to a genuinely unregistered technology string (not even a seeded adapter_required row).
+    await sharedPool.query(`UPDATE oc_client_database_connections SET connector_type = $1 WHERE id = $2`, [`made-up-tech-${randomUUID().slice(0, 8)}`, rightId]);
+
+    const res = await app.inject({
+      method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/database-schema`,
+      headers: { authorization: `Bearer ${admin}` }, payload: { leftConnectionId: leftId, rightConnectionId: rightId },
+    });
+    expect(res.statusCode).toBe(201);
+    const run = res.json().run;
+    expect(run.status).toBe('failed');
+    expect(run.errorMessage).toContain('UNKNOWN_TECHNOLOGY');
     await app.close();
   });
 

@@ -52,6 +52,28 @@ Allowed statuses (unchanged from the directive): `NOT_STARTED`,
 
 ---
 
+## Technology Adapter Registry (cross-cutting, not a numbered engine)
+
+Per the ASKABD FUTURE TECHNOLOGY & COMPATIBILITY REQUIREMENT directive's
+own "Future Technology Principle" — *"Only create a NEW ENGINE when the
+business capability itself is new. If only the technology is new:
+CREATE/EXTEND THE ADAPTER"* — the real `technology_adapters` registry
+(migration 051, `technology-adapter-registry.ts`) is deliberately **not**
+listed as engine #81. It is the real INTERFACE→ADAPTER layer consumed by
+engines that need it, starting with #33/#34 (Universal/Environment
+Comparison Engine) this session. Real, honest v1 scope: `postgresql` is
+the only `supported` database adapter (extracted from the Comparison
+Engine's own pre-existing logic); `oracle`/`sqlserver`/`mysql`/`mongodb`
+are seeded `adapter_required` — a genuine, pre-existing gap the registry
+now makes visible rather than a fabricated new capability. Real
+capability-negotiation gate (`checkCompatibility()`) is live and proven
+in `technology_adapter_test_1`: an unsupported/unregistered technology
+gets a real, persisted, honest `ADAPTER_REQUIRED`/`UNKNOWN_TECHNOLOGY`
+result — never a silent failure, never a blind attempt. Other engines
+(Migration, VPS/VPN, External Integration, Test Management) have not yet
+been wired through this registry — real, deliberate fast-follow, not
+silently skipped.
+
 ## Engine Coverage Matrix
 
 | # | Engine | Backend | UI | Security (RBAC/Tenant/Audit) | Automated Tests | Playwright | External Integration | Evidence | Status | Known Gaps |
@@ -88,7 +110,7 @@ Allowed statuses (unchanged from the directive): `NOT_STARTED`,
 | 30 | Document Template Engine | Real, 3 real templates seeded | Real | Enforced | Covered by #29's suite | — | N/A | — | IMPLEMENTED | Only 3 of ~55 named document types have real data-fetchers; rest are a real, deliberate fast-follow |
 | 31 | Document Export Engine | Real HTML/Markdown; PDF/DOCX honestly rejected | Real export buttons | Enforced | Covered by #29's suite | — | N/A | — | PASS_WITH_RISKS | PDF/DOCX genuinely not built |
 | 32 | Document Quality Engine | Real `getQualityCheck` | Real | Enforced | Covered by #29's suite | — | N/A | — | IMPLEMENTED | — |
-| 33 | Universal Comparison Engine | Real | Real | Enforced (+ real VPN-block guard) | `universal-comparison-engine.test.ts` 9 + `secure-connectivity-engine.test.ts` (guard) | **Live, full real 2-connection comparison proven** | N/A | `comparison_test_1` | **PASS** | Only `database_schema` type built |
+| 33 | Universal Comparison Engine | Real, now gated by a real Technology Adapter Registry (migration 051, `technology-adapter-registry.ts`) — per the Future Technology & Compatibility directive's own "extend the adapter, not a new engine" principle, this is the ADAPTER layer for this engine, not a new engine | Real, honest non-Postgres status surfaced (no longer silently hidden) | Enforced (+ real VPN-block guard + real capability-negotiation gate) | `universal-comparison-engine.test.ts` 11 + `technology-adapter-registry.test.ts` 8 + `secure-connectivity-engine.test.ts` (guard) — 591/591 full API regression passing | **Live, full real 2-connection comparison proven; live ADAPTER_REQUIRED honest-block path also proven** | N/A | `comparison_test_1`, `technology_adapter_test_1` | **PASS** | Only `database_schema` type built; only `postgresql` has a real adapter — oracle/sqlserver/mysql/mongodb honestly `adapter_required`, not fabricated as working |
 | 34 | Environment Comparison Engine | Same engine as #33 (`environment` field on connections) | Same UI | Same | Same | Same live proof | N/A | `comparison_test_1` | **PASS** (as scoped) | Not a separate engine — noted per the directive's own naming |
 | 35 | Configuration Comparison Engine | Not built | Not built | N/A | N/A | N/A | N/A | — | **NOT_STARTED** | Real, named fast-follow for Universal Comparison Engine |
 | 36 | Database Comparison Engine | Same engine as #33 | Same | Same | Same | Same | N/A | `comparison_test_1` | **PASS** | — |
@@ -135,7 +157,7 @@ Allowed statuses (unchanged from the directive): `NOT_STARTED`,
 | 77 | Infrastructure Discovery Engine | Real, part of `discovery-service.ts` | Real (Infrastructure tab) | Enforced | Not re-verified this session | Not reached live | N/A | — | IMPLEMENTED | — |
 | 78 | Dependency Analysis Engine | Not built as distinct capability | — | N/A | N/A | N/A | N/A | — | **NOT_STARTED** | — |
 | 79 | Environment Registration Engine | Real, `oc_lifecycle` stage | Real (Lifecycle journey) | Enforced | Not independently tested | **Live — reached/advanced through this stage in all 3 passes** (2 via disclosed fixture shortcut, 1 organically) | N/A | 3x live passes | PASS_WITH_RISKS | The stage's own real form fields never filled organically through the UI this session |
-| 80 | Connector Management Engine | Real, `oc_client_database_connections` | Real `DatabaseConnectionsManager` | Enforced (+ real Secure Connectivity guard) | Covered by #33/#55's suites | **Live — 2 real connections added, tested, used in a real comparison** | N/A | `comparison_test_1` | **PASS** | Only PostgreSQL connector type exercised live |
+| 80 | Connector Management Engine | Real, `oc_client_database_connections` | Real `DatabaseConnectionsManager` | Enforced (+ real Secure Connectivity guard + real Technology Adapter Registry gate at comparison time) | Covered by #33/#55's suites | **Live — real PostgreSQL connections added/tested/compared; a real `oracle`-typed connection also created live and honestly refused at comparison time** | N/A | `comparison_test_1`, `technology_adapter_test_1` | **PASS** | Row creation exercised for postgresql + oracle; no non-Postgres connector has real connectivity-testing support (`connection-test` step) — only the comparison-time gate was proven, not a live oracle TCP connection |
 
 ---
 

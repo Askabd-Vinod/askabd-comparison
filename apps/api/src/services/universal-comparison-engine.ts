@@ -23,6 +23,7 @@ import { sharedPool } from './db-pool.js';
 import { getSecretProvider } from './secrets-provider.js';
 import { ConnectionSecurityService, ConnectivityBlockedError } from './connection-security-service.js';
 import { maskSecrets } from './secret-masking.js';
+import { TechnologyAdapterRegistry } from './technology-adapter-registry.js';
 
 export type ComparisonObjectStatus = 'match' | 'mismatch' | 'missing' | 'extra' | 'unknown';
 
@@ -101,30 +102,42 @@ async function inspectSchema(config: DatabaseConnectionConfig): Promise<{ tables
   }
 }
 
+interface ConnectionMeta { name: string; connectorType: string; host: string; port: number; database: string; username: string; passwordRef: string | null }
+
 /**
- * Real credential resolution — deliberately targets
- * oc_client_database_connections (the multi-instance database connection
- * feature), not oc_connectors. Investigated before writing this:
- * oc_connectors.configuration explicitly STRIPS password/secret/token
- * fields before persisting (connector-service.ts's saveConfiguration) —
- * there is no retrievable secret there at all, by real design. This
- * table genuinely does persist a retrievable `password_ref` via the real
- * SecretProvider, and even carries a real `environment` field
- * (production/staging/uat/development) matching the brief's own DEV/TEST/
- * UAT/PROD vocabulary directly — the correct real source for this engine.
+ * Real lookup — deliberately targets oc_client_database_connections (the
+ * multi-instance database connection feature), not oc_connectors.
+ * Investigated before writing this: oc_connectors.configuration explicitly
+ * STRIPS password/secret/token fields before persisting
+ * (connector-service.ts's saveConfiguration) — there is no retrievable
+ * secret there at all, by real design. This table genuinely does persist
+ * a retrievable `password_ref` via the real SecretProvider, and even
+ * carries a real `environment` field (production/staging/uat/development)
+ * matching the brief's own DEV/TEST/UAT/PROD vocabulary directly — the
+ * correct real source for this engine.
+ *
+ * Deliberately does NOT filter by connector_type — per the Future
+ * Technology & Compatibility directive's "capability negotiation"
+ * principle, a non-PostgreSQL connection must be found and named in a
+ * real, persisted run record with an honest ADAPTER_REQUIRED status, not
+ * silently treated as if it doesn't exist.
  */
-async function resolveConnectionConfig(connectionId: string, clientId: string): Promise<{ label: string; config: DatabaseConnectionConfig } | null> {
+async function lookupConnection(connectionId: string, clientId: string): Promise<ConnectionMeta | null> {
   const res = await sharedPool.query(
     `SELECT name, connector_type, host, port, database_name, username, password_ref FROM oc_client_database_connections WHERE id = $1 AND client_id = $2`,
     [connectionId, clientId]
   );
   const row = res.rows[0];
-  if (!row || row.connector_type !== 'postgresql') return null;
-  const password = row.password_ref ? await getSecretProvider().getSecret(row.password_ref).catch(() => '') : '';
+  if (!row) return null;
   return {
-    label: row.name,
-    config: { host: row.host, port: row.port, database: row.database_name, username: row.username, password },
+    name: row.name, connectorType: row.connector_type, host: row.host, port: row.port,
+    database: row.database_name, username: row.username, passwordRef: row.password_ref,
   };
+}
+
+async function resolveConnectionConfig(meta: ConnectionMeta): Promise<DatabaseConnectionConfig> {
+  const password = meta.passwordRef ? await getSecretProvider().getSecret(meta.passwordRef).catch(() => '') : '';
+  return { host: meta.host, port: meta.port, database: meta.database, username: meta.username, password };
 }
 
 export class UniversalComparisonEngine {
@@ -133,6 +146,16 @@ export class UniversalComparisonEngine {
    * database connections belonging to the SAME client — never a
    * self-referential duplicate query. Persists real, per-table results,
    * never a fabricated summary.
+   *
+   * Real capability negotiation (Technology Adapter Registry, migration
+   * 051): before ever attempting a real connection, both sides'
+   * `connector_type` is checked against the registry via
+   * `TechnologyAdapterRegistry.checkCompatibility`. If either is not a
+   * real, `supported` adapter, this run is still persisted — with
+   * `failed` status and a real, structured ADAPTER_REQUIRED (or
+   * UNKNOWN_TECHNOLOGY) diagnostic — never a bare, unhelpful exception
+   * with no run record at all, and never a silent attempt against an
+   * unsupported technology.
    *
    * Real, enforced connectivity-security gate (Secure Client Environment
    * Connectivity Engine, migration 050): before ever attempting a real
@@ -148,20 +171,36 @@ export class UniversalComparisonEngine {
     if (leftConnectionId === rightConnectionId) {
       throw new Error('Cannot compare a connection against itself — choose two different connections.');
     }
-    const left = await resolveConnectionConfig(leftConnectionId, clientId);
-    const right = await resolveConnectionConfig(rightConnectionId, clientId);
-    if (!left || !right) {
-      throw new Error('Both must be real, existing PostgreSQL connections belonging to this client.');
+    const leftMeta = await lookupConnection(leftConnectionId, clientId);
+    const rightMeta = await lookupConnection(rightConnectionId, clientId);
+    if (!leftMeta || !rightMeta) {
+      throw new Error('Both must be real, existing connections belonging to this client.');
     }
 
     const inserted = await sharedPool.query<RunRow>(
       `INSERT INTO comparison_runs (client_id, comparison_type, left_label, right_label, left_connection_id, right_connection_id, created_by)
        VALUES ($1, 'database_schema', $2, $3, $4, $5, $6) RETURNING *`,
-      [clientId, left.label, right.label, leftConnectionId, rightConnectionId, actor]
+      [clientId, leftMeta.name, rightMeta.name, leftConnectionId, rightConnectionId, actor]
     );
     const runRow = inserted.rows[0];
     if (!runRow) throw new Error('comparison_runs insert returned no row');
     const runId = runRow.id;
+
+    const registry = new TechnologyAdapterRegistry();
+    for (const meta of [leftMeta, rightMeta]) {
+      const compat = await registry.checkCompatibility(meta.connectorType, 'database');
+      if (compat.status !== 'supported') {
+        const diagnostic = compat.status === 'unknown_technology' ? 'UNKNOWN_TECHNOLOGY' : 'ADAPTER_REQUIRED';
+        const failed = await sharedPool.query<RunRow>(
+          `UPDATE comparison_runs SET status = 'failed', error_message = $1, completed_at = NOW() WHERE id = $2 RETURNING *`,
+          [maskSecrets(`${diagnostic}: ${meta.name} (${meta.connectorType}) — ${compat.message}`), runId]
+        );
+        return toRun(failed.rows[0]!);
+      }
+    }
+
+    const left = { label: leftMeta.name, config: await resolveConnectionConfig(leftMeta) };
+    const right = { label: rightMeta.name, config: await resolveConnectionConfig(rightMeta) };
 
     const security = new ConnectionSecurityService();
     for (const [label, connectionId] of [[left.label, leftConnectionId], [right.label, rightConnectionId]] as const) {

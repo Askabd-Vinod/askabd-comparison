@@ -16,31 +16,44 @@ engineering decision and continue" rather than blocking on Phase 1 first).
 
 ## Current Task
 
-All of Phase 1 and Phase 2 are done. Phase 3 (Document Generation Engine +
-Requirements Traceability Matrix UI) is done. Phase 4's first vertical
-slice (Universal Comparison Engine, backend + UI) is done. Phase 6's
-first vertical slice (Universal Testing & Validation Engine) is done.
-**The Secure Client Environment Connectivity Engine's first vertical
-slice is now also done**, per an explicit, extremely detailed user
-directive framed as a core, cross-cutting platform requirement (see entry
-below) — it is now a real, enforced gate in front of the Universal
-Comparison Engine's real connection attempts. Next session should pick
-from: the Secure Connectivity Engine's own real fast-follows (universal
-masking coverage, a full Client Connectivity Dashboard, wiring the guard
-into the Testing Engine's own future live-execution work), the Universal
-Testing Engine's fast-follows (a full multi-view dashboard, live external
-test-tool sync via the now-real allowlist, automated Playwright execution
-once the standing credential constraint is resolved), genuinely new
-document templates for the ~44 other named document types (Phase 3),
-additional Universal Comparison types (API/config/infrastructure), the
-real, pre-existing traceability-link type-vocabulary inconsistency (see
-Pending Tasks), or Phase 5 (Risk/Decision/Dependency Management) per the
-roadmap's own next-priority ordering. Re-read this
-file first and confirm `npm run health` is still green (services may need
+**Update (2026-08-23)**: the session is now operating under four stacked
+governing directives (see the "Completed This Session" entries below for
+each, most recent first): (1) real-time Playwright-in-the-loop validation
+for every change, (2) the Master Autonomous Client + Real-Time Validation
+Program (`AskABD PW <Feature> Test <NUMBER>` QA clients,
+`<feature>_test_<number>` suites, `test-evidence/` reports), (3) the 100%
+Coverage / No Feature Left Behind directive (`docs/eoc-feature-coverage-
+matrix.md`, an explicit named execution order of ~27 test suites), and
+(4) the Future Technology & Compatibility directive (Technology Adapter
+Registry, real capability negotiation — just adopted, first vertical
+slice done this pass on the Universal Comparison Engine). Validated so
+far under directive (3)'s execution order: `comparison_test_1`,
+`requirements_test_1`, `gap_analysis_test_1`, `discovery_test_1`. **Next
+up, per the standing "continue automatically" authorization**:
+`assessment_test_1`, then `compliance_test_1`, `solution_test_1`,
+`traceability_test_1`, and onward down the named list in
+`docs/eoc-feature-coverage-matrix.md`'s own execution order, ending in
+`FULL_END_TO_END_CLIENT_TEST_1`. Read `docs/eoc-feature-coverage-matrix.md`
+alongside this file — it is the authoritative, row-by-row honest status
+tracker; this file is the narrative log. Re-read this file first and
+confirm `npm run health` is still green (services may need
 `npm run dev:all` again if the machine was restarted between sessions; the
 Web dev-server health check specifically needs `/staff/login` pre-warmed
 first with a longer-timeout curl — a known Next.js dev first-compile timing
 quirk, not a defect, see Last Health Check below).
+
+### Original phase-based task description (superseded by the above, kept for history)
+
+All of Phase 1 and Phase 2 are done. Phase 3 (Document Generation Engine +
+Requirements Traceability Matrix UI) is done. Phase 4's first vertical
+slice (Universal Comparison Engine, backend + UI) is done. Phase 6's
+first vertical slice (Universal Testing & Validation Engine) is done.
+The Secure Client Environment Connectivity Engine's first vertical
+slice is also done, per an explicit, extremely detailed user
+directive framed as a core, cross-cutting platform requirement — it is
+a real, enforced gate in front of the Universal Comparison Engine's real
+connection attempts, now joined by the Technology Adapter Registry's own
+capability-negotiation gate in front of the same engine.
 
 ## Completed This Session — Phase 2 item 3, Business Requirements Intelligence (2026-08-22, continued)
 
@@ -1723,6 +1736,87 @@ formal per-feature reporting format. Adopted immediately:
    successful discovery run against a provisioned connector) was
    deliberately deferred to a follow-up pass, not silently skipped — see
    `test-evidence/discovery/discovery_test_1/discovery_test_1.md`.
+9. **Technology Adapter Registry adopted; `technology_adapter_test_1`** —
+   the user issued a new, explicit "ASKABD FUTURE TECHNOLOGY &
+   COMPATIBILITY REQUIREMENT" directive: design the platform as
+   technology-agnostic via INTERFACE-ADAPTER-CONNECTOR-ENGINE-NORMALIZED
+   MODEL, with real "capability negotiation" before any technology-
+   specific operation, honest status vocabulary
+   (SUPPORTED/PARTIALLY_SUPPORTED/UNSUPPORTED/ADAPTER_REQUIRED/
+   REQUIRES_UPGRADE/REQUIRES_CLIENT_ACTION), and the explicit principle
+   "only create a NEW ENGINE when the business capability itself is new -
+   if only the technology is new, extend the ADAPTER." Built, real, this
+   pass:
+   - Migration 051: real `technology_adapters` table, honestly seeded -
+     `postgresql` maps to `supported` (extracted from the Universal
+     Comparison Engine's own pre-existing `inspectSchema` logic, the one
+     real working adapter); `oracle`/`sqlserver`/`mysql`/`mongodb` map to
+     `adapter_required` - a genuine, pre-existing gap this registry now
+     makes visible rather than a fabricated new capability.
+   - `technology-adapter-registry.ts`: real `TechnologyAdapterRegistry`
+     service - `list()`/`get()`/`register()` (real upsert) and the real
+     capability-negotiation gate `checkCompatibility()`, which returns an
+     honest `unknown_technology` status for any technology never
+     registered - never a crash, never a fabricated `supported`.
+   - `universal-comparison-engine.ts` refactored (real behavior change,
+     not cosmetic): `runDatabaseSchemaComparison` now inserts the real
+     `comparison_runs` row FIRST, then consults the registry for both
+     sides' real `connector_type` - an unsupported type now gets a real,
+     persisted `failed` run with a structured `ADAPTER_REQUIRED` (or
+     `UNKNOWN_TECHNOLOGY`) diagnostic, replacing the old bare, generic
+     exception that left no run record at all for a non-Postgres attempt.
+   - `GET /oc/technology-adapters` and
+     `GET /oc/technology-adapters/:category/:technology` routes added,
+     staff-only (`Admin.Access`).
+   - Comparisons UI changed from silently hiding non-Postgres connections
+     to fetching the real registry and showing an honest "Not available
+     for comparison - Adapter Required" banner naming the specific
+     connection and its real status.
+   - Real tests: `technology-adapter-registry.test.ts` (new, 8 tests) plus
+     2 new cases in `universal-comparison-engine.test.ts` (now 11) proving
+     a real, persisted `ADAPTER_REQUIRED` result for an `oracle`
+     connection and a real `UNKNOWN_TECHNOLOGY` result for a technology
+     never registered at all - both via the real HTTP layer AND an
+     independent direct `comparison_runs` query. Full API regression:
+     66 files / 591 tests, all passing. `tsc --noEmit` clean on both
+     `apps/api` and `apps/web`.
+   - `technology_adapter_test_1` - live Playwright pass. Real client
+     `AskABD PW Technology Adapter Test 1` created through the actual
+     6-step onboarding wizard (including the real OTP-verification step).
+     Three real database connections created via the real production
+     `POST /database-connections` endpoint (two PostgreSQL, one Oracle).
+     Live-observed on the real Comparisons page: the Oracle connection
+     correctly appears in the new honest "Adapter Required" banner and is
+     correctly absent from both comparison-selector dropdowns. Ran a real
+     PostgreSQL-to-PostgreSQL comparison through the actual form UI - real
+     200 matches, 0 differences, Completed - confirming the pre-existing
+     happy path is fully unaffected by the refactor. Triggered the
+     Oracle-side path directly via the real API (the only way to reach
+     it, since the UI now correctly refuses to offer it) - real
+     201 Created, status failed, errorMessage containing
+     `ADAPTER_REQUIRED`; reloaded the page and confirmed the same real
+     run renders with a "Failed" badge and the full honest message in its
+     Details panel, screenshotted. Console-error buffer triaged against
+     the independent network-request log (established this session's
+     discipline) and confirmed stale, not a regression. Full exact-ID
+     cleanup performed via direct query against the real dev database
+     (same `DATABASE_URL` the app itself uses): `comparison_runs` (2
+     rows) then `oc_client_database_connections` (3 rows) then
+     `oc_clients` (1 row), zero orphans verified, both protected clients
+     confirmed present and unchanged. Full write-up:
+     `test-evidence/technology-adapter-registry/technology_adapter_test_1/technology_adapter_test_1.md`.
+   - A real, honest finding, not created this pass: two pre-existing,
+     non-conforming QA fixtures (`Debug Gap Client <timestamp>` x2) were
+     observed still present in the live Client Directory while listing
+     clients for this test - left untouched (out of scope) and flagged
+     via a separate background task rather than silently ignored or
+     silently deleted.
+   - `docs/eoc-feature-coverage-matrix.md` updated: engine #33/#34
+     (Universal/Environment Comparison Engine) and #80 (Connector
+     Management Engine) rows updated with the new registry-backed
+     evidence; a new cross-cutting "Technology Adapter Registry" section
+     added, deliberately NOT as a numbered engine row, per the directive's
+     own "extend the adapter, not a new engine" principle.
 
 ## Failed Tests
 
@@ -2025,29 +2119,69 @@ one. The one test failure above was correctly diagnosed as non-code.
     percentile? Which SLA?" for a vague performance requirement). A real,
     valuable, rule-based (never fabricated-AI) extension — e.g. a
     per-requirement-type/per-rule question bank — not built this pass.
+12. **Real, deliberate fast-follows for the Technology Adapter Registry**:
+    real database adapters for oracle/sqlserver/mysql/mongodb (today
+    honestly `adapter_required` — no real connectivity/inspection code
+    exists for any of them); wiring other engines through the same
+    registry (Migration Engine, VPS/VPN Connectivity, External
+    Integration, Test Management Integration all currently have their own
+    ad hoc technology handling, not yet unified behind
+    `checkCompatibility()`); a real UI for registering/editing adapters
+    (today `register()` exists on the service but is deliberately not
+    exposed over HTTP, to avoid an unreviewed way to claim a technology is
+    "supported"); extending the registry beyond the `database` category
+    (cloud/api/auth/devops/testing/file_format/ai_provider are modeled in
+    the schema's `category` CHECK constraint but have zero real seeded
+    rows yet).
 
 ## Database Migrations
 
-**50 applied** (see `docs/enterprise-operations-gap-analysis.md` Section 1
+**51 applied** (see `docs/enterprise-operations-gap-analysis.md` Section 1
 for the full list through 037; `038_business_requirements.sql` through
 `045_discovery_document_ingestion.sql`, `046_document_generation_engine.sql`,
 `047_document_template_seed.sql`, `048_universal_comparison_engine.sql`,
-`049_universal_testing_engine.sql`, and
-`050_secure_connectivity_engine.sql` — all applied to the live DEV
-database and verified via `\d`).
+`049_universal_testing_engine.sql`,
+`050_secure_connectivity_engine.sql`, and
+`051_technology_adapter_registry.sql` — all applied to the live DEV
+database and verified via direct query).
 
 ## Last Verified Commit
 
+**Update (2026-08-23, Technology Adapter Registry pass)**: as of this
+entry the branch tip (about to be committed) sits on top of `982d7e1` on
+`feature/reliability-hardening`, previously pushed to origin. `main`
+reconfirmed unchanged at `b63f797` throughout. Commits since `d415a54`
+(each is its own "Completed This Session" entry above with full detail,
+not repeated here): `d761afc` (docs), `02ddeb5` (Master Autonomous Client
+program adopted + `comparison_test_1`), `d43e8b6` (`requirements_test_1`),
+`39ca566` (`gap_analysis_test_1`), `cf6ddbf` (100% Coverage directive
+adopted + feature coverage matrix), `982d7e1` (discovery page fix +
+`discovery_test_1` + coverage matrix update). This pass adds the
+Technology Adapter Registry (migration 051 + service + routes + Universal
+Comparison Engine refactor + tests) and `technology_adapter_test_1` —
+see the dedicated "Completed This Session" entry above for full detail.
+Also included in this pass's commit, found already applied and verified
+but not yet committed from earlier in this session: a real, honest fix in
+`customer-activity-service.ts` — `getActivity()`'s default `to` timestamp
+used the app process's own clock, which measurably runs slightly behind
+this environment's real Postgres server clock (`NOW()`), which stamps
+`created_at`; under load the skew could silently exclude the
+just-written row from an "up to now" query. Fixed with a small, real
+forward buffer, not a test-timing workaround — covered by the existing
+`customer-activity.test.ts` suite, which still passes.
+
+## Older commit history (`d415a54` and earlier)
+
 `d415a54` on `feature/reliability-hardening`, pushed to origin — confirmed
-`e17f900..d415a54`. `main` confirmed unchanged at `b63f797`. This
-session's commits, in order: `9434158`/`41fc70c` (Universal Comparison
-Engine, backend + UI), `b3c87b3` (docs), `aa701ec` (Requirements
-Traceability Matrix UI), `3c5c896` (docs), `feebcb4` (Universal Testing &
-Validation Engine), `53e646c` (docs), `15706da` (Secure Client
-Environment Connectivity Engine), `e17f900` (docs), `d415a54` (three real
-defects found and fixed via the first genuinely authenticated Playwright
-pass this session — `clients/onboard/page.tsx`'s React stale-closure race
-condition, `testing-engine-manager.tsx`'s non-global underscore replace,
+`e17f900..d415a54`. This session's commits up to that point, in order:
+`9434158`/`41fc70c` (Universal Comparison Engine, backend + UI), `b3c87b3`
+(docs), `aa701ec` (Requirements Traceability Matrix UI), `3c5c896` (docs),
+`feebcb4` (Universal Testing & Validation Engine), `53e646c` (docs),
+`15706da` (Secure Client Environment Connectivity Engine), `e17f900`
+(docs), `d415a54` (three real defects found and fixed via the first
+genuinely authenticated Playwright pass this session —
+`clients/onboard/page.tsx`'s React stale-closure race condition,
+`testing-engine-manager.tsx`'s non-global underscore replace,
 `traceability-manager.tsx` + `entity-label-resolver.ts`'s missing
 backward-chain rendering and missing `test_case` resolver). **Note**: the
 push after `9434158` was initially blocked by this session's sandbox
@@ -2057,6 +2191,19 @@ authorization since it isn't one of the five stop-and-ask conditions, and
 every push since has gone through cleanly.
 
 ## Last Playwright Verification
+
+**Update (2026-08-23, Technology Adapter Registry pass)**: live,
+authenticated Playwright verification continued — `technology_adapter_test_1`
+(see "Completed This Session" entry above): real client created via the
+full onboarding wizard, three real database connections created via the
+real API, the new honest "Adapter Required" UI banner and dropdown
+filtering observed live, a real 200-match PostgreSQL comparison run
+through the actual form, and a real, persisted `ADAPTER_REQUIRED` failed
+run confirmed both live in the UI and via direct database query. Full
+exact-ID cleanup verified, zero orphans, both protected clients
+confirmed unchanged.
+
+### Earlier this session
 
 **The standing "no authenticated staff session" constraint is now
 RESOLVED**, for the first time this session — see the "Real-Time
@@ -2092,16 +2239,38 @@ substituted for by the UI layer.
 
 ## Last Health Check
 
-`npm run health`: **11/11 green**, confirmed at the end of this session's
-real-time Playwright validation pass, after the now-seventh instance of
-the known build-disrupts-dev-server-port-binding pattern, fixed via the
-now-standard procedure (kill the real PID, clear `.next`, restart via
-`.claude/launch.json`). The authenticated browser session survived the
-restart intact (the real access token lives client-side, not server-
-side), confirmed by continuing to browse authenticated pages immediately
-afterward with no re-login needed.
+**Update (2026-08-23, Technology Adapter Registry pass)**: no dev-server
+restart was needed this pass (no build was run against the running dev
+server — verification was via `tsc --noEmit`/`vitest` and the already-
+running Browser pane session, which stayed authenticated throughout).
+API server (port 4200) and web dev server (port 3001) both confirmed
+reachable and correctly serving throughout, via real HTTP requests logged
+in the "Completed This Session" entry above.
+
+### Earlier this session
+
+`npm run health`: **11/11 green**, confirmed at the end of the prior
+session's real-time Playwright validation pass, after the seventh
+instance of the known build-disrupts-dev-server-port-binding pattern,
+fixed via the now-standard procedure (kill the real PID, clear `.next`,
+restart via `.claude/launch.json`). The authenticated browser session
+survived the restart intact (the real access token lives client-side, not
+server-side), confirmed by continuing to browse authenticated pages
+immediately afterward with no re-login needed.
 
 ## Regression — final confirmed baseline this session
+
+**Update (2026-08-23, Technology Adapter Registry pass)**: **API:
+66 files / 591 tests passing** (581 baseline + 8 new
+`technology-adapter-registry.test.ts` + 2 new cases in
+`universal-comparison-engine.test.ts`, now 11). `tsc --noEmit` clean on
+both `apps/api` and `apps/web`. Web app not independently re-built this
+pass (no production `next build` run — see Last Health Check above for
+why); the new/changed web components were verified live in the running
+dev server instead. See below for the pre-existing baseline this builds
+on.
+
+### Earlier this session
 
 - **API: 581/581 passing** (406 baseline → 421 Business Requirements → 433
   Versioning Engine → 444 Approval Workflow Engine → 455 Traceability

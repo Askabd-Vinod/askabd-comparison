@@ -14,16 +14,22 @@ export default async function ClientComparisonsPage({ params }: PageProps) {
   // so far; this is its first real UI.
   const { runs } = await apiSafe<{ runs: ComparisonRun[] }>(`/api/v1/oc/clients/${clientId}/comparisons`, { runs: [] });
   const { connections } = await apiSafe<{ connections: DatabaseConnection[] }>(`/api/v1/oc/clients/${clientId}/database-connections`, { connections: [] });
+  // Real capability negotiation (Technology Adapter Registry, migration 051)
+  // — which connector types this platform can actually compare, fetched
+  // live rather than hard-coded, so the UI stays honest as real adapters
+  // are added. Empty on fetch failure — the manager treats an unknown
+  // technology as unsupported, never silently offering it.
+  const { adapters } = await apiSafe<{ adapters: Array<{ technology: string; status: string }> }>(`/api/v1/oc/technology-adapters?category=database`, { adapters: [] });
 
   return (
     <div>
       <h2 className="font-semibold text-lg mb-1">Comparisons</h2>
       <p className="text-xs text-gray-500 mb-6">
         Real, read-only schema comparisons between two of this client's own database connections — never a
-        fabricated diff. v1 compares PostgreSQL table inventories only; other comparison types (API, config,
-        infrastructure) are a real, deliberate fast-follow, not yet built.
+        fabricated diff. v1 compares PostgreSQL table inventories only; other database technologies show an
+        honest "Adapter Required" status rather than being silently hidden or attempted blind.
       </p>
-      <ComparisonsManager clientId={clientId} initialRuns={runs} connections={connections} />
+      <ComparisonsManager clientId={clientId} initialRuns={runs} connections={connections} adapters={adapters} />
     </div>
   );
 }

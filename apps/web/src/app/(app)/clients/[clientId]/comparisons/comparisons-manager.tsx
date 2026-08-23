@@ -130,7 +130,9 @@ function RunCard({ run }: { run: ComparisonRun }) {
   );
 }
 
-export function ComparisonsManager({ clientId, initialRuns, connections }: { clientId: string; initialRuns: ComparisonRun[]; connections: DatabaseConnection[] }) {
+export interface DatabaseAdapterStatus { technology: string; status: string }
+
+export function ComparisonsManager({ clientId, initialRuns, connections, adapters }: { clientId: string; initialRuns: ComparisonRun[]; connections: DatabaseConnection[]; adapters: DatabaseAdapterStatus[] }) {
   const [runs, setRuns] = useState(initialRuns);
   const [showForm, setShowForm] = useState(false);
   const [leftId, setLeftId] = useState('');
@@ -138,9 +140,15 @@ export function ComparisonsManager({ clientId, initialRuns, connections }: { cli
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // v1 only compares PostgreSQL connections (the one type inspectSchema
-  // supports) — never offered as an option if it can't actually be compared.
-  const pgConnections = connections.filter(c => c.connectorType === 'postgresql');
+  // Real capability negotiation, not a hard-coded 'postgresql' check: a
+  // connection is only selectable for comparison if the Technology
+  // Adapter Registry (migration 051) reports its connector_type as
+  // `supported`. Unregistered/adapter_required technologies are never
+  // silently attempted — see the disabled, honestly-labelled options below.
+  const adapterStatus = new Map(adapters.map(a => [a.technology, a.status]));
+  const statusOf = (connectorType: string) => adapterStatus.get(connectorType) ?? 'unknown_technology';
+  const comparableConnections = connections.filter(c => statusOf(c.connectorType) === 'supported');
+  const blockedConnections = connections.filter(c => statusOf(c.connectorType) !== 'supported');
 
   async function refresh() {
     const res = await fetch(`${API}/api/v1/oc/clients/${clientId}/comparisons`);
@@ -166,15 +174,27 @@ export function ComparisonsManager({ clientId, initialRuns, connections }: { cli
 
   return (
     <div>
-      {pgConnections.length < 2 && (
+      {comparableConnections.length < 2 && (
         <div className="bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-4 text-[11px] text-amber-800">
-          At least two PostgreSQL database connections are needed to run a comparison. Add them from the
+          At least two connections with a real, supported adapter are needed to run a comparison. Add them from the
           <span className="font-medium"> Lifecycle</span> tab's Database Connections section.
+        </div>
+      )}
+      {blockedConnections.length > 0 && (
+        <div className="bg-gray-50 border border-gray-200 rounded-md px-3 py-2 mb-4 text-[11px] text-gray-600">
+          <p className="font-medium text-gray-700 mb-1">Not available for comparison — honest adapter status, not hidden silently:</p>
+          <ul className="space-y-0.5">
+            {blockedConnections.map(c => (
+              <li key={c.id}>
+                <span className="font-mono">{c.name}</span> ({c.connectorType}) — <span className="font-medium">{statusOf(c.connectorType) === 'unknown_technology' ? 'Unknown Technology' : 'Adapter Required'}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
       <div className="flex justify-end mb-4">
-        <Action variant="primary" onClick={() => setShowForm(v => !v)} disabled={pgConnections.length < 2}>
+        <Action variant="primary" onClick={() => setShowForm(v => !v)} disabled={comparableConnections.length < 2}>
           {showForm ? 'Cancel' : '+ New Comparison'}
         </Action>
       </div>
@@ -185,14 +205,14 @@ export function ComparisonsManager({ clientId, initialRuns, connections }: { cli
             <label className="block text-xs font-medium text-gray-600 mb-1">Left side (baseline) *</label>
             <select value={leftId} onChange={e => setLeftId(e.target.value)} required className="w-full border rounded-md px-3 py-2 text-sm">
               <option value="">Select a connection…</option>
-              {pgConnections.map(c => <option key={c.id} value={c.id}>{c.name} ({c.environment})</option>)}
+              {comparableConnections.map(c => <option key={c.id} value={c.id}>{c.name} ({c.environment})</option>)}
             </select>
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Right side (comparison target) *</label>
             <select value={rightId} onChange={e => setRightId(e.target.value)} required className="w-full border rounded-md px-3 py-2 text-sm">
               <option value="">Select a connection…</option>
-              {pgConnections.map(c => <option key={c.id} value={c.id}>{c.name} ({c.environment})</option>)}
+              {comparableConnections.map(c => <option key={c.id} value={c.id}>{c.name} ({c.environment})</option>)}
             </select>
           </div>
           <p className="sm:col-span-2 text-[9px] text-gray-400">

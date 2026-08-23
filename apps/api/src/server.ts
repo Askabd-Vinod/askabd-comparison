@@ -15,6 +15,7 @@ import { businessRequirementsRoutes } from './routes/business-requirements-route
 import { discoveryIntakeRoutes } from './routes/discovery-intake-routes.js';
 import { documentGenerationRoutes } from './routes/document-generation-routes.js';
 import { universalComparisonRoutes } from './routes/universal-comparison-routes.js';
+import { technologyAdapterRoutes } from './routes/technology-adapter-routes.js';
 import { traceabilityRoutes } from './routes/traceability-routes.js';
 import { testingEngineRoutes } from './routes/testing-engine-routes.js';
 import { connectionSecurityRoutes } from './routes/connection-security-routes.js';
@@ -206,6 +207,7 @@ export async function createServer(): Promise<FastifyInstance> {
   await server.register(discoveryIntakeRoutes, { prefix: '/api/v1' });
   await server.register(documentGenerationRoutes, { prefix: '/api/v1' });
   await server.register(universalComparisonRoutes, { prefix: '/api/v1' });
+  await server.register(technologyAdapterRoutes, { prefix: '/api/v1' });
   await server.register(traceabilityRoutes, { prefix: '/api/v1' });
   await server.register(testingEngineRoutes, { prefix: '/api/v1' });
   await server.register(connectionSecurityRoutes, { prefix: '/api/v1' });

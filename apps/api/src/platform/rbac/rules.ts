@@ -404,6 +404,10 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   { method: 'POST', path: '/api/v1/oc/clients/:clientId/comparisons/database-schema', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/comparisons/:id', permissions: ['Admin.Access'] },
 
+  // ─── Technology Adapter Registry (migration 051, technology-adapter-routes.ts)
+  { method: 'GET', path: '/api/v1/oc/technology-adapters', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/technology-adapters/:category/:technology', permissions: ['Admin.Access'] },
+
   // ─── Requirements Traceability Matrix (Phase 3 Part 8, traceability-routes.ts)
   // — surfaces the Traceability Engine's real chains. Not client-scoped in the
   // URL (see the route file's own doc comment); staff-only, same precedent.

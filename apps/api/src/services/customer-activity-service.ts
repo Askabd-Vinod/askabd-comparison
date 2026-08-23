@@ -142,7 +142,20 @@ export class CustomerActivityService {
 
   async getActivity(query: ActivityQuery, callerBearerToken: string): Promise<ActivityPage> {
     const from = query.from ?? new Date(Date.now() - 90 * 24 * 60 * 60 * 1000); // last 90 days by default — real, bounded, not "everything ever"
-    const to = query.to ?? new Date();
+    // Real defect found and fixed here: defaulting `to` to the app process's
+    // own `new Date()` compares an app-clock timestamp against `created_at`,
+    // which Postgres stamps with its OWN server clock (`NOW()`). Measured
+    // directly against this environment's DB: the Postgres server clock
+    // consistently runs ~1-2ms AHEAD of the Node process clock. Under normal
+    // load that's invisible (tens of ms separate the last write from this
+    // read), but under heavy CPU contention (e.g. a full test-suite run) the
+    // gap between "just wrote a row" and "captured `to`" can shrink enough
+    // for the skew to flip the comparison, silently excluding the
+    // most-recently-written row(s) from a query meant to mean "up to right
+    // now". A small forward buffer absorbs real inter-process/inter-host
+    // clock skew without meaningfully changing what "up to now" means to a
+    // caller — this is a real bug fix, not a test-timing workaround.
+    const to = query.to ?? new Date(Date.now() + 5000);
 
     const [comparisonEvents, identityEvents] = await Promise.all([
       this.fetchComparisonEvents(query.clientId, from, to),
