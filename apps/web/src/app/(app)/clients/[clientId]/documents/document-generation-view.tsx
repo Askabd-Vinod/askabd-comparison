@@ -27,35 +27,60 @@ function DocumentDetail({ clientId, document, onChanged, onClose }: { clientId: 
   const [busy, setBusy] = useState(false);
   const [showDecideForm, setShowDecideForm] = useState<'approve' | 'reject' | 'request_changes' | null>(null);
   const [note, setNote] = useState('');
+  // Real, more serious defect found and fixed live during
+  // document_generation_test_1: every action here (submit/decide/
+  // regenerate/archive/toggle-visibility) fired its real fetch and called
+  // onChanged() unconditionally, NEVER checking `res.ok`. Reproduced live:
+  // clicking "Submit for Approval" on a document whose template does NOT
+  // require approval hits a real, correct backend 400
+  // ("This document's template does not require approval") — but the
+  // button is shown regardless of the template's real approvalRequired
+  // flag, the UI never inspected the response, and the user got ZERO
+  // feedback: no error, no explanation, the document just silently stayed
+  // in "draft" with a "Submit for Approval" button that will never work.
+  // A silently swallowed real error is exactly the failure class this
+  // session has fixed repeatedly elsewhere (Discovery, Assessment) — this
+  // is a variant of it on the write side, not the read/polling side.
+  // Fixed by checking `res.ok` on every action and surfacing the real,
+  // specific backend error message instead of pretending nothing happened.
+  const [actionError, setActionError] = useState<string | null>(null);
   const formId = useId();
 
   async function loadQuality() {
     const res = await fetch(`${API}/api/v1/oc/documents/${document.id}/quality-check`);
     if (res.ok) setQuality(await res.json());
   }
-  async function regenerate() {
-    setBusy(true);
-    try { await fetch(`${API}/api/v1/oc/documents/${document.id}/regenerate`, { method: 'POST' }); onChanged(); } finally { setBusy(false); }
-  }
-  async function submitForApproval() {
-    setBusy(true);
-    try { await fetch(`${API}/api/v1/oc/documents/${document.id}/submit-for-approval`, { method: 'POST' }); onChanged(); } finally { setBusy(false); }
-  }
-  async function decide(decision: 'approve' | 'reject' | 'request_changes') {
-    setBusy(true);
+  async function runAction(url: string, options: RequestInit = {}): Promise<boolean> {
+    setBusy(true); setQuality(null); setActionError(null);
     try {
-      await fetch(`${API}/api/v1/oc/documents/${document.id}/decide-approval`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decision, note }) });
-      setShowDecideForm(null); setNote('');
+      const res = await fetch(url, options);
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        setActionError(body?.error?.message || 'This action could not be completed.');
+        return false;
+      }
       onChanged();
+      return true;
+    } catch {
+      setActionError('Could not reach the server. Please try again.');
+      return false;
     } finally { setBusy(false); }
   }
+  async function regenerate() {
+    await runAction(`${API}/api/v1/oc/documents/${document.id}/regenerate`, { method: 'POST' });
+  }
+  async function submitForApproval() {
+    await runAction(`${API}/api/v1/oc/documents/${document.id}/submit-for-approval`, { method: 'POST' });
+  }
+  async function decide(decision: 'approve' | 'reject' | 'request_changes') {
+    const ok = await runAction(`${API}/api/v1/oc/documents/${document.id}/decide-approval`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decision, note }) });
+    if (ok) { setShowDecideForm(null); setNote(''); }
+  }
   async function archive() {
-    setBusy(true);
-    try { await fetch(`${API}/api/v1/oc/documents/${document.id}/archive`, { method: 'POST' }); onChanged(); } finally { setBusy(false); }
+    await runAction(`${API}/api/v1/oc/documents/${document.id}/archive`, { method: 'POST' });
   }
   async function toggleVisibility() {
-    setBusy(true);
-    try { await fetch(`${API}/api/v1/oc/documents/${document.id}/customer-visibility`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ visible: !document.customerVisible }) }); onChanged(); } finally { setBusy(false); }
+    await runAction(`${API}/api/v1/oc/documents/${document.id}/customer-visibility`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ visible: !document.customerVisible }) });
   }
   function exportUrl(format: 'html' | 'markdown') {
     return `${API}/api/v1/oc/documents/${document.id}/export?format=${format}`;
@@ -118,6 +143,12 @@ function DocumentDetail({ clientId, document, onChanged, onClose }: { clientId: 
               <button onClick={() => decide(showDecideForm)} disabled={busy || (showDecideForm === 'request_changes' && !note.trim())} className="text-[9px] font-semibold text-white bg-purple-600 hover:bg-purple-700 px-2 py-1 rounded disabled:opacity-50">Confirm</button>
               <button onClick={() => { setShowDecideForm(null); setNote(''); }} className="text-[9px] text-gray-500">Cancel</button>
             </div>
+          </div>
+        )}
+
+        {actionError && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+            <p className="text-[10px] font-bold text-red-700">⚠ {actionError}</p>
           </div>
         )}
 

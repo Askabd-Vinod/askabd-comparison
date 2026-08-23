@@ -30,9 +30,9 @@ slice done this pass on the Universal Comparison Engine). Validated so
 far under directive (3)'s execution order: `comparison_test_1`,
 `requirements_test_1`, `gap_analysis_test_1`, `discovery_test_1`,
 `assessment_test_1`, `compliance_test_1`, `solution_test_1`,
-`traceability_test_1`. **Next up, per the standing "continue
-automatically" authorization**:
-`document_generation_test_1`, and onward down the named list in
+`traceability_test_1`, `document_generation_test_1`. **Next up, per the
+standing "continue automatically" authorization**:
+`document_quality_test_1`, and onward down the named list in
 `docs/eoc-feature-coverage-matrix.md`'s own execution order, ending in
 `FULL_END_TO_END_CLIENT_TEST_1`. Read `docs/eoc-feature-coverage-matrix.md`
 alongside this file — it is the authoritative, row-by-row honest status
@@ -1962,6 +1962,42 @@ formal per-feature reporting format. Adopted immediately:
     unchanged. Full write-up: `test-evidence/traceability/
     traceability_test_1/traceability_test_1.md`.
     `docs/eoc-feature-coverage-matrix.md` row #15 updated.
+14. **`document_generation_test_1`** — real client `AskABD PW Document
+    Generation Test 1`. Ran the Document Generation Engine's full real
+    lifecycle live: generated a real Gap Analysis Report (approval-
+    required template) — honestly all 5 sections `INFORMATION REQUIRED`
+    for this genuinely-empty client, never fabricated. **Real defect #1,
+    found and fixed live**: Quality Check's real result stayed on screen,
+    unchanged, after the document's own real status actually changed
+    (Submit for Approval correctly moved `draft` → `in_review`, but the
+    quality panel kept saying "currently draft") — fixed by clearing the
+    quality state on every action that can change the document. Continued
+    through the real generic Approval Workflow Engine (confirmed reused,
+    not a parallel mechanism, via a real `approval_workflows` row at
+    cleanup): Submit for Approval → Approve (with a real note) → real
+    HTML/Markdown export (both correct, properly escaped) → Make
+    Customer-Visible → Archive, every step verified live. **Real defect
+    #2, found and fixed live, the more serious of the two**: generated a
+    second document from a template that does NOT require approval, then
+    clicked "Submit for Approval" anyway — the real backend correctly
+    rejected it with a real `400` ("does not require approval"), but
+    NONE of the five write actions in `document-generation-view.tsx` ever
+    checked `res.ok` — the real rejection was silently swallowed, the
+    user saw nothing, the document just sat in `draft` forever. The same
+    silent-failure class already fixed twice this session on the read/
+    polling side (Discovery, Assessment), this time on the write side.
+    Fixed with a shared `runAction()` helper that surfaces the real,
+    specific backend error message on any action failure; re-verified
+    live that the exact real error now renders. Full API regression
+    re-confirmed: 595/595 passing (both fixes are frontend-only). Full
+    exact-ID cleanup verified (2 real `generated_documents`, 1 real
+    `approval_workflows` row, zero orphans, both protected clients
+    confirmed unchanged). Full write-up: `test-evidence/document-
+    generation/document_generation_test_1/document_generation_test_1.md`.
+    `docs/eoc-feature-coverage-matrix.md` rows #29-32 updated; summary
+    counts switched to a direct, mechanical re-count of the Status column
+    (PASS 21, PASS_WITH_RISKS 15, IMPLEMENTED 26, NOT_STARTED 16,
+    BLOCKED_EXTERNAL_DEPENDENCY 2) to stop compounding manual-delta drift.
 
 ## Failed Tests
 
@@ -2298,6 +2334,16 @@ for the full list through 037; `038_business_requirements.sql` through
 database and verified via direct query).
 
 ## Last Verified Commit
+
+**Update (2026-08-23, `document_generation_test_1` pass)**: commit hash
+to be recorded in a follow-up docs commit immediately after this one
+lands (same two-commit pattern used for every prior pass). This pass: two
+real frontend fixes in `document-generation-view.tsx` (stale Quality
+Check state; every write action silently swallowing real backend errors)
+plus `document_generation_test_1`'s live Playwright pass. No API code
+changed; full API regression re-confirmed 595/595 passing.
+
+## Older: traceability_test_1
 
 **Update (2026-08-23, `traceability_test_1` pass)**: `aaa8cc9` on
 `feature/reliability-hardening`, pushed to origin — confirmed

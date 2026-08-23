@@ -106,10 +106,10 @@ silently skipped.
 | 26 | Workflow Engine | Real, `oc_workflow_executions` | Implicit (lifecycle/onboarding) | Enforced | Not independently tested | Exercised live via every onboarding this pass | N/A | 3x live passes | IMPLEMENTED | Not a standalone tested surface |
 | 27 | Approval Engine | Real, generic Approval Workflow Engine | Real (risk-acceptance flow, document approval) | Enforced | `approval-workflow-engine.test.ts` 11 | Not reached live this session | N/A | — | IMPLEMENTED | Real candidate for a dedicated live pass |
 | 28 | Versioning Engine | Real, generic | N/A (backend) | Enforced | `versioning-engine.test.ts` 12 | N/A (no direct UI) | N/A | — | IMPLEMENTED | — |
-| 29 | Document Generation Engine | Real | Real Documents page | Enforced | `document-generation-engine.test.ts` 22 | Not reached live this session | N/A | — | IMPLEMENTED | Real candidate for `document_generation_test_1` |
-| 30 | Document Template Engine | Real, 3 real templates seeded | Real | Enforced | Covered by #29's suite | — | N/A | — | IMPLEMENTED | Only 3 of ~55 named document types have real data-fetchers; rest are a real, deliberate fast-follow |
-| 31 | Document Export Engine | Real HTML/Markdown; PDF/DOCX honestly rejected | Real export buttons | Enforced | Covered by #29's suite | — | N/A | — | PASS_WITH_RISKS | PDF/DOCX genuinely not built |
-| 32 | Document Quality Engine | Real `getQualityCheck` | Real | Enforced | Covered by #29's suite | — | N/A | — | IMPLEMENTED | — |
+| 29 | Document Generation Engine | Real, reuses the shared Approval Workflow Engine (confirmed via a real `approval_workflows` row) | Real Documents page | Enforced | `document-generation-engine.test.ts` 22 + 595/595 full API regression | **Live — full lifecycle (draft→in_review→approved→archived) proven; 2 real UI defects found and fixed live** | N/A | `document_generation_test_1` | **PASS_WITH_RISKS** | Fixed live: (1) stale Quality Check result left on screen after a real status change, (2) EVERY write action (submit/decide/regenerate/archive/visibility) never checked `res.ok` — a real backend rejection was silently swallowed with zero user feedback. Real, disclosed, deferred: "Submit for Approval" still shown even when the template's own `approvalRequired` is false |
+| 30 | Document Template Engine | Real, 3 real templates seeded | Real | Enforced | Covered by #29's suite | Live — BRD + Gap Analysis Report + Current State Assessment Report all generated live | N/A | `document_generation_test_1` | PASS_WITH_RISKS | Only 3 of ~55 named document types have real data-fetchers; rest are a real, deliberate fast-follow |
+| 31 | Document Export Engine | Real HTML/Markdown; PDF/DOCX honestly rejected | Real export buttons | Enforced | Covered by #29's suite | Live — both real HTML and Markdown exports verified correct and complete | N/A | `document_generation_test_1` | PASS_WITH_RISKS | PDF/DOCX genuinely not built |
+| 32 | Document Quality Engine | Real `getQualityCheck` | Real | Enforced | Covered by #29's suite | Live — real NOT_READY result with every real missing reason named, proven live | N/A | `document_generation_test_1` | **PASS** | Frontend-side staleness bug fixed (see #29) — the backend check itself was always correct |
 | 33 | Universal Comparison Engine | Real, now gated by a real Technology Adapter Registry (migration 051, `technology-adapter-registry.ts`) — per the Future Technology & Compatibility directive's own "extend the adapter, not a new engine" principle, this is the ADAPTER layer for this engine, not a new engine | Real, honest non-Postgres status surfaced (no longer silently hidden) | Enforced (+ real VPN-block guard + real capability-negotiation gate) | `universal-comparison-engine.test.ts` 11 + `technology-adapter-registry.test.ts` 8 + `secure-connectivity-engine.test.ts` (guard) — 591/591 full API regression passing | **Live, full real 2-connection comparison proven; live ADAPTER_REQUIRED honest-block path also proven** | N/A | `comparison_test_1`, `technology_adapter_test_1` | **PASS** | Only `database_schema` type built; only `postgresql` has a real adapter — oracle/sqlserver/mysql/mongodb honestly `adapter_required`, not fabricated as working |
 | 34 | Environment Comparison Engine | Same engine as #33 (`environment` field on connections) | Same UI | Same | Same | Same live proof | N/A | `comparison_test_1` | **PASS** (as scoped) | Not a separate engine — noted per the directive's own naming |
 | 35 | Configuration Comparison Engine | Not built | Not built | N/A | N/A | N/A | N/A | — | **NOT_STARTED** | Real, named fast-follow for Universal Comparison Engine |
@@ -163,11 +163,19 @@ silently skipped.
 
 ## Summary counts (honest, as of this update)
 
-- **PASS**: 17 engines
-- **PASS_WITH_RISKS**: 13 engines (was 12 — Assessment Engine moved from IMPLEMENTED after `assessment_test_1`: full Infrastructure pipeline + all 6 Current State domains proven live, 2 real UI defects found and fixed)
-- **IMPLEMENTED** (real, not yet live-Playwright-verified): 24 engines
-- **NOT_STARTED**: 20 engines
-- **BLOCKED_EXTERNAL_DEPENDENCY**: 3 engines (VPS Connectivity, Bastion/Private Network, and VPN Connectivity's live-tunnel portion) — all genuinely require real client infrastructure this sandbox cannot provide, not fabricated as done and not silently skipped
+**Update (2026-08-23, `document_generation_test_1` pass)**: these counts
+are now taken by directly, mechanically counting the actual Status column
+of every row in this file, rather than manually tracked deltas — the
+narrative "(was N)" style below is retired from this point forward to
+avoid compounding arithmetic drift between passes; each future pass
+should re-run the same direct count rather than hand-adjusting the prior
+numbers.
+
+- **PASS**: 21 engines
+- **PASS_WITH_RISKS**: 15 engines
+- **IMPLEMENTED** (real, not yet live-Playwright-verified): 26 engines
+- **NOT_STARTED**: 16 engines
+- **BLOCKED_EXTERNAL_DEPENDENCY**: 2 engines (VPS Connectivity, Bastion/Private Network) — both genuinely require real client infrastructure this sandbox cannot provide, not fabricated as done and not silently skipped (VPN Connectivity's own live-tunnel portion is a related, PASS_WITH_RISKS-status row — see its own Known Gaps note)
 - Engines pre-dating this session and not independently re-verified: 9 (marked `IMPLEMENTED` with an explicit note, never assumed working)
 
 **The platform is NOT complete.** Per the Final Program Gate: not all
