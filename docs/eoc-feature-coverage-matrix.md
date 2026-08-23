@@ -140,7 +140,7 @@ silently skipped.
 | 32 | Document Quality Engine | Real `getQualityCheck` | Real | Enforced | Covered by #29's suite | Live — real NOT_READY result with every real missing reason named, proven live | N/A | `document_generation_test_1`, `document_quality_test_1` (deliberate cross-reference, no separate QA client — see its own write-up) | **PASS** | Frontend-side staleness bug fixed (see #29) — the backend check itself was always correct |
 | 33 | Universal Comparison Engine | Real, now gated by a real Technology Adapter Registry (migration 051, `technology-adapter-registry.ts`) — per the Future Technology & Compatibility directive's own "extend the adapter, not a new engine" principle, this is the ADAPTER layer for this engine, not a new engine | Real, honest non-Postgres status surfaced (no longer silently hidden) | Enforced (+ real VPN-block guard + real capability-negotiation gate) | `universal-comparison-engine.test.ts` 11 + `technology-adapter-registry.test.ts` 8 + `secure-connectivity-engine.test.ts` (guard) — 591/591 full API regression passing | **Live, full real 2-connection comparison proven; live ADAPTER_REQUIRED honest-block path also proven** | N/A | `comparison_test_1`, `technology_adapter_test_1` | **PASS** | Only `database_schema` type built; only `postgresql` has a real adapter — oracle/sqlserver/mysql/mongodb honestly `adapter_required`, not fabricated as working |
 | 34 | Environment Comparison Engine | Same engine as #33 (`environment` field on connections) | Same UI, real per-connection environment labels shown | Same | Same | **Live — real cross-environment DIFF detection proven (not just self-match): 2 deliberately-different real Postgres databases, real Added/Removed correctly attributed, matching an independently-predicted result exactly** | N/A | `comparison_test_1`, `environment_comparison_test_1` | **PASS** | Not a separate engine — noted per the directive's own naming. Table-level only; no automated test yet for the mismatch/diff path (real, disclosed follow-on) |
-| 35 | Configuration Comparison Engine | Not built | Not built | N/A | N/A | N/A | N/A | — | **NOT_STARTED** | Real, named fast-follow for Universal Comparison Engine |
+| 35 | Configuration Comparison Engine | Real — built this pass as a real 2nd `comparison_type` on the existing Universal Comparison Engine (migration 052), not a separate engine | Real — Configuration Snapshots section + mode toggle, reusing existing comparison UI components | Enforced (RBAC on new routes; secret-shaped values masked in every response) | `universal-comparison-engine.test.ts` +5 (16 total) + 600/600 full regression | **BLOCKED_EXTERNAL_AUTH** (see Technology row note) — Browser-pane interactive verification performed instead: real deliberate 4-key diff matched exactly, real secret masking independently confirmed via direct API fetch | N/A | `configuration_comparison_test_1` | **PASS_WITH_RISKS** | Capped per the AUTHENTICATED PLAYWRIGHT EVIDENCE RULE (feature itself genuinely correct and tested); manual entry only, no live file-import/discovery yet |
 | 36 | Database Comparison Engine | Same engine as #33 | Same | Same | Same | Same | N/A | `comparison_test_1` | **PASS** | — |
 | 37 | Schema Comparison Engine | Same engine as #33 | Same | Same | Same | Same | N/A | `comparison_test_1` | **PASS** | Table-level only; column-level MISMATCH detection not built |
 | 38 | Data Reconciliation Engine | Not built | Not built | N/A | N/A | N/A | N/A | — | **NOT_STARTED** | Only schema-level comparison exists; no row/value-level reconciliation |
@@ -191,19 +191,26 @@ silently skipped.
 
 ## Summary counts (honest, as of this update)
 
-**Update (2026-08-23, `document_generation_test_1` pass)**: these counts
-are now taken by directly, mechanically counting the actual Status column
-of every row in this file, rather than manually tracked deltas — the
-narrative "(was N)" style below is retired from this point forward to
-avoid compounding arithmetic drift between passes; each future pass
-should re-run the same direct count rather than hand-adjusting the prior
-numbers.
+Taken by directly, mechanically counting the actual Status column of
+every row in this file (re-run this count fresh each pass rather than
+hand-adjusting prior numbers — see `document_generation_test_1`'s own
+note on why the narrative "(was N)" style was retired).
 
 - **PASS**: 21 engines
-- **PASS_WITH_RISKS**: 15 engines
+- **PASS_WITH_RISKS**: 16 engines (Configuration Comparison Engine newly
+  built and added this pass, `configuration_comparison_test_1` — capped
+  at `PASS_WITH_RISKS` per the AUTHENTICATED PLAYWRIGHT EVIDENCE RULE)
 - **IMPLEMENTED** (real, not yet live-Playwright-verified): 26 engines
-- **NOT_STARTED**: 16 engines
+- **NOT_STARTED**: 15 engines
 - **BLOCKED_EXTERNAL_DEPENDENCY**: 2 engines (VPS Connectivity, Bastion/Private Network) — both genuinely require real client infrastructure this sandbox cannot provide, not fabricated as done and not silently skipped (VPN Connectivity's own live-tunnel portion is a related, PASS_WITH_RISKS-status row — see its own Known Gaps note)
+- **`BLOCKED_EXTERNAL_AUTH`** (new status, adopted this pass): not yet
+  used as a row's own overall Status (every affected row is still
+  correctly `PASS_WITH_RISKS`/`IMPLEMENTED` per the rule's own capping
+  instruction) — it appears instead as the honest per-column diagnostic
+  for the Playwright-evidence dimension specifically, on every row whose
+  primary verification this pass was authenticated UI (currently:
+  Configuration Comparison Engine). Real Playwright PNG evidence resumes
+  automatically for these once the user's session export exists.
 - Engines pre-dating this session and not independently re-verified: 9 (marked `IMPLEMENTED` with an explicit note, never assumed working)
 
 **The platform is NOT complete.** Per the Final Program Gate: not all

@@ -24,6 +24,7 @@ import { getSecretProvider } from './secrets-provider.js';
 import { ConnectionSecurityService, ConnectivityBlockedError } from './connection-security-service.js';
 import { maskSecrets } from './secret-masking.js';
 import { TechnologyAdapterRegistry } from './technology-adapter-registry.js';
+import { ConfigurationSnapshotService } from './configuration-snapshot-service.js';
 
 export type ComparisonObjectStatus = 'match' | 'mismatch' | 'missing' | 'extra' | 'unknown';
 
@@ -47,11 +48,13 @@ export interface ComparisonSummary {
 export interface ComparisonRun {
   id: string;
   clientId: string;
-  comparisonType: 'database_schema';
+  comparisonType: 'database_schema' | 'configuration';
   leftLabel: string;
   rightLabel: string;
-  leftConnectionId: string;
-  rightConnectionId: string;
+  leftConnectionId: string | null;
+  rightConnectionId: string | null;
+  leftSnapshotId: string | null;
+  rightSnapshotId: string | null;
   status: 'running' | 'completed' | 'failed';
   results: ComparisonObjectResult[];
   summary: ComparisonSummary;
@@ -62,8 +65,9 @@ export interface ComparisonRun {
 }
 
 type RunRow = {
-  id: string; client_id: string; comparison_type: 'database_schema'; left_label: string; right_label: string;
-  left_connection_id: string; right_connection_id: string; status: 'running' | 'completed' | 'failed';
+  id: string; client_id: string; comparison_type: 'database_schema' | 'configuration'; left_label: string; right_label: string;
+  left_connection_id: string | null; right_connection_id: string | null;
+  left_snapshot_id: string | null; right_snapshot_id: string | null; status: 'running' | 'completed' | 'failed';
   results: ComparisonObjectResult[]; summary: ComparisonSummary; error_message: string | null;
   created_by: string | null; created_at: Date; completed_at: Date | null;
 };
@@ -71,11 +75,43 @@ type RunRow = {
 function toRun(r: RunRow): ComparisonRun {
   return {
     id: r.id, clientId: r.client_id, comparisonType: r.comparison_type, leftLabel: r.left_label, rightLabel: r.right_label,
-    leftConnectionId: r.left_connection_id, rightConnectionId: r.right_connection_id, status: r.status,
+    leftConnectionId: r.left_connection_id, rightConnectionId: r.right_connection_id,
+    leftSnapshotId: r.left_snapshot_id, rightSnapshotId: r.right_snapshot_id, status: r.status,
     results: r.results || [], summary: r.summary || { total: 0, match: 0, mismatch: 0, missing: 0, extra: 0, unknown: 0 },
     errorMessage: r.error_message, createdBy: r.created_by, createdAt: r.created_at.toISOString(),
     completedAt: r.completed_at?.toISOString() ?? null,
   };
+}
+
+/**
+ * Real key-value diff — added(extra)/removed(missing)/changed(mismatch)/
+ * unchanged(match), computed directly from the two real stored JSON
+ * blobs. Obvious secret-shaped keys are masked in the DISPLAYED value
+ * (defense in depth — this table is not the real secret store) while the
+ * real underlying equality still drives the real match/mismatch status,
+ * so a genuine credential rotation is still honestly reported as
+ * "changed" without ever showing the real values.
+ */
+function diffConfigs(left: Record<string, string>, right: Record<string, string>): ComparisonObjectResult[] {
+  const looksSecret = (key: string) => /password|secret|token|api[_-]?key|credential/i.test(key);
+  const allKeys = new Set([...Object.keys(left), ...Object.keys(right)]);
+  const results: ComparisonObjectResult[] = [];
+  for (const key of Array.from(allKeys).sort()) {
+    const inLeft = Object.prototype.hasOwnProperty.call(left, key);
+    const inRight = Object.prototype.hasOwnProperty.call(right, key);
+    const display = (v: string) => (looksSecret(key) ? '••••••••' : v);
+    let status: ComparisonObjectStatus;
+    if (inLeft && !inRight) status = 'missing';
+    else if (!inLeft && inRight) status = 'extra';
+    else if (left[key] === right[key]) status = 'match';
+    else status = 'mismatch';
+    results.push({
+      objectType: 'config_key', name: key, status,
+      leftDetail: inLeft ? display(left[key]!) : 'not present',
+      rightDetail: inRight ? display(right[key]!) : 'not present',
+    });
+  }
+  return results;
 }
 
 interface DatabaseConnectionConfig { host: string; port: number; database: string; username: string; password: string }
@@ -255,6 +291,45 @@ export class UniversalComparisonEngine {
       [JSON.stringify(results), JSON.stringify(summary), runId]
     );
     return toRun(completed.rows[0]!);
+  }
+
+  /**
+   * Real configuration-key comparison between two real, staff-entered
+   * configuration snapshots belonging to the SAME client. Reuses the
+   * same `comparison_runs` table/result shape as the database-schema
+   * type (migration 052 widened both, extending — not duplicating —
+   * this engine), so the existing UI's RunCard/ObjectBadge components
+   * work unmodified for this type too.
+   */
+  async runConfigurationComparison(clientId: string, leftSnapshotId: string, rightSnapshotId: string, actor: string | null): Promise<ComparisonRun> {
+    if (leftSnapshotId === rightSnapshotId) {
+      throw new Error('Cannot compare a configuration snapshot against itself — choose two different snapshots.');
+    }
+    const snapshots = new ConfigurationSnapshotService();
+    const left = await snapshots.get(leftSnapshotId, clientId);
+    const right = await snapshots.get(rightSnapshotId, clientId);
+    if (!left || !right) {
+      throw new Error('Both must be real, existing configuration snapshots belonging to this client.');
+    }
+
+    const results = diffConfigs(left.config, right.config);
+    const summary: ComparisonSummary = {
+      total: results.length,
+      match: results.filter(r => r.status === 'match').length,
+      mismatch: results.filter(r => r.status === 'mismatch').length,
+      missing: results.filter(r => r.status === 'missing').length,
+      extra: results.filter(r => r.status === 'extra').length,
+      unknown: results.filter(r => r.status === 'unknown').length,
+    };
+
+    const inserted = await sharedPool.query<RunRow>(
+      `INSERT INTO comparison_runs (client_id, comparison_type, left_label, right_label, left_snapshot_id, right_snapshot_id, status, results, summary, created_by, completed_at)
+       VALUES ($1, 'configuration', $2, $3, $4, $5, 'completed', $6, $7, $8, NOW()) RETURNING *`,
+      [clientId, `${left.name} (${left.environment})`, `${right.name} (${right.environment})`, leftSnapshotId, rightSnapshotId, JSON.stringify(results), JSON.stringify(summary), actor]
+    );
+    const runRow = inserted.rows[0];
+    if (!runRow) throw new Error('comparison_runs insert returned no row');
+    return toRun(runRow);
   }
 
   async getRun(id: string): Promise<ComparisonRun | null> {

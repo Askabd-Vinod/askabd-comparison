@@ -291,3 +291,103 @@ describe('Universal Comparison Engine — RBAC', () => {
     await app.close();
   });
 });
+
+describe('Configuration Comparison (migration 052) — real key-value diff, extending this same engine', () => {
+  async function makeSnapshot(app: Awaited<ReturnType<typeof buildApp>>, admin: string, clientId: string, name: string, environment: string, config: Record<string, string>) {
+    const res = await app.inject({
+      method: 'POST', url: `/api/v1/oc/clients/${clientId}/configuration-snapshots`,
+      headers: { authorization: `Bearer ${admin}` }, payload: { name, environment, config },
+    });
+    expect(res.statusCode).toBe(201);
+    return res.json().snapshot.id as string;
+  }
+
+  it('a real, deliberately-constructed diff (added/removed/changed/unchanged) is detected correctly', async () => {
+    const app = await buildApp();
+    const clientId = await makeClient(`Config Compare ${randomUUID().slice(0, 8)}`);
+    const admin = await adminToken();
+    const leftId = await makeSnapshot(app, admin, clientId, 'Prod Config', 'production', {
+      FEATURE_FLAG_X: 'true', LOG_LEVEL: 'info', API_TIMEOUT_MS: '3000',
+    });
+    const rightId = await makeSnapshot(app, admin, clientId, 'Staging Config', 'staging', {
+      FEATURE_FLAG_X: 'true', LOG_LEVEL: 'debug', NEW_FEATURE_Y: 'enabled',
+    });
+
+    const res = await app.inject({
+      method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/configuration`,
+      headers: { authorization: `Bearer ${admin}` }, payload: { leftSnapshotId: leftId, rightSnapshotId: rightId },
+    });
+    expect(res.statusCode).toBe(201);
+    const run = res.json().run;
+    expect(run.comparisonType).toBe('configuration');
+    expect(run.status).toBe('completed');
+    expect(run.summary).toEqual({ total: 4, match: 1, mismatch: 1, missing: 1, extra: 1, unknown: 0 });
+
+    const byKey = Object.fromEntries(run.results.map((r: any) => [r.name, r]));
+    expect(byKey.FEATURE_FLAG_X.status).toBe('match'); // unchanged
+    expect(byKey.LOG_LEVEL.status).toBe('mismatch'); // changed: info -> debug
+    expect(byKey.LOG_LEVEL.leftDetail).toBe('info');
+    expect(byKey.LOG_LEVEL.rightDetail).toBe('debug');
+    expect(byKey.API_TIMEOUT_MS.status).toBe('missing'); // only in prod (left)
+    expect(byKey.NEW_FEATURE_Y.status).toBe('extra'); // only in staging (right)
+    await app.close();
+  });
+
+  it('a secret-shaped key name is masked in the displayed value, but its real change is still honestly reported', async () => {
+    const app = await buildApp();
+    const clientId = await makeClient(`Config Compare Secret ${randomUUID().slice(0, 8)}`);
+    const admin = await adminToken();
+    const leftId = await makeSnapshot(app, admin, clientId, 'Left', 'production', { DB_PASSWORD: 'old-real-value-1234' });
+    const rightId = await makeSnapshot(app, admin, clientId, 'Right', 'staging', { DB_PASSWORD: 'new-real-value-5678' });
+
+    const res = await app.inject({
+      method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/configuration`,
+      headers: { authorization: `Bearer ${admin}` }, payload: { leftSnapshotId: leftId, rightSnapshotId: rightId },
+    });
+    const run = res.json().run;
+    const dbPassword = run.results.find((r: any) => r.name === 'DB_PASSWORD');
+    expect(dbPassword.status).toBe('mismatch'); // honestly reported as changed
+    expect(dbPassword.leftDetail).toBe('••••••••'); // but never the real value
+    expect(dbPassword.rightDetail).toBe('••••••••');
+    expect(JSON.stringify(run)).not.toContain('old-real-value-1234');
+    expect(JSON.stringify(run)).not.toContain('new-real-value-5678');
+    await app.close();
+  });
+
+  it('comparing a snapshot against itself is refused (400)', async () => {
+    const app = await buildApp();
+    const clientId = await makeClient(`Config Compare Self ${randomUUID().slice(0, 8)}`);
+    const admin = await adminToken();
+    const id = await makeSnapshot(app, admin, clientId, 'Solo', 'production', { A: '1' });
+    const res = await app.inject({
+      method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/configuration`,
+      headers: { authorization: `Bearer ${admin}` }, payload: { leftSnapshotId: id, rightSnapshotId: id },
+    });
+    expect(res.statusCode).toBe(400);
+    await app.close();
+  });
+
+  it('rejects a non-string config value (400), never silently coercing it', async () => {
+    const app = await buildApp();
+    const clientId = await makeClient(`Config Compare Invalid ${randomUUID().slice(0, 8)}`);
+    const admin = await adminToken();
+    const res = await app.inject({
+      method: 'POST', url: `/api/v1/oc/clients/${clientId}/configuration-snapshots`,
+      headers: { authorization: `Bearer ${admin}` }, payload: { name: 'Bad', environment: 'production', config: { X: 123 } },
+    });
+    expect(res.statusCode).toBe(400);
+    await app.close();
+  });
+
+  it('a real customer token is denied creating a snapshot (403)', async () => {
+    const app = await buildApp();
+    const clientId = await makeClient(`Config Compare RBAC ${randomUUID().slice(0, 8)}`);
+    const customer = await customerToken();
+    const res = await app.inject({
+      method: 'POST', url: `/api/v1/oc/clients/${clientId}/configuration-snapshots`,
+      headers: { authorization: `Bearer ${customer}` }, payload: { name: 'X', environment: 'production', config: {} },
+    });
+    expect(res.statusCode).toBe(403);
+    await app.close();
+  });
+});

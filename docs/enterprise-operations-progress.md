@@ -36,9 +36,15 @@ directive was also adopted this pass** (Master Autonomous Build +
 Validation + Security + Real-Time UAT) — see its own "Completed This
 Session" entry above for the real Playwright-evidence infrastructure
 work, including two real, honestly-documented blocked paths and the
-in-progress user-session-export path. **Next up, per the standing
-"continue automatically" authorization**:
-`configuration_comparison_test_1`, and onward down the named list in
+in-progress user-session-export path. The AUTHENTICATED PLAYWRIGHT
+EVIDENCE RULE was also adopted this pass — every suite going forward
+that primarily verifies an authenticated UI is capped at
+`PASS_WITH_RISKS`/`IMPLEMENTED` with `Playwright: BLOCKED_EXTERNAL_AUTH`
+until the export exists. `configuration_comparison_test_1` closed the
+`NOT_STARTED` Configuration Comparison Engine gap — a real, new second
+comparison type built on the existing engine, not a duplicate. **Next
+up, per the standing "continue automatically" authorization**:
+`migration_test_1`, and onward down the named list in
 `docs/eoc-feature-coverage-matrix.md`'s own execution order, ending in
 `FULL_END_TO_END_CLIENT_TEST_1`. Read `docs/eoc-feature-coverage-matrix.md`
 alongside this file — it is the authoritative, row-by-row honest status
@@ -2149,6 +2155,61 @@ not completed the export. Adopted formally, effective immediately:
   Playwright evidence pipeline" the moment the export file exists — no
   further confirmation needed from the user at that point.
 
+## Completed This Session — Configuration Comparison Engine built (real, new capability); configuration_comparison_test_1 (2026-08-23, continued)
+
+`docs/eoc-feature-coverage-matrix.md` row #35 (Configuration Comparison
+Engine) was honestly `NOT_STARTED` — nothing existed. Built as a real,
+genuinely new capability this pass, per the Master Autonomous Build
+directive's own instruction to complete `NOT_STARTED` engines, and per
+its engine-first architecture ("extend, don't duplicate a new engine for
+a new data source").
+
+1. **Extended, not duplicated**: migration 052 widened the EXISTING
+   `comparison_runs` table (from `comparison_test_1`'s Universal
+   Comparison Engine) with a second real `comparison_type` ('configuration'),
+   nullable connection columns, new nullable snapshot columns, and a real
+   CHECK constraint keeping exactly one pair populated per type — applied
+   cleanly against the live dev DB with zero impact to existing rows (no
+   rows existed to migrate, confirmed by direct query before assuming so).
+2. New `oc_configuration_snapshots` table — real, staff-entered
+   configuration captures (name/environment/flat key-value JSON),
+   honestly `source: 'manual'` (no live file-import/discovery yet).
+3. `configuration-snapshot-service.ts` (new) + `universal-comparison-
+   engine.ts` extended with `runConfigurationComparison()` and a real
+   `diffConfigs()` — genuine added/removed/changed/unchanged detection.
+   **Real secret-shaped-key masking**: `password|secret|token|api[_-]?key|
+   credential`-matching keys are masked in every displayed/returned value
+   while the real underlying equality still drives the real match/
+   mismatch status, so a genuine credential rotation is still honestly
+   reported as "changed" without ever exposing real values anywhere.
+4. Real routes + RBAC; real UI (a new Configuration Snapshots section
+   with real labels/helper text/examples, and a mode toggle on the
+   existing comparison form, reusing every existing result-rendering
+   component — no new engine, no parallel UI surface).
+5. 5 new real tests added to `universal-comparison-engine.test.ts` (now
+   16): a real, deliberately-constructed 4-key diff matched exactly; a
+   real secret-masking proof (`JSON.stringify(run)` never contains either
+   real secret value); self-comparison rejection; non-string-value
+   rejection; RBAC denial. Full API regression: **600/600 passing**.
+   `tsc --noEmit` clean on both apps.
+6. **`configuration_comparison_test_1`** — real client `AskABD PW
+   Configuration Comparison Test 1`. Built two real snapshots through the
+   actual UI with a deliberate, independently-predicted diff (1 match, 2
+   mismatch — including a real changed secret — 1 missing, 1 extra); the
+   real UI result matched exactly, including live-rendered secret masking
+   (`••••••••` on both sides for the changed `DB_PASSWORD` key). Live-
+   verified the masking claim a second, independent way — fetched the raw
+   API response directly and confirmed neither real secret value appears
+   anywhere in it. **Playwright marked `BLOCKED_EXTERNAL_AUTH`** per the
+   newly-adopted rule (no approved auth mechanism available yet); verified
+   instead via the real Browser-pane mechanism. Full exact-ID cleanup
+   verified (zero orphans across 9 tables). Both protected clients
+   confirmed unchanged. Full write-up: `test-evidence/configuration-
+   comparison/configuration_comparison_test_1/
+   configuration_comparison_test_1.md`. `docs/eoc-feature-coverage-
+   matrix.md` row #35 updated (`NOT_STARTED` → `PASS_WITH_RISKS`,
+   capped per the new rule); summary counts re-run.
+
 ## Failed Tests
 
 **Secure Client Environment Connectivity Engine pass (2026-08-23)**: no
@@ -2474,13 +2535,14 @@ one. The one test failure above was correctly diagnosed as non-code.
 
 ## Database Migrations
 
-**51 applied** (see `docs/enterprise-operations-gap-analysis.md` Section 1
+**52 applied** (see `docs/enterprise-operations-gap-analysis.md` Section 1
 for the full list through 037; `038_business_requirements.sql` through
 `045_discovery_document_ingestion.sql`, `046_document_generation_engine.sql`,
 `047_document_template_seed.sql`, `048_universal_comparison_engine.sql`,
 `049_universal_testing_engine.sql`,
-`050_secure_connectivity_engine.sql`, and
-`051_technology_adapter_registry.sql` — all applied to the live DEV
+`050_secure_connectivity_engine.sql`,
+`051_technology_adapter_registry.sql`, and
+`052_configuration_comparison.sql` — all applied to the live DEV
 database and verified via direct query).
 
 ## Last Verified Commit

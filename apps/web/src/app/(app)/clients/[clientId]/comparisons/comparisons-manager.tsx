@@ -9,10 +9,15 @@ export type ComparisonObjectStatus = 'match' | 'mismatch' | 'missing' | 'extra' 
 export interface ComparisonObjectResult { objectType: string; name: string; status: ComparisonObjectStatus; leftDetail: string; rightDetail: string }
 export interface ComparisonSummary { total: number; match: number; mismatch: number; missing: number; extra: number; unknown: number }
 export interface ComparisonRun {
-  id: string; clientId: string; comparisonType: 'database_schema'; leftLabel: string; rightLabel: string;
-  leftConnectionId: string; rightConnectionId: string; status: 'running' | 'completed' | 'failed';
+  id: string; clientId: string; comparisonType: 'database_schema' | 'configuration'; leftLabel: string; rightLabel: string;
+  leftConnectionId: string | null; rightConnectionId: string | null;
+  leftSnapshotId: string | null; rightSnapshotId: string | null; status: 'running' | 'completed' | 'failed';
   results: ComparisonObjectResult[]; summary: ComparisonSummary; errorMessage: string | null;
   createdBy: string | null; createdAt: string; completedAt: string | null;
+}
+export interface ConfigurationSnapshot {
+  id: string; clientId: string; name: string; environment: string; config: Record<string, string>;
+  source: 'manual'; createdBy: string | null; createdAt: string; updatedAt: string;
 }
 
 // Same icon+label discipline as evidence-status.tsx / QualityBadge elsewhere in
@@ -59,7 +64,7 @@ function RunCard({ run }: { run: ComparisonRun }) {
         <div className="min-w-0">
           <p className="text-xs font-medium text-gray-900">{run.leftLabel} <span className="text-gray-400">vs</span> {run.rightLabel}</p>
           <p className="text-[9px] text-gray-400 mt-0.5">
-            Database schema comparison · {new Date(run.createdAt).toLocaleString('en-AU')}
+            {run.comparisonType === 'configuration' ? 'Configuration comparison' : 'Database schema comparison'} · {new Date(run.createdAt).toLocaleString('en-AU')}
             {run.createdBy && <> · by {run.createdBy}</>}
           </p>
         </div>
@@ -97,13 +102,13 @@ function RunCard({ run }: { run: ComparisonRun }) {
                 ))}
               </div>
               {run.results.length === 0 ? (
-                <p className="text-[11px] text-gray-400 italic">No tables found on either side.</p>
+                <p className="text-[11px] text-gray-400 italic">{run.comparisonType === 'configuration' ? 'No config keys found on either side.' : 'No tables found on either side.'}</p>
               ) : (
                 <div className="bg-white border rounded-md overflow-hidden">
                   <table className="w-full text-[11px]">
                     <thead>
                       <tr className="bg-gray-100 text-gray-500 text-left">
-                        <th className="px-2 py-1.5 font-medium">Table</th>
+                        <th className="px-2 py-1.5 font-medium">{run.comparisonType === 'configuration' ? 'Config Key' : 'Table'}</th>
                         <th className="px-2 py-1.5 font-medium">{run.leftLabel}</th>
                         <th className="px-2 py-1.5 font-medium">{run.rightLabel}</th>
                         <th className="px-2 py-1.5 font-medium">Status</th>
@@ -132,9 +137,88 @@ function RunCard({ run }: { run: ComparisonRun }) {
 
 export interface DatabaseAdapterStatus { technology: string; status: string }
 
-export function ComparisonsManager({ clientId, initialRuns, connections, adapters }: { clientId: string; initialRuns: ComparisonRun[]; connections: DatabaseConnection[]; adapters: DatabaseAdapterStatus[] }) {
+const CONFIG_ENV_OPTIONS = ['production', 'staging', 'uat', 'development', 'other'];
+
+/** Real, staff-entered configuration snapshot creation — the input side of the Configuration comparison type (migration 052). */
+function SnapshotForm({ clientId, onCreated, onCancel }: { clientId: string; onCreated: () => void; onCancel: () => void }) {
+  const [name, setName] = useState('');
+  const [environment, setEnvironment] = useState('production');
+  const [raw, setRaw] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function parseConfig(text: string): { config: Record<string, string> | null; error: string | null } {
+    const config: Record<string, string> = {};
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+    for (const line of lines) {
+      const eq = line.indexOf('=');
+      if (eq === -1) return { config: null, error: `Line "${line}" is not in KEY=VALUE format.` };
+      const key = line.slice(0, eq).trim();
+      const value = line.slice(eq + 1).trim();
+      if (!key) return { config: null, error: `Line "${line}" is missing a key before "=".` };
+      config[key] = value;
+    }
+    return { config, error: null };
+  }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    const { config, error: parseError } = parseConfig(raw);
+    if (parseError || !config || Object.keys(config).length === 0) {
+      setError(parseError || 'Enter at least one KEY=VALUE line.');
+      return;
+    }
+    setSaving(true); setError(null);
+    try {
+      const res = await fetch(`${API}/api/v1/oc/clients/${clientId}/configuration-snapshots`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), environment, config }),
+      });
+      if (!res.ok) { const body = await res.json().catch(() => ({})); setError(body?.error?.message || 'Could not save this snapshot.'); return; }
+      onCreated();
+    } catch { setError('Could not reach the server. Please try again.'); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <form onSubmit={submit} className="bg-white rounded-xl border p-5 mb-4 space-y-3">
+      <div className="grid sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Snapshot name *</label>
+          <input value={name} onChange={e => setName(e.target.value)} required placeholder="e.g. Checkout Service Config" className="w-full border rounded-md px-3 py-2 text-sm" />
+          <p className="text-[9px] text-gray-400 mt-0.5">A short, recognizable label for this configuration capture.</p>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Environment *</label>
+          <select value={environment} onChange={e => setEnvironment(e.target.value)} className="w-full border rounded-md px-3 py-2 text-sm capitalize">
+            {CONFIG_ENV_OPTIONS.map(o => <option key={o} value={o} className="capitalize">{o}</option>)}
+          </select>
+          <p className="text-[9px] text-gray-400 mt-0.5">Which real environment this configuration was captured from.</p>
+        </div>
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-gray-600 mb-1">Configuration (one KEY=VALUE per line) *</label>
+        <textarea value={raw} onChange={e => setRaw(e.target.value)} required rows={6} placeholder={'LOG_LEVEL=info\nFEATURE_FLAG_X=true\nAPI_TIMEOUT_MS=3000'} className="w-full border rounded-md px-3 py-2 text-sm font-mono" />
+        <p className="text-[9px] text-gray-400 mt-0.5">
+          Paste real config values (e.g. from a <code>.env</code> file or app config) — never invented. Lines starting with <code>#</code> are ignored.
+          Secret-shaped keys (password/secret/token/key/credential) are automatically masked wherever this snapshot's values are displayed.
+        </p>
+      </div>
+      {error && <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">{error}</div>}
+      <div className="flex gap-2">
+        <Action type="submit" variant="primary" loading={saving}>Save Snapshot</Action>
+        <button type="button" onClick={onCancel} className="text-xs text-gray-500 hover:text-gray-800">Cancel</button>
+      </div>
+    </form>
+  );
+}
+
+export function ComparisonsManager({ clientId, initialRuns, connections, adapters, initialSnapshots }: { clientId: string; initialRuns: ComparisonRun[]; connections: DatabaseConnection[]; adapters: DatabaseAdapterStatus[]; initialSnapshots: ConfigurationSnapshot[] }) {
   const [runs, setRuns] = useState(initialRuns);
+  const [snapshots, setSnapshots] = useState(initialSnapshots);
+  const [mode, setMode] = useState<'database_schema' | 'configuration'>('database_schema');
   const [showForm, setShowForm] = useState(false);
+  const [showSnapshotForm, setShowSnapshotForm] = useState(false);
   const [leftId, setLeftId] = useState('');
   const [rightId, setRightId] = useState('');
   const [running, setRunning] = useState(false);
@@ -154,17 +238,20 @@ export function ComparisonsManager({ clientId, initialRuns, connections, adapter
     const res = await fetch(`${API}/api/v1/oc/clients/${clientId}/comparisons`);
     if (res.ok) setRuns((await res.json()).runs);
   }
+  async function refreshSnapshots() {
+    const res = await fetch(`${API}/api/v1/oc/clients/${clientId}/configuration-snapshots`);
+    if (res.ok) setSnapshots((await res.json()).snapshots);
+  }
 
   async function handleRun(e: React.FormEvent) {
     e.preventDefault();
-    if (!leftId || !rightId) { setError('Choose two different connections to compare.'); return; }
-    if (leftId === rightId) { setError('Choose two different connections — comparing a connection against itself is not meaningful.'); return; }
+    if (!leftId || !rightId) { setError(mode === 'configuration' ? 'Choose two different snapshots to compare.' : 'Choose two different connections to compare.'); return; }
+    if (leftId === rightId) { setError(mode === 'configuration' ? 'Choose two different snapshots — comparing one against itself is not meaningful.' : 'Choose two different connections — comparing a connection against itself is not meaningful.'); return; }
     setRunning(true); setError(null);
     try {
-      const res = await fetch(`${API}/api/v1/oc/clients/${clientId}/comparisons/database-schema`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leftConnectionId: leftId, rightConnectionId: rightId }),
-      });
+      const url = mode === 'configuration' ? `${API}/api/v1/oc/clients/${clientId}/comparisons/configuration` : `${API}/api/v1/oc/clients/${clientId}/comparisons/database-schema`;
+      const payload = mode === 'configuration' ? { leftSnapshotId: leftId, rightSnapshotId: rightId } : { leftConnectionId: leftId, rightConnectionId: rightId };
+      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (!res.ok) { const body = await res.json().catch(() => ({})); setError(body?.error?.message || 'Could not run this comparison.'); return; }
       setLeftId(''); setRightId(''); setShowForm(false);
       await refresh();
@@ -172,11 +259,14 @@ export function ComparisonsManager({ clientId, initialRuns, connections, adapter
     finally { setRunning(false); }
   }
 
+  const canRunDbSchema = comparableConnections.length >= 2;
+  const canRunConfig = snapshots.length >= 2;
+
   return (
     <div>
       {comparableConnections.length < 2 && (
         <div className="bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-4 text-[11px] text-amber-800">
-          At least two connections with a real, supported adapter are needed to run a comparison. Add them from the
+          At least two connections with a real, supported adapter are needed to run a database schema comparison. Add them from the
           <span className="font-medium"> Lifecycle</span> tab's Database Connections section.
         </div>
       )}
@@ -193,8 +283,41 @@ export function ComparisonsManager({ clientId, initialRuns, connections, adapter
         </div>
       )}
 
-      <div className="flex justify-end mb-4">
-        <Action variant="primary" onClick={() => setShowForm(v => !v)} disabled={comparableConnections.length < 2}>
+      {/* Configuration snapshots — the input side of the Configuration comparison type */}
+      <div className="bg-white rounded-xl border p-4 mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <p className="text-xs font-semibold text-gray-800">Configuration Snapshots</p>
+            <p className="text-[9px] text-gray-400 mt-0.5">Real, staff-entered configuration captures — used as the two sides of a Configuration comparison.</p>
+          </div>
+          <button onClick={() => setShowSnapshotForm(v => !v)} className="text-[10px] font-semibold text-purple-600 hover:text-purple-800">
+            {showSnapshotForm ? 'Cancel' : '+ Add Snapshot'}
+          </button>
+        </div>
+        {showSnapshotForm && (
+          <SnapshotForm clientId={clientId} onCreated={() => { setShowSnapshotForm(false); refreshSnapshots(); }} onCancel={() => setShowSnapshotForm(false)} />
+        )}
+        {snapshots.length === 0 ? (
+          <p className="text-[10px] text-gray-400 italic">No configuration snapshots yet for this client.</p>
+        ) : (
+          <ul className="space-y-1">
+            {snapshots.map(s => (
+              <li key={s.id} className="text-[10px] text-gray-600 flex items-center gap-2">
+                <span className="font-medium text-gray-800">{s.name}</span>
+                <span className="capitalize text-gray-400">({s.environment})</span>
+                <span className="text-gray-400">· {Object.keys(s.config).length} key{Object.keys(s.config).length !== 1 ? 's' : ''}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between mb-4">
+        <div className="inline-flex rounded-md border overflow-hidden text-[10px] font-semibold">
+          <button onClick={() => { setMode('database_schema'); setLeftId(''); setRightId(''); setError(null); }} className={`px-3 py-1.5 ${mode === 'database_schema' ? 'bg-purple-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>Database Schema</button>
+          <button onClick={() => { setMode('configuration'); setLeftId(''); setRightId(''); setError(null); }} className={`px-3 py-1.5 border-l ${mode === 'configuration' ? 'bg-purple-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>Configuration</button>
+        </div>
+        <Action variant="primary" onClick={() => setShowForm(v => !v)} disabled={mode === 'configuration' ? !canRunConfig : !canRunDbSchema}>
           {showForm ? 'Cancel' : '+ New Comparison'}
         </Action>
       </div>
@@ -204,20 +327,25 @@ export function ComparisonsManager({ clientId, initialRuns, connections, adapter
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Left side (baseline) *</label>
             <select value={leftId} onChange={e => setLeftId(e.target.value)} required className="w-full border rounded-md px-3 py-2 text-sm">
-              <option value="">Select a connection…</option>
-              {comparableConnections.map(c => <option key={c.id} value={c.id}>{c.name} ({c.environment})</option>)}
+              <option value="">{mode === 'configuration' ? 'Select a snapshot…' : 'Select a connection…'}</option>
+              {mode === 'configuration'
+                ? snapshots.map(s => <option key={s.id} value={s.id}>{s.name} ({s.environment})</option>)
+                : comparableConnections.map(c => <option key={c.id} value={c.id}>{c.name} ({c.environment})</option>)}
             </select>
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Right side (comparison target) *</label>
             <select value={rightId} onChange={e => setRightId(e.target.value)} required className="w-full border rounded-md px-3 py-2 text-sm">
-              <option value="">Select a connection…</option>
-              {comparableConnections.map(c => <option key={c.id} value={c.id}>{c.name} ({c.environment})</option>)}
+              <option value="">{mode === 'configuration' ? 'Select a snapshot…' : 'Select a connection…'}</option>
+              {mode === 'configuration'
+                ? snapshots.map(s => <option key={s.id} value={s.id}>{s.name} ({s.environment})</option>)
+                : comparableConnections.map(c => <option key={c.id} value={c.id}>{c.name} ({c.environment})</option>)}
             </select>
           </div>
           <p className="sm:col-span-2 text-[9px] text-gray-400">
-            Both sides must have a real, stored credential (tested successfully at least once). A connection
-            whose credential is unavailable will honestly report unresolved tables rather than guessing.
+            {mode === 'configuration'
+              ? 'Real key-value diff: added, removed, changed, and unchanged keys are all reported — never fabricated.'
+              : 'Both sides must have a real, stored credential (tested successfully at least once). A connection whose credential is unavailable will honestly report unresolved tables rather than guessing.'}
           </p>
           {error && <div className="sm:col-span-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">{error}</div>}
           <div className="sm:col-span-2">
