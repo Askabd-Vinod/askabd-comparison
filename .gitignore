@@ -30,3 +30,20 @@ test-evidence/**/*.mp4
 test-evidence/**/*.webm
 test-evidence/**/*.zip
 test-evidence/**/trace/
+
+# Real Playwright screenshot evidence (Master Autonomous Build directive,
+# 2026-08-23) — docs/evidence/<feature>_test_N/screenshots/*.png are real,
+# physically-saved binary captures from real headless Chromium/Firefox/
+# WebKit runs (see scripts/playwright-evidence/). Same binary-only
+# exclusion rule as test-evidence/ above: the PNGs stay local (verifiable
+# on disk, sent to the user directly when relevant) but are not committed
+# as binary blobs; test-report.md/test-results.json in the same folders
+# ARE tracked — the durable, reviewable text record.
+docs/evidence/**/*.png
+docs/evidence/**/*.mp4
+docs/evidence/**/*.webm
+
+# Real, live Playwright staff session state (scripts/playwright-evidence/
+# lib/auth.mjs) — cookies + storage snapshot from a real staff login the
+# USER performed themselves in a visible browser window. Never commit.
+scripts/playwright-evidence/.auth/
