@@ -133,6 +133,15 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   // client's environment by putting a different clientId in the body.
   { method: 'POST', path: '/api/v1/oc/migration/preflight', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/migration/validate', permissions: ['Admin.Access'] },
+  // Same exact gap, found this pass while live-verifying migration_validation_test_1:
+  // both also take `clientId` in the BODY with no explicit rule, so both fell
+  // through to defaultPolicy 'authenticated' — any real customer token could
+  // check production readiness for, or create a real migration PLAN against,
+  // ANY client by putting a different clientId in the body. Migration planning
+  // is inherently an AskABD-staff-operated action (same reasoning as the block
+  // above), so Admin.Access is the correct boundary here too.
+  { method: 'POST', path: '/api/v1/oc/production/readiness', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/migration/plan', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/migration/dry-run', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/migration/execute', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/migration/:migrationId/execute-async', permissions: ['Admin.Access'] },

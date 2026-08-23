@@ -42,6 +42,18 @@ const ALL_TABLES_FOR_ORPHAN_SWEEP = [
   'oc_events', 'oc_workflow_executions',
 ];
 
+// Real gap found live (migration_validation_test_1): these tables are
+// generic entity-audit/versioning/workflow tables keyed by
+// (entity_type, entity_id) — no client_id column at all, so the
+// client_id-keyed sweep above never touches them, even though real
+// staff actions (e.g. POST /oc/migration/validate's own
+// ocService.createAuditEntry call) genuinely set entity_id = clientId.
+// A blanket `entity_id = $1` sweep is correct here since entity_id is
+// unenforced/opaque — any row whose entity_id happens to equal this
+// client's id is a real orphan once the client itself is gone,
+// regardless of which entity_type label was attached to it.
+const ENTITY_ID_TABLES = ['oc_audit_log', 'oc_service_actions', 'entity_versions', 'approval_workflows'];
+
 async function main() {
   const [clientId, clientName] = process.argv.slice(2);
   if (!clientId || !clientName) {
@@ -74,6 +86,10 @@ async function main() {
       const r = await client.query(`DELETE FROM ${t} WHERE client_id = $1`, [clientId]);
       if (r.rowCount > 0) { console.log(`${t} -> ${r.rowCount}`); total += r.rowCount; }
     }
+    for (const t of ENTITY_ID_TABLES) {
+      const r = await client.query(`DELETE FROM ${t} WHERE entity_id = $1`, [clientId]);
+      if (r.rowCount > 0) { console.log(`${t} (entity_id) -> ${r.rowCount}`); total += r.rowCount; }
+    }
     console.log('total other rows deleted:', total);
 
     const rc = await client.query('DELETE FROM oc_clients WHERE id = $1 RETURNING id', [clientId]);
@@ -95,6 +111,11 @@ async function main() {
     const r = await pool.query(`SELECT COUNT(*) FROM ${t} WHERE client_id = $1`, [clientId]);
     const n = parseInt(r.rows[0].count, 10);
     if (n > 0) { console.log('ORPHAN in', t, ':', n); orphans += n; }
+  }
+  for (const t of ENTITY_ID_TABLES) {
+    const r = await pool.query(`SELECT COUNT(*) FROM ${t} WHERE entity_id = $1`, [clientId]);
+    const n = parseInt(r.rows[0].count, 10);
+    if (n > 0) { console.log('ORPHAN in', t, '(entity_id):', n); orphans += n; }
   }
   console.log('Total orphans found:', orphans);
 

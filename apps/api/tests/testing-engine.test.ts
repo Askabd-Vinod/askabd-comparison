@@ -474,4 +474,57 @@ describe('RBAC and tenant isolation', () => {
     expect(res.statusCode).toBe(401);
     await app.close();
   });
+
+  /**
+   * Real gap found this pass while live-verifying migration_validation_test_1:
+   * `/oc/production/readiness` and `/oc/migration/plan` both take `clientId`
+   * in the BODY (not the URL), so tenant-access.ts's generic clientId-sniffing
+   * never applies to them (same class of bug this codebase's own rules.ts
+   * comment already documents was fixed for `/oc/migration/preflight` and
+   * `/oc/migration/validate` during "the 2026-08-22 SDLC-completion audit" —
+   * these two were simply missed at the time). Without an explicit RBAC rule,
+   * both fell through to `defaultPolicy: 'authenticated'` — any real customer
+   * token could check production readiness for, or create a real migration
+   * PLAN against, ANY client by putting a different clientId in the body.
+   * Fixed in rules.ts; this is the first real regression test for this
+   * entire route family (preflight/validate/dry-run/execute previously had
+   * NO test coverage at all — `migrations-routes.test.ts` deliberately
+   * registers the routes without the security middleware, to test route
+   * logic in isolation).
+   */
+  describe('Migration preflight/validate/plan — real gap fixed this pass, never previously regression-tested', () => {
+    it('denies a customer token (403) for every migration preflight/validate/plan/execute route', async () => {
+      const app = await buildApp();
+      const customer = await customerToken();
+      const routes: Array<{ method: 'POST'; url: string }> = [
+        { method: 'POST', url: '/api/v1/oc/migration/preflight' },
+        { method: 'POST', url: '/api/v1/oc/migration/validate' },
+        { method: 'POST', url: '/api/v1/oc/production/readiness' },
+        { method: 'POST', url: '/api/v1/oc/migration/plan' },
+        { method: 'POST', url: '/api/v1/oc/migration/dry-run' },
+        { method: 'POST', url: '/api/v1/oc/migration/execute' },
+      ];
+      for (const route of routes) {
+        const res = await app.inject({ method: route.method, url: route.url, headers: { authorization: `Bearer ${customer}` }, payload: { clientId: 'client-not-mine' } });
+        expect(res.statusCode, `${route.method} ${route.url} should deny a customer token`).toBe(403);
+      }
+      await app.close();
+    });
+
+    it('an admin token can reach production readiness and migration plan for a real client (200/201, not 403)', async () => {
+      const app = await buildApp();
+      const admin = await adminToken();
+      const ocService = new OperationsCenterService();
+      const client = await ocService.createClient(minimalClient(`Migration RBAC ${randomUUID().slice(0, 8)}`));
+      cleanupClientIds.push(client.id);
+
+      const readiness = await app.inject({ method: 'POST', url: '/api/v1/oc/production/readiness', headers: { authorization: `Bearer ${admin}` }, payload: { clientId: client.id } });
+      expect(readiness.statusCode).toBe(200);
+
+      const plan = await app.inject({ method: 'POST', url: '/api/v1/oc/migration/plan', headers: { authorization: `Bearer ${admin}` }, payload: { clientId: client.id, sourceSchema: 'public' } });
+      expect(plan.statusCode).toBe(200);
+      await sharedPool.query('DELETE FROM oc_migration_runs WHERE id = $1', [plan.json().id]).catch(() => {});
+      await app.close();
+    });
+  });
 });

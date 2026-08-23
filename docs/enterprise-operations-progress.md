@@ -82,9 +82,21 @@ each pass per the user's own "do not ask again" instruction; work
 continues on everything that doesn't require it. `migration_test_1`
 (Migration Validation Engine, row #43) closed a real gap — only the PASS
 path had ever been proven — with a new FAIL-path test and a live,
-authenticated verification against the real running dev server. **Next
-up, per the standing "continue automatically" authorization**:
-`migration_validation_test_1`, and onward down the named list in
+authenticated verification against the real running dev server.
+`migration_validation_test_1` (Migration Assessment Engine, row #39, and
+Migration Execution Engine, row #42's plan-creation route) live-verified
+the real "Migration Plan" UI page and found + fixed 4 real issues in one
+pass: a real RBAC gap (2 routes had no rule at all — any customer token
+could target any client), 2 real UI bugs (Pre-Flight tile counts/colors
+silently broken by a `'passed'`/`'failed'` vs `'pass'`/`'fail'` string
+mismatch — every real PASS check rendered in red), and a real cleanup gap
+(`oc_audit_log` and 3 sibling tables use `entity_id`, not `client_id` —
+`cleanup-qa-client.mjs` never swept them, silently leaking real orphaned
+rows after every QA client deletion this session; fixed and retroactively
+applied to 3 affected QA clients). See its own "Completed This Session"
+entry below. **Next up, per the standing "continue automatically"
+authorization**:
+`transformation_test_1`, and onward down the named list in
 `docs/eoc-feature-coverage-matrix.md`'s own execution order, ending in
 `FULL_END_TO_END_CLIENT_TEST_1`. Read `docs/eoc-feature-coverage-matrix.md`
 alongside this file — it is the authoritative, row-by-row honest status
@@ -2539,6 +2551,77 @@ meantime.
    `docs/eoc-feature-coverage-matrix.md` row #43 enriched in place (status
    unchanged at IMPLEMENTED — no UI exists to justify PASS); summary
    counts re-run mechanically (unchanged: 21/16/26/15/2).
+
+## Completed This Session — migration_validation_test_1: real UI validated, 4 real issues found and fixed in one pass (2026-08-23, continued)
+
+Unlike `migration_test_1` (API-only, no dedicated UI), this suite targets
+the real "Migration Plan" page (`/clients/:id/migrations`) — real
+"Run Pre-Flight Checks" / "Run Validation" / "Create Real Migration Plan"
+buttons wired to `MigrationValidationService` and
+`MigrationExecutionService`. Exactly the kind of pass real UI validation
+is for: automated tests and source inspection alone had missed all four
+of the following.
+
+1. **Real security gap, found before testing began (inspecting route
+   wiring first, per "search before building")**: `POST /oc/production/
+   readiness` and `POST /oc/migration/plan` both take `clientId` in the
+   BODY, so `tenant-access.ts`'s clientId-sniffing never applies — the
+   exact same class of gap this codebase's own `rules.ts` comments
+   document was fixed for `/oc/migration/preflight`/`/validate` during an
+   earlier audit; these two were simply missed. Without an explicit rule,
+   both fell through to `defaultPolicy: 'authenticated'` — any real
+   customer token could check production readiness for, or create a real
+   migration PLAN against, ANY client. Fixed in `rules.ts` (added
+   `Admin.Access`, matching every sibling route). **This whole route
+   family had ZERO prior regression test coverage** — added 2 new tests:
+   a customer-token-denied-403 sweep across all 6 preflight/validate/
+   readiness/plan/dry-run/execute routes, and an admin-success check for
+   the 2 newly-fixed ones.
+2. **Real UI bug #1**: Pre-Flight summary tiles always showed `0 Passed /
+   0 Failed` regardless of real per-check results shown directly below.
+   Root cause: `migrations/page.tsx` filtered on `'passed'`/`'failed'`
+   (past tense) while the real backend's `PreflightCheck.status` is
+   `'pass' | 'fail' | 'warning' | 'skipped'` (present tense) — never
+   matched. "Warnings" happened to look right only because that word is
+   spelled the same both ways, masking the bug.
+3. **Real UI bug #2**: every genuine `pass` check rendered in RED text,
+   not green — the exact same tense mismatch, in the per-check color
+   ternary. Both fixed with a real code comment explaining the mismatch
+   for future maintainers; verified live, before and after, with a fresh
+   QA client (`3 Passed / 1 Warnings / 4 Failed` now displays correctly,
+   with correct real colors).
+4. **Real cleanup-infrastructure gap**: `oc_audit_log` and 3 sibling
+   generic entity-audit tables (`oc_service_actions`, `entity_versions`,
+   `approval_workflows`) key by `(entity_type, entity_id)`, not
+   `client_id` — so `cleanup-qa-client.mjs` (built earlier this session)
+   never swept them. The route's own real
+   `ocService.createAuditEntry({ entityType: 'validation', entityId:
+   clientId })` call had been silently leaving real orphaned audit rows
+   behind after every QA client deletion this session. Found live (13
+   orphaned rows for this suite's own client), fixed the reusable script
+   (added a real `entity_id` sweep, both in the delete transaction and
+   the independent orphan-verification pass), and retroactively applied:
+   deleted this suite's 13 orphans plus 7 each from two EARLIER suites
+   this session (`migration_test_1`, `bidirectional_comparison_test_1`)
+   that had the identical silent leak. Re-verified zero `entity_id`
+   orphans across all three afterward.
+5. Live result matched the independent prediction exactly: Pre-Flight for
+   an unconfigured client → 3 pass/4 fail/1 warning → step **FAILED**
+   (never fabricated readiness); Validation → the already-documented
+   self-referential 9/9 pass (row #39's known limitation, reconfirmed
+   reachable from the real UI, explicitly not fixed this pass — a real,
+   disclosed fast-follow to wire it to the Universal Comparison Engine
+   the way `TestReportService.runMigrationValidation` already does).
+   **Playwright marked `BLOCKED_EXTERNAL_AUTH`** (export file still
+   pending, re-checked immediately before this pass). Full API
+   regression: **622/622 passing** (2 new). `tsc --noEmit` clean both
+   apps. Full FK-ordered + entity_id-ordered cleanup, zero orphans
+   verified; both protected clients confirmed unchanged. Full write-up:
+   `docs/evidence/migration_validation/migration_validation_test_1/
+   migration_validation_test_1.md`. `docs/eoc-feature-coverage-matrix.md`
+   rows #39 and #42 enriched in place (status unchanged — PASS_WITH_RISKS
+   and IMPLEMENTED respectively); summary counts re-run mechanically
+   (unchanged: 21/16/26/15/2).
 
 ## Failed Tests
 

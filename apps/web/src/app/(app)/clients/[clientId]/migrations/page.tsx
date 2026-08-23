@@ -162,14 +162,22 @@ export default function MigrationPlanPage() {
         <div className="bg-white rounded-xl border p-5">
           <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wide mb-3">Pre-Flight Results</h3>
           <div className="grid grid-cols-3 gap-3 mb-3">
-            <div className="bg-green-50 rounded p-2 text-center"><p className="text-sm font-bold text-green-600">{preflight.checks?.filter((c: any) => c.status === 'passed').length || 0}</p><p className="text-[8px] text-green-500">Passed</p></div>
+            {/* Real fix (found live this pass): the real backend's PreflightCheck.status
+                (migration-validation-service.ts) is 'pass' | 'fail' | 'warning' | 'skipped' —
+                this was filtering on 'passed'/'failed' (past tense), which never matched, so
+                these two tiles always showed 0 regardless of the real, correct per-check
+                results below (Warnings looked right only because 'warning' happens to match
+                both tenses). Caught via a real Browser-pane pass against a fresh QA client
+                with genuinely failing/passing checks, not source inspection. */}
+            <div className="bg-green-50 rounded p-2 text-center"><p className="text-sm font-bold text-green-600">{preflight.checks?.filter((c: any) => c.status === 'pass').length || 0}</p><p className="text-[8px] text-green-500">Passed</p></div>
             <div className="bg-amber-50 rounded p-2 text-center"><p className="text-sm font-bold text-amber-600">{preflight.checks?.filter((c: any) => c.status === 'warning').length || 0}</p><p className="text-[8px] text-amber-500">Warnings</p></div>
-            <div className="bg-red-50 rounded p-2 text-center"><p className="text-sm font-bold text-red-600">{preflight.checks?.filter((c: any) => c.status === 'failed').length || 0}</p><p className="text-[8px] text-red-500">Failed</p></div>
+            <div className="bg-red-50 rounded p-2 text-center"><p className="text-sm font-bold text-red-600">{preflight.checks?.filter((c: any) => c.status === 'fail').length || 0}</p><p className="text-[8px] text-red-500">Failed</p></div>
           </div>
           {preflight.checks?.map((check: any, i: number) => (
             <div key={i} className="flex items-center justify-between py-1.5 border-b border-gray-100 last:border-0">
               <span className="text-[10px] text-gray-700">{check.name || check.check}</span>
-              <span className={`text-[9px] font-bold ${check.status === 'passed' ? 'text-green-600' : check.status === 'warning' ? 'text-amber-600' : 'text-red-600'}`}>{check.status?.toUpperCase()}</span>
+              {/* Same real tense mismatch — a genuine 'pass' status was rendering red, not green. */}
+              <span className={`text-[9px] font-bold ${check.status === 'pass' ? 'text-green-600' : check.status === 'warning' ? 'text-amber-600' : 'text-red-600'}`}>{check.status?.toUpperCase()}</span>
             </div>
           ))}
           {preflight.status === 'passed' && !validation && (
