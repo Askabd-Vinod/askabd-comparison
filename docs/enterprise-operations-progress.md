@@ -288,10 +288,39 @@ release_readiness_test_1.md` for the full write-up. Coverage matrix row
 reason as `uat_test_1` — no dedicated UI yet, and Playwright remains
 `BLOCKED_EXTERNAL_AUTH`).
 
-**Next up, per the standing "continue automatically" authorization**:
-`deployment_validation_test_1` / `post_delivery_test_1` (rows #52-53), and
-onward down the named list in `docs/eoc-feature-coverage-matrix.md`'s own
-execution order, ending in `FULL_END_TO_END_CLIENT_TEST_1`. Read
+**Update (2026-08-24, continued)**: before starting the next feature,
+investigated row #52 ("Deployment Validation Engine", previously marked
+`IMPLEMENTED`) and found its claim was itself false — mechanically
+confirmed **zero `oc_deployments` table, service, or route exists
+anywhere** in `apps/api/src`, and `deployments/page.tsx` /
+`deployments/[deploymentId]/page.tsx` read `client.deployments`
+unconditionally from `mockClients` (hardcoded release notes, an
+always-all-`✓` checklist, hardcoded "Reviewer/Approver:
+hello@askabd.com", fabricated post-deploy metrics, a fabricated "95%
+confidence" AI insight). This is NOT a new regression — it's an already
+-known, already-documented, deliberately-deferred P1 finding in
+`docs/enterprise-feature-gap-register.md` (2026-08-17) — but the coverage
+matrix row had never been corrected to reflect it, and was still claiming
+`IMPLEMENTED`/"Real Deployments page" until this check. Corrected row #52
+to an honest `NOT_STARTED` with the full evidence inline, cross-checked
+the same false-claim pattern against the matrix's other rows (only #52
+made this specific claim — no other row was found making an equally
+unverified "Real X page" claim for a `mockClients`-backed page), and
+merged rows #52/#53 into one coherent next-feature scope, since both are
+the same real gap (`test_suites.category` already includes
+`'post_deployment'`, unused, matching the `'uat'`/`'release'` precedent).
+
+**Next up, per the standing "continue automatically" authorization**: a
+real **Deployment + Post-Deployment Validation Engine** (rows #52-53
+together, `deployment_validation_test_1`) — this needs a genuinely NEW
+table (none exists, confirmed), unlike `uat_test_1`/
+`release_readiness_test_1` which reused existing schema; natural design
+already sketched in row #52's own remarks column (gate real deployment
+creation on `ReleaseReadinessService`'s go/no-go, back the approval step
+with `ApprovalWorkflowEngine`, use `test_suites` category='post_deployment'
+for post-deploy validation checks) — then onward down the named list in
+`docs/eoc-feature-coverage-matrix.md`'s own execution order, ending in
+`FULL_END_TO_END_CLIENT_TEST_1`. Read
 `docs/eoc-feature-coverage-matrix.md` alongside this file — it is the
 authoritative, row-by-row honest status tracker; this file is the
 narrative log. Re-read this file first and confirm `npm run health` is
