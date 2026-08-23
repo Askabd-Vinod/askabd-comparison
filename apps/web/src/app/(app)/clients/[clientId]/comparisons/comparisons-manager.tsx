@@ -20,7 +20,7 @@ export interface ComparisonObjectResult {
   // Real, dynamic, environment-aware status line — "Missing in Staging",
   // never "Missing on Left/Right" — see the "BIDIRECTIONAL COMPARISON UI"
   // directive. Computed server-side from the ACTUAL environment names of
-  // this run (see ComparisonRun.leftEnvironmentLabel/rightEnvironmentLabel).
+  // this run (see ComparisonRun.leftEnvironmentName/rightEnvironmentName).
   displayIcon: string; displayText: string; displaySeverity: DisplaySeverity;
 }
 export interface ComparisonSummary {
@@ -32,8 +32,14 @@ export interface ComparisonRun {
   leftConnectionId: string | null; rightConnectionId: string | null;
   leftSnapshotId: string | null; rightSnapshotId: string | null;
   baselineId: string | null; baselineVersion: string | null;
-  /** Real environment display names for this run's two sides, e.g. "Production"/"Staging"/"UAT" — never hardcoded. */
-  leftEnvironmentLabel: string | null; rightEnvironmentLabel: string | null;
+  /**
+   * Real, persisted environment identity for this run's two sides —
+   * never reconstructed from left/right position. `*Id` is the real,
+   * stable environment slug (e.g. "production"); `*Name` is its real
+   * formatted display form (e.g. "Production"/"Staging"/"UAT").
+   */
+  leftEnvironmentId: string | null; leftEnvironmentName: string | null;
+  rightEnvironmentId: string | null; rightEnvironmentName: string | null;
   status: 'running' | 'completed' | 'failed';
   results: ComparisonObjectResult[]; summary: ComparisonSummary; errorMessage: string | null;
   createdBy: string | null; createdAt: string; completedAt: string | null;
@@ -223,8 +229,8 @@ const KEY_TO_STATUS: Record<string, ComparisonObjectStatus> = {
  * this platform genuinely cannot determine a specific impact, it says so
  * honestly instead of inventing one. */
 function DifferenceDetail({ result, run }: { result: ComparisonObjectResult; run: ComparisonRun }) {
-  const leftEnv = run.leftEnvironmentLabel || run.leftLabel;
-  const rightEnv = run.rightEnvironmentLabel || run.rightLabel;
+  const leftEnv = run.leftEnvironmentName || run.leftLabel;
+  const rightEnv = run.rightEnvironmentName || run.rightLabel;
   const objectWord = run.comparisonType === 'configuration' ? 'configuration key' : 'object';
   const rows: { label: string; content: React.ReactNode }[] = [];
 
@@ -278,8 +284,8 @@ function RunCard({ run, clientId, onRunUpdated }: { run: ComparisonRun; clientId
   const [exceptionRowKey, setExceptionRowKey] = useState<string | null>(null);
   const [detailRowKey, setDetailRowKey] = useState<string | null>(null);
   const panelId = useId();
-  const leftEnv = run.leftEnvironmentLabel || run.leftLabel;
-  const rightEnv = run.rightEnvironmentLabel || run.rightLabel;
+  const leftEnv = run.leftEnvironmentName || run.leftLabel;
+  const rightEnv = run.rightEnvironmentName || run.rightLabel;
 
   // "Differ" at a glance means genuinely unresolved — an expected
   // difference, approved override, or approved exception is NOT a

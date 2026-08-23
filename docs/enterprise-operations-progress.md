@@ -61,8 +61,17 @@ dynamically, and provably swap-invariant. Built and validated this pass as
 `bidirectional_comparison_ui_test_1` (migration 054) — see its own
 "Completed This Session" entry below. Rows #33 and #35 of the coverage
 matrix were both enriched in place (this display layer applies
-engine-wide, to both comparison types). **Next up, per the standing
-"continue automatically" authorization**:
+engine-wide, to both comparison types). **A final correction was then
+made to that same directive**: severity must be ENVIRONMENT-AWARE, not
+LEFT/RIGHT-AWARE — the prior pass's own `missing`=red/`extra`=orange
+split was itself a real, left/right-position-dependent defect (caught by
+the user's own review, not this session's testing). Fixed and proven via
+a new mandatory "swap direction does not change semantic classification"
+regression covering all 8 real statuses; validated as
+`bidirectional_comparison_test_1` (migration 055, real environment
+identity persisted alongside its name) — see its own "Completed This
+Session" entry below. **Next up, per the standing "continue automatically"
+authorization**:
 `migration_test_1`, and onward down the named list in
 `docs/eoc-feature-coverage-matrix.md`'s own execution order, ending in
 `FULL_END_TO_END_CLIENT_TEST_1`. Read `docs/eoc-feature-coverage-matrix.md`
@@ -2392,6 +2401,68 @@ and configuration comparisons), not just one type.
    PASS and PASS_WITH_RISKS respectively, this being a display-layer
    enhancement, not a new capability); summary counts re-run mechanically
    (unchanged: 21/16/26/15/2).
+
+## Completed This Session — Comparison semantics corrected to ENVIRONMENT-AWARE, not LEFT/RIGHT-AWARE; bidirectional_comparison_test_1 (2026-08-23, continued)
+
+A final correction directive was adopted: the immediately-prior pass's
+own severity design was itself a real defect — `missing` (present left,
+absent right) got `red`, `extra` (absent left, present right) got
+`orange`, a distinction based on structural left/right position, not on
+the real classification. The user's own worked examples prove both
+should be `red` — the SAME real fact type ("genuinely absent from one
+specific environment"), regardless of which side it happens to sit on.
+Left/right must be ONLY display order — never meaning, severity,
+classification, recommendation, environment name, risk, or missing
+status.
+
+1. **`buildDisplayStatus()` fixed** — `missing`/`extra` now both return
+   `{ icon: '🔴', severity: 'red' }`. Text logic (which real environment
+   name is named) was already correct and unchanged.
+2. **Migration 055** — renamed `comparison_runs.left_environment`/
+   `right_environment` to `left_environment_name`/`right_environment_name`
+   (matching the user's own exact field naming) and added
+   `left_environment_id`/`right_environment_id` — the real, stable
+   environment slug (e.g. `production`) persisted alongside its formatted
+   display name, never reconstructed from positional assumptions. No
+   separate normalized Environment entity with its own generated id
+   exists in this platform yet — the slug IS the real, stable identity, a
+   real disclosed interpretation, not a fabricated new entity.
+3. Backend (`ComparisonRun`/`RunRow`/`toRun()`, both INSERT statements,
+   `applyExceptionToRun`) and frontend (`comparisons-manager.tsx`) updated
+   to the renamed fields end-to-end.
+4. **A new mandatory regression**, `describe('swap direction does not
+   change semantic classification (mandatory regression)')` — 7 tests, one
+   per real status (`Missing in Staging`, `Missing in Production`,
+   `Mismatch`, `Match`, `Expected Difference`, `Approved Override`,
+   `Approved Exception`; `Unapproved Difference` covered via the existing
+   suite's same both-directions pattern), each running the SAME real
+   comparison in both directions and asserting identical `displayText`
+   AND `displaySeverity` in both. Full API regression: **619/619
+   passing** (612 + 7 new). `tsc --noEmit` clean on both apps.
+5. **`bidirectional_comparison_test_1`** — real client `AskABD PW
+   Semantic Severity Test 1`. Reused the same deliberate `public.products`/
+   `public.orders_v2`/`DB_TYPE` test data as the prior pass specifically to
+   make the correction visible: the live forward run now showed
+   `public.orders_v2` → **🔴 Missing in Production** (was wrongly 🟠
+   orange before this fix); the live reverse run showed the identical
+   icon, severity, and text for both facts, confirmed side-by-side.
+   "View Difference" verified to use only real environment names
+   ("Staging contains…"/"Production does not contain…"), never "left
+   side"/"right side" language. **Playwright marked `BLOCKED_EXTERNAL_AUTH`**
+   (export file still does not exist, re-checked immediately before this
+   pass). **A further, honestly-disclosed limitation this pass**: the
+   requested physical PNG screenshot files under `docs/evidence/` could
+   not be produced — the Browser-pane screenshot tool returns images
+   inline to this conversation with no mechanism available to this agent
+   to persist those exact bytes to disk at a given path; both directions
+   were nonetheless reviewed live and their exact content transcribed
+   verbatim in the evidence write-up. Full exact-ID FK-ordered cleanup
+   across 70 client-scoped tables, zero orphans verified; both protected
+   clients confirmed unchanged. Full write-up: `test-evidence/
+   bidirectional-comparison-ui/bidirectional_comparison_test_1/
+   bidirectional_comparison_test_1.md`. `docs/eoc-feature-coverage-
+   matrix.md` rows #33 and #35 enriched in place (status unchanged);
+   summary counts re-run mechanically (unchanged: 21/16/26/15/2).
 
 ## Failed Tests
 

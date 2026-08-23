@@ -45,12 +45,19 @@ export type ComparisonObjectStatus =
 
 /**
  * Traffic-light severity for the human-facing status line — a real,
- * fixed mapping per `status`, never dependent on which physical column
- * (left/right) an environment happens to be displayed in this run, so a
- * user re-running the same comparison with sides swapped sees the exact
- * same severity for the exact same real-world fact (only which literal
- * environment name reads "reference" vs "target" changes, per the
- * "BIDIRECTIONAL COMPARISON UI" directive's own swap-invariance rule).
+ * fixed mapping per `status` ALONE, period. Per the "comparison
+ * semantics must be ENVIRONMENT-AWARE, not LEFT/RIGHT-AWARE" correction:
+ * left/right is ONLY display order (column order, which value appears
+ * first) — it must NEVER influence meaning, severity, classification,
+ * recommendation, environment name, risk, or missing status. A real
+ * structural presence difference (`missing`/`extra`) is the SAME real
+ * fact — "this object does not exist in one specific environment" —
+ * regardless of which physical connection happened to be selected as
+ * left or right, so both get the SAME severity (`red`); only the actual
+ * environment NAME named in the sentence differs, and only because the
+ * real underlying data differs, never because of display order (see
+ * `buildDisplayStatus()`, and the dedicated
+ * "swap direction does not change semantic classification" tests).
  */
 export type DisplaySeverity = 'red' | 'orange' | 'green' | 'neutral';
 
@@ -180,19 +187,19 @@ export function formatEnvironmentLabel(env: string | null | undefined): string {
 }
 
 /**
- * The real, user-facing status line — "BIDIRECTIONAL COMPARISON UI"
- * directive: never "Missing on Left"/"Missing on Right"/"Extra on
- * Right" — always the ACTUAL environment name of whichever side
- * genuinely lacks the object. `missing` (present in left, absent in
- * right) and `extra` (absent in left, present in right) both become the
- * same real-world sentence shape, "Missing in {the side that lacks it}",
- * from the perspective of the side that has it.
- *
- * Severity is a fixed function of `status` alone (see `DisplaySeverity`
- * above) so re-running the same real comparison with sides swapped never
- * flips severity for the same real-world fact — only the environment
- * name in the sentence changes, and only because the actual data
- * genuinely changed sides.
+ * The real, user-facing status line — never "Missing on Left"/"Missing
+ * on Right"/"Extra on Right" — always the ACTUAL environment name of
+ * whichever side genuinely lacks the object. `missing` (present in
+ * left, absent in right) and `extra` (absent in left, present in right)
+ * are the SAME real-world fact type — "genuinely absent from one
+ * specific environment" — so both get the identical icon/severity
+ * (🔴 red); only the environment NAME named in the sentence differs,
+ * and only because the real data differs, never because of which side
+ * happened to be selected left or right this time. Proven by a
+ * dedicated "swap direction does not change semantic classification"
+ * test: comparing the same two real sides in both orders produces the
+ * exact same text AND the exact same severity for the exact same real
+ * fact — left/right is ONLY display order, never meaning.
  */
 function buildDisplayStatus(
   status: ComparisonObjectStatus, leftEnvLabel: string, rightEnvLabel: string
@@ -200,7 +207,7 @@ function buildDisplayStatus(
   switch (status) {
     case 'match': return { icon: '🟢', text: 'Match', severity: 'green' };
     case 'missing': return { icon: '🔴', text: `Missing in ${rightEnvLabel}`, severity: 'red' };
-    case 'extra': return { icon: '🟠', text: `Missing in ${leftEnvLabel}`, severity: 'orange' };
+    case 'extra': return { icon: '🔴', text: `Missing in ${leftEnvLabel}`, severity: 'red' };
     case 'mismatch': return { icon: '🔴', text: 'Mismatch', severity: 'red' };
     case 'expected_difference': return { icon: '🟢', text: 'Expected Difference', severity: 'green' };
     case 'approved_override': return { icon: '🟢', text: 'Approved Override', severity: 'green' };
@@ -223,9 +230,21 @@ export interface ComparisonRun {
   rightSnapshotId: string | null;
   baselineId: string | null;
   baselineVersion: string | null;
-  /** Real, dynamic environment display names for this specific run's two sides — see `formatEnvironmentLabel()`. */
-  leftEnvironmentLabel: string | null;
-  rightEnvironmentLabel: string | null;
+  /**
+   * Real, persisted environment identity for this specific run's two
+   * sides — never reconstructed from positional assumptions. `*Id` is
+   * the real, stable environment slug already used throughout this
+   * platform (e.g. `production`, `staging` — the same value stored on
+   * the source connection/snapshot's own `environment` column and used
+   * as the key in the client's own Environments tab); `*Name` is its
+   * real formatted display form (see `formatEnvironmentLabel()`). This
+   * platform has no separate normalized Environment entity with its own
+   * database-generated id in v1 — the slug IS the real, stable identity.
+   */
+  leftEnvironmentId: string | null;
+  leftEnvironmentName: string | null;
+  rightEnvironmentId: string | null;
+  rightEnvironmentName: string | null;
   status: 'running' | 'completed' | 'failed';
   results: ComparisonObjectResult[];
   summary: ComparisonSummary;
@@ -240,7 +259,8 @@ type RunRow = {
   left_connection_id: string | null; right_connection_id: string | null;
   left_snapshot_id: string | null; right_snapshot_id: string | null;
   baseline_id: string | null; baseline_version: string | null;
-  left_environment: string | null; right_environment: string | null;
+  left_environment_id: string | null; left_environment_name: string | null;
+  right_environment_id: string | null; right_environment_name: string | null;
   status: 'running' | 'completed' | 'failed';
   results: ComparisonObjectResult[]; summary: ComparisonSummary; error_message: string | null;
   created_by: string | null; created_at: Date; completed_at: Date | null;
@@ -252,7 +272,8 @@ function toRun(r: RunRow): ComparisonRun {
     leftConnectionId: r.left_connection_id, rightConnectionId: r.right_connection_id,
     leftSnapshotId: r.left_snapshot_id, rightSnapshotId: r.right_snapshot_id,
     baselineId: r.baseline_id, baselineVersion: r.baseline_version,
-    leftEnvironmentLabel: r.left_environment, rightEnvironmentLabel: r.right_environment,
+    leftEnvironmentId: r.left_environment_id, leftEnvironmentName: r.left_environment_name,
+    rightEnvironmentId: r.right_environment_id, rightEnvironmentName: r.right_environment_name,
     status: r.status,
     results: r.results || [], summary: r.summary || EMPTY_SUMMARY,
     errorMessage: r.error_message, createdBy: r.created_by, createdAt: r.created_at.toISOString(),
@@ -407,9 +428,9 @@ export class UniversalComparisonEngine {
     }
 
     const inserted = await sharedPool.query<RunRow>(
-      `INSERT INTO comparison_runs (client_id, comparison_type, left_label, right_label, left_connection_id, right_connection_id, left_environment, right_environment, created_by)
-       VALUES ($1, 'database_schema', $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [clientId, leftMeta.name, rightMeta.name, leftConnectionId, rightConnectionId, formatEnvironmentLabel(leftMeta.environment), formatEnvironmentLabel(rightMeta.environment), actor]
+      `INSERT INTO comparison_runs (client_id, comparison_type, left_label, right_label, left_connection_id, right_connection_id, left_environment_id, left_environment_name, right_environment_id, right_environment_name, created_by)
+       VALUES ($1, 'database_schema', $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      [clientId, leftMeta.name, rightMeta.name, leftConnectionId, rightConnectionId, leftMeta.environment, formatEnvironmentLabel(leftMeta.environment), rightMeta.environment, formatEnvironmentLabel(rightMeta.environment), actor]
     );
     const runRow = inserted.rows[0];
     if (!runRow) throw new Error('comparison_runs insert returned no row');
@@ -523,9 +544,9 @@ export class UniversalComparisonEngine {
     const summary = buildSummary(results);
 
     const inserted = await sharedPool.query<RunRow>(
-      `INSERT INTO comparison_runs (client_id, comparison_type, left_label, right_label, left_snapshot_id, right_snapshot_id, baseline_id, baseline_version, left_environment, right_environment, status, results, summary, created_by, completed_at)
-       VALUES ($1, 'configuration', $2, $3, $4, $5, $6, $7, $8, $9, 'completed', $10, $11, $12, NOW()) RETURNING *`,
-      [clientId, `${left.name} (${left.environment})`, `${right.name} (${right.environment})`, leftSnapshotId, rightSnapshotId, baselineId || null, baselineVersion, formatEnvironmentLabel(left.environment), formatEnvironmentLabel(right.environment), JSON.stringify(results), JSON.stringify(summary), actor]
+      `INSERT INTO comparison_runs (client_id, comparison_type, left_label, right_label, left_snapshot_id, right_snapshot_id, baseline_id, baseline_version, left_environment_id, left_environment_name, right_environment_id, right_environment_name, status, results, summary, created_by, completed_at)
+       VALUES ($1, 'configuration', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'completed', $12, $13, $14, NOW()) RETURNING *`,
+      [clientId, `${left.name} (${left.environment})`, `${right.name} (${right.environment})`, leftSnapshotId, rightSnapshotId, baselineId || null, baselineVersion, left.environment, formatEnvironmentLabel(left.environment), right.environment, formatEnvironmentLabel(right.environment), JSON.stringify(results), JSON.stringify(summary), actor]
     );
     const runRow = inserted.rows[0];
     if (!runRow) throw new Error('comparison_runs insert returned no row');
@@ -547,8 +568,8 @@ export class UniversalComparisonEngine {
   async applyExceptionToRun(runId: string, clientId: string, configKey: string): Promise<ComparisonRun> {
     const run = await this.getRun(runId);
     if (!run || run.clientId !== clientId) throw new Error('Comparison run not found for this client.');
-    const leftEnvLabel = run.leftEnvironmentLabel || 'the left environment';
-    const rightEnvLabel = run.rightEnvironmentLabel || 'the right environment';
+    const leftEnvLabel = run.leftEnvironmentName || 'the left environment';
+    const rightEnvLabel = run.rightEnvironmentName || 'the right environment';
     const results = run.results.map(r => {
       if (r.name !== configKey) return r;
       if (r.status !== 'mismatch' && r.status !== 'unapproved_difference') return r;

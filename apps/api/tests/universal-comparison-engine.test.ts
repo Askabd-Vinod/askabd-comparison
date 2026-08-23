@@ -563,7 +563,7 @@ describe('Bidirectional Comparison UI (migration 054) — real, dynamic environm
     return res.json().snapshot.id as string;
   }
 
-  it('never uses "Missing on Left/Right" or "Extra" wording — always the real environment name, with the directive\'s own icon/severity rule', async () => {
+  it('never uses "Missing on Left/Right" or "Extra" wording — always the real environment name and identity, with a real, semantic (never positional) severity', async () => {
     const app = await buildApp();
     const clientId = await makeClient(`Env Status ${randomUUID().slice(0, 8)}`);
     const admin = await adminToken();
@@ -575,8 +575,12 @@ describe('Bidirectional Comparison UI (migration 054) — real, dynamic environm
       headers: { authorization: `Bearer ${admin}` }, payload: { leftSnapshotId: prodId, rightSnapshotId: stagingId },
     });
     const run = res.json().run;
-    expect(run.leftEnvironmentLabel).toBe('Production');
-    expect(run.rightEnvironmentLabel).toBe('Staging');
+    // Real, persisted environment IDENTITY (the stable slug) alongside its real formatted NAME —
+    // never reconstructed from positional assumptions.
+    expect(run.leftEnvironmentId).toBe('production');
+    expect(run.leftEnvironmentName).toBe('Production');
+    expect(run.rightEnvironmentId).toBe('staging');
+    expect(run.rightEnvironmentName).toBe('Staging');
 
     const byKey = Object.fromEntries(run.results.map((r: any) => [r.name, r]));
 
@@ -588,12 +592,14 @@ describe('Bidirectional Comparison UI (migration 054) — real, dynamic environm
     expect(byKey.API_TIMEOUT_MS.displaySeverity).toBe('red');
     expect(byKey.API_TIMEOUT_MS.displayText).not.toMatch(/left|right/i);
 
-    // Absent in Production (left), present in Staging (right) -> real object status 'extra', but again
-    // the human-facing text must name the environment that actually lacks it — Production — never "Extra on Right".
+    // Absent in Production (left), present in Staging (right) -> real object status 'extra', but this
+    // is the SAME real fact TYPE as 'missing' above (an object genuinely absent from one specific
+    // environment) — same severity (red), text names the environment that actually lacks it —
+    // Production — never "Extra on Right".
     expect(byKey.NEW_FEATURE_Y.status).toBe('extra');
     expect(byKey.NEW_FEATURE_Y.displayText).toBe('Missing in Production');
-    expect(byKey.NEW_FEATURE_Y.displayIcon).toBe('🟠');
-    expect(byKey.NEW_FEATURE_Y.displaySeverity).toBe('orange');
+    expect(byKey.NEW_FEATURE_Y.displayIcon).toBe('🔴');
+    expect(byKey.NEW_FEATURE_Y.displaySeverity).toBe('red');
     expect(JSON.stringify(run)).not.toMatch(/missing on (left|right)/i);
     expect(JSON.stringify(run)).not.toMatch(/extra on (left|right)/i);
 
@@ -608,39 +614,6 @@ describe('Bidirectional Comparison UI (migration 054) — real, dynamic environm
     await app.close();
   });
 
-  it('swap must also work: reversing which side is left/right keeps the SAME real environment named for the SAME real fact', async () => {
-    const app = await buildApp();
-    const clientId = await makeClient(`Env Swap ${randomUUID().slice(0, 8)}`);
-    const admin = await adminToken();
-    const prodId = await makeSnapshot(app, admin, clientId, 'Prod Config', 'production', { ONLY_IN_PROD: 'x' });
-    const stagingId = await makeSnapshot(app, admin, clientId, 'Staging Config', 'staging', {});
-
-    // Production first (left), Staging second (right).
-    const forward = await app.inject({
-      method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/configuration`,
-      headers: { authorization: `Bearer ${admin}` }, payload: { leftSnapshotId: prodId, rightSnapshotId: stagingId },
-    });
-    const forwardRun = forward.json().run;
-    const forwardKey = forwardRun.results.find((r: any) => r.name === 'ONLY_IN_PROD');
-    expect(forwardKey.status).toBe('missing'); // present left (prod), absent right (staging)
-    expect(forwardKey.displayText).toBe('Missing in Staging');
-
-    // Now swapped: Staging first (left), Production second (right) — the exact same real-world fact
-    // (Staging genuinely lacks ONLY_IN_PROD) must still read "Missing in Staging", never flip to
-    // "Missing in Production" just because display order changed.
-    const reversed = await app.inject({
-      method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/configuration`,
-      headers: { authorization: `Bearer ${admin}` }, payload: { leftSnapshotId: stagingId, rightSnapshotId: prodId },
-    });
-    const reversedRun = reversed.json().run;
-    expect(reversedRun.leftEnvironmentLabel).toBe('Staging');
-    expect(reversedRun.rightEnvironmentLabel).toBe('Production');
-    const reversedKey = reversedRun.results.find((r: any) => r.name === 'ONLY_IN_PROD');
-    expect(reversedKey.status).toBe('extra'); // absent left (staging), present right (prod) this time
-    expect(reversedKey.displayText).toBe('Missing in Staging'); // same real fact, same real sentence
-    await app.close();
-  });
-
   it('"uat" is displayed as the conventional acronym, dynamically, not hardcoded per-comparison-type', async () => {
     const app = await buildApp();
     const clientId = await makeClient(`Env UAT ${randomUUID().slice(0, 8)}`);
@@ -652,12 +625,14 @@ describe('Bidirectional Comparison UI (migration 054) — real, dynamic environm
       headers: { authorization: `Bearer ${admin}` }, payload: { leftSnapshotId: uatId, rightSnapshotId: devId },
     });
     const run = res.json().run;
-    expect(run.leftEnvironmentLabel).toBe('UAT');
-    expect(run.rightEnvironmentLabel).toBe('Development');
+    expect(run.leftEnvironmentId).toBe('uat');
+    expect(run.leftEnvironmentName).toBe('UAT');
+    expect(run.rightEnvironmentId).toBe('development');
+    expect(run.rightEnvironmentName).toBe('Development');
     await app.close();
   });
 
-  it('the database-schema comparison type carries the same real dynamic environment labels, not just configuration comparisons', async () => {
+  it('the database-schema comparison type carries the same real dynamic environment identity/labels, not just configuration comparisons', async () => {
     const app = await buildApp();
     const clientId = await makeClient(`Env Schema ${randomUUID().slice(0, 8)}`);
     const admin = await adminToken();
@@ -668,8 +643,10 @@ describe('Bidirectional Comparison UI (migration 054) — real, dynamic environm
       headers: { authorization: `Bearer ${admin}` }, payload: { leftConnectionId: leftId, rightConnectionId: rightId },
     });
     const run = res.json().run;
-    expect(run.leftEnvironmentLabel).toBe('Production');
-    expect(run.rightEnvironmentLabel).toBe('Staging');
+    expect(run.leftEnvironmentId).toBe('production');
+    expect(run.leftEnvironmentName).toBe('Production');
+    expect(run.rightEnvironmentId).toBe('staging');
+    expect(run.rightEnvironmentName).toBe('Staging');
     // Same real database on both real connections -> every real table matches -> real, dynamic "Match" text.
     expect(run.results.length).toBeGreaterThan(0);
     for (const r of run.results) {
@@ -678,6 +655,188 @@ describe('Bidirectional Comparison UI (migration 054) — real, dynamic environm
       expect(r.displayIcon).toBe('🟢');
     }
     await app.close();
+  });
+
+  /**
+   * The user's own explicit, mandatory regression per the "comparison
+   * semantics must be ENVIRONMENT-AWARE, not LEFT/RIGHT-AWARE" correction:
+   * left/right is ONLY display order — it must NEVER change meaning,
+   * severity, classification, or environment name. For every one of the
+   * 8 real statuses this engine can produce, running the SAME real
+   * comparison in BOTH directions must yield the SAME real text and the
+   * SAME real severity for the SAME real fact — only which literal
+   * environment happens to be displayed first may change.
+   */
+  describe('swap direction does not change semantic classification (mandatory regression)', () => {
+    async function runBothDirections(app: Awaited<ReturnType<typeof buildApp>>, admin: string, clientId: string, prodId: string, stagingId: string) {
+      const forward = await app.inject({
+        method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/configuration`,
+        headers: { authorization: `Bearer ${admin}` }, payload: { leftSnapshotId: prodId, rightSnapshotId: stagingId },
+      });
+      const reverse = await app.inject({
+        method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/configuration`,
+        headers: { authorization: `Bearer ${admin}` }, payload: { leftSnapshotId: stagingId, rightSnapshotId: prodId },
+      });
+      return { forwardRun: forward.json().run, reverseRun: reverse.json().run };
+    }
+
+    it('Missing in Staging (present in Production, absent in Staging) — identical text and severity in both directions', async () => {
+      const app = await buildApp();
+      const clientId = await makeClient(`Swap Missing Staging ${randomUUID().slice(0, 8)}`);
+      const admin = await adminToken();
+      const prodId = await makeSnapshot(app, admin, clientId, 'Prod', 'production', { KEY: 'x' });
+      const stagingId = await makeSnapshot(app, admin, clientId, 'Staging', 'staging', {});
+      const { forwardRun, reverseRun } = await runBothDirections(app, admin, clientId, prodId, stagingId);
+      const f = forwardRun.results.find((r: any) => r.name === 'KEY');
+      const rv = reverseRun.results.find((r: any) => r.name === 'KEY');
+      for (const finding of [f, rv]) {
+        expect(finding.displayText).toBe('Missing in Staging');
+        expect(finding.displaySeverity).toBe('red');
+        expect(finding.displayIcon).toBe('🔴');
+      }
+      await app.close();
+    });
+
+    it('Missing in Production (absent in Production, present in Staging) — identical text and severity in both directions', async () => {
+      const app = await buildApp();
+      const clientId = await makeClient(`Swap Missing Prod ${randomUUID().slice(0, 8)}`);
+      const admin = await adminToken();
+      const prodId = await makeSnapshot(app, admin, clientId, 'Prod', 'production', {});
+      const stagingId = await makeSnapshot(app, admin, clientId, 'Staging', 'staging', { KEY: 'x' });
+      const { forwardRun, reverseRun } = await runBothDirections(app, admin, clientId, prodId, stagingId);
+      const f = forwardRun.results.find((r: any) => r.name === 'KEY');
+      const rv = reverseRun.results.find((r: any) => r.name === 'KEY');
+      for (const finding of [f, rv]) {
+        expect(finding.displayText).toBe('Missing in Production');
+        expect(finding.displaySeverity).toBe('red');
+        expect(finding.displayIcon).toBe('🔴');
+      }
+      await app.close();
+    });
+
+    it('Mismatch — identical text and severity in both directions', async () => {
+      const app = await buildApp();
+      const clientId = await makeClient(`Swap Mismatch ${randomUUID().slice(0, 8)}`);
+      const admin = await adminToken();
+      const prodId = await makeSnapshot(app, admin, clientId, 'Prod', 'production', { KEY: 'a' });
+      const stagingId = await makeSnapshot(app, admin, clientId, 'Staging', 'staging', { KEY: 'b' });
+      const { forwardRun, reverseRun } = await runBothDirections(app, admin, clientId, prodId, stagingId);
+      const f = forwardRun.results.find((r: any) => r.name === 'KEY');
+      const rv = reverseRun.results.find((r: any) => r.name === 'KEY');
+      for (const finding of [f, rv]) {
+        expect(finding.status).toBe('mismatch');
+        expect(finding.displayText).toBe('Mismatch');
+        expect(finding.displaySeverity).toBe('red');
+      }
+      await app.close();
+    });
+
+    it('Match — identical text and severity in both directions', async () => {
+      const app = await buildApp();
+      const clientId = await makeClient(`Swap Match ${randomUUID().slice(0, 8)}`);
+      const admin = await adminToken();
+      const prodId = await makeSnapshot(app, admin, clientId, 'Prod', 'production', { KEY: 'same' });
+      const stagingId = await makeSnapshot(app, admin, clientId, 'Staging', 'staging', { KEY: 'same' });
+      const { forwardRun, reverseRun } = await runBothDirections(app, admin, clientId, prodId, stagingId);
+      const f = forwardRun.results.find((r: any) => r.name === 'KEY');
+      const rv = reverseRun.results.find((r: any) => r.name === 'KEY');
+      for (const finding of [f, rv]) {
+        expect(finding.displayText).toBe('Match');
+        expect(finding.displaySeverity).toBe('green');
+      }
+      await app.close();
+    });
+
+    async function makeBaselineForSwap(app: Awaited<ReturnType<typeof buildApp>>, admin: string, clientId: string, rules: any) {
+      const res = await app.inject({
+        method: 'POST', url: `/api/v1/oc/clients/${clientId}/configuration-baselines`,
+        headers: { authorization: `Bearer ${admin}` }, payload: { name: 'Swap Test Baseline', rules },
+      });
+      expect(res.statusCode).toBe(201);
+      const id = res.json().baseline.id as string;
+      const approve = await app.inject({ method: 'POST', url: `/api/v1/oc/clients/${clientId}/configuration-baselines/${id}/approve`, headers: { authorization: `Bearer ${admin}` } });
+      expect(approve.statusCode).toBe(200);
+      return id;
+    }
+
+    it('Expected Difference — identical text and severity in both directions', async () => {
+      const app = await buildApp();
+      const clientId = await makeClient(`Swap Expected ${randomUUID().slice(0, 8)}`);
+      const admin = await adminToken();
+      const prodId = await makeSnapshot(app, admin, clientId, 'Prod', 'production', { API_URL: 'https://api.example.com' });
+      const stagingId = await makeSnapshot(app, admin, clientId, 'Staging', 'staging', { API_URL: 'https://staging.example.com' });
+      const baselineId = await makeBaselineForSwap(app, admin, clientId, { API_URL: { expectedToVaryByEnvironment: true } });
+      const forward = await app.inject({ method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/configuration`, headers: { authorization: `Bearer ${admin}` }, payload: { leftSnapshotId: prodId, rightSnapshotId: stagingId, baselineId } });
+      const reverse = await app.inject({ method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/configuration`, headers: { authorization: `Bearer ${admin}` }, payload: { leftSnapshotId: stagingId, rightSnapshotId: prodId, baselineId } });
+      const f = forward.json().run.results.find((r: any) => r.name === 'API_URL');
+      const rv = reverse.json().run.results.find((r: any) => r.name === 'API_URL');
+      for (const finding of [f, rv]) {
+        expect(finding.status).toBe('expected_difference');
+        expect(finding.displayText).toBe('Expected Difference');
+        expect(finding.displaySeverity).toBe('green');
+      }
+      await app.close();
+    });
+
+    it('Approved Override — identical text and severity in both directions', async () => {
+      const app = await buildApp();
+      const clientId = await makeClient(`Swap Override ${randomUUID().slice(0, 8)}`);
+      const admin = await adminToken();
+      const prodId = await makeSnapshot(app, admin, clientId, 'Prod', 'production', { CONN_TIMEOUT: '60' });
+      const stagingId = await makeSnapshot(app, admin, clientId, 'Staging', 'staging', { CONN_TIMEOUT: '30' });
+      const baselineId = await makeBaselineForSwap(app, admin, clientId, {
+        CONN_TIMEOUT: { approvedValue: '30', overrides: { production: { value: '60', reason: 'Higher production workload', approvedBy: 'ops-lead', approvedAt: new Date().toISOString() } } },
+      });
+      const forward = await app.inject({ method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/configuration`, headers: { authorization: `Bearer ${admin}` }, payload: { leftSnapshotId: prodId, rightSnapshotId: stagingId, baselineId } });
+      const reverse = await app.inject({ method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/configuration`, headers: { authorization: `Bearer ${admin}` }, payload: { leftSnapshotId: stagingId, rightSnapshotId: prodId, baselineId } });
+      const f = forward.json().run.results.find((r: any) => r.name === 'CONN_TIMEOUT');
+      const rv = reverse.json().run.results.find((r: any) => r.name === 'CONN_TIMEOUT');
+      for (const finding of [f, rv]) {
+        expect(finding.status).toBe('approved_override');
+        expect(finding.displayText).toBe('Approved Override');
+        expect(finding.displaySeverity).toBe('green');
+      }
+      await app.close();
+    });
+
+    it('Unapproved Difference — identical text and severity in both directions', async () => {
+      const app = await buildApp();
+      const clientId = await makeClient(`Swap Unapproved ${randomUUID().slice(0, 8)}`);
+      const admin = await adminToken();
+      const prodId = await makeSnapshot(app, admin, clientId, 'Prod', 'production', { JWT_ALGORITHM: 'RS256' });
+      const stagingId = await makeSnapshot(app, admin, clientId, 'Staging', 'staging', { JWT_ALGORITHM: 'HS256' });
+      const baselineId = await makeBaselineForSwap(app, admin, clientId, { JWT_ALGORITHM: { approvedValue: 'RS256' } });
+      const forward = await app.inject({ method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/configuration`, headers: { authorization: `Bearer ${admin}` }, payload: { leftSnapshotId: prodId, rightSnapshotId: stagingId, baselineId } });
+      const reverse = await app.inject({ method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/configuration`, headers: { authorization: `Bearer ${admin}` }, payload: { leftSnapshotId: stagingId, rightSnapshotId: prodId, baselineId } });
+      const f = forward.json().run.results.find((r: any) => r.name === 'JWT_ALGORITHM');
+      const rv = reverse.json().run.results.find((r: any) => r.name === 'JWT_ALGORITHM');
+      for (const finding of [f, rv]) {
+        expect(finding.status).toBe('unapproved_difference');
+        expect(finding.displayText).toBe('Unapproved Difference');
+        expect(finding.displaySeverity).toBe('red');
+      }
+      await app.close();
+    });
+
+    it('Approved Exception — identical text and severity in both directions', async () => {
+      const app = await buildApp();
+      const clientId = await makeClient(`Swap Exception ${randomUUID().slice(0, 8)}`);
+      const admin = await adminToken();
+      const prodId = await makeSnapshot(app, admin, clientId, 'Prod', 'production', { WORKER_COUNT: '100' });
+      const stagingId = await makeSnapshot(app, admin, clientId, 'Staging', 'staging', { WORKER_COUNT: '10' });
+      const forward = await app.inject({ method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/configuration`, headers: { authorization: `Bearer ${admin}` }, payload: { leftSnapshotId: prodId, rightSnapshotId: stagingId } });
+      const reverse = await app.inject({ method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/configuration`, headers: { authorization: `Bearer ${admin}` }, payload: { leftSnapshotId: stagingId, rightSnapshotId: prodId } });
+      const forwardExRes = await app.inject({ method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/${forward.json().run.id}/exceptions`, headers: { authorization: `Bearer ${admin}` }, payload: { configKey: 'WORKER_COUNT', reason: 'Cost-optimized scaling' } });
+      const reverseExRes = await app.inject({ method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/${reverse.json().run.id}/exceptions`, headers: { authorization: `Bearer ${admin}` }, payload: { configKey: 'WORKER_COUNT', reason: 'Cost-optimized scaling' } });
+      const f = forwardExRes.json().run.results.find((r: any) => r.name === 'WORKER_COUNT');
+      const rv = reverseExRes.json().run.results.find((r: any) => r.name === 'WORKER_COUNT');
+      for (const finding of [f, rv]) {
+        expect(finding.status).toBe('approved_exception');
+        expect(finding.displayText).toBe('Approved Exception');
+        expect(finding.displaySeverity).toBe('orange');
+      }
+      await app.close();
+    });
   });
 
   it('"Mark as Intentional" recomputes the display line to a real, dynamic "Approved Exception" — never leaves the stale Mismatch wording', async () => {
