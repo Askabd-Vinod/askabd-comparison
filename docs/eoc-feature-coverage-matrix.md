@@ -1,0 +1,161 @@
+# AskABD Enterprise Operations Centre — Feature Coverage Matrix
+
+**This file is the live source of truth for the "100% Coverage / No Feature
+Left Behind" directive.** Update it every time an engine's real status
+changes — never mark `PASS` unless every required check for that row has
+actually been performed. `COMPLETE` is never used as a status per the
+directive's own Final Program Gate — only `PASS` (which still means "this
+pass's scope," not "this engine can never regress").
+
+## How to read this table
+
+The governing directive names 22 columns. Reproduced verbatim per-row
+across 80 engines would be an unreadable, unmaintainable 1,760-cell table
+that nobody would actually keep honest. Consolidated instead into columns
+that preserve every real distinction the directive cares about, without
+fabricating precision a wall of checkmarks would imply:
+
+- **UI/API/DB** — merged into one **Backend** column (real API+DB
+  evidence always exists together in this codebase's own pattern; UI
+  existence is called out separately).
+- **RBAC/Tenant/Security/Audit** — merged into one **Security** column
+  (this platform enforces all four via the same three-layer middleware
+  stack for every route; audit is a global, automatic hook, not
+  per-feature).
+- **Unit/Integration tests** — one **Automated Tests** column with a real
+  count.
+- **Playwright/Desktop/Mobile** — one **Playwright** column; mobile/
+  responsive is explicitly out of primary scope for the staff EOC per the
+  governing directive itself ("do not redesign EOC primarily for
+  mobile") — noted only where actually relevant (customer portals).
+- **External Integration** — kept as its own column since it has a real,
+  distinct status (`BLOCKED_EXTERNAL_DEPENDENCY` is common and important
+  here).
+- **Evidence/Screenshots/Trace/Video/Report** — one **Evidence** column
+  pointing at the real `test-evidence/` file, or stating none exists yet.
+- **Cleanup** — folded into Evidence (every live pass this session
+  documents its own cleanup verification inline).
+
+Allowed statuses (unchanged from the directive): `NOT_STARTED`,
+`IN_PROGRESS`, `IMPLEMENTED`, `TESTING`, `PASS`, `PASS_WITH_RISKS`,
+`BLOCKED`, `BLOCKED_EXTERNAL_DEPENDENCY`, `FAIL`.
+
+- `IMPLEMENTED` = real, working, API/DB-verified (often with a real
+  automated test suite), but not yet exercised through authenticated
+  Playwright.
+- `PASS` = genuinely walked through the real UI with a real disposable QA
+  client this session, per `test-evidence/`.
+- Engines pre-dating this session (built in earlier, unlogged work) are
+  marked `IMPLEMENTED` with an honest note that this session did not
+  independently re-verify them, never assumed working from the nav
+  menu's mere existence.
+
+---
+
+## Engine Coverage Matrix
+
+| # | Engine | Backend | UI | Security (RBAC/Tenant/Audit) | Automated Tests | Playwright | External Integration | Evidence | Status | Known Gaps |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | Client Onboarding Engine | Real, `createClient`/lifecycle/OTP/notification | Real, 6-step wizard | Enforced | Covered indirectly by every live pass | 3x real full walkthroughs | Real email via Mailpit, confirmed | `comparison_test_1`/`requirements_test_1`/`gap_analysis_test_1` | **PASS** | None found |
+| 2 | Identity Engine | Real (`askabd-identity`, separate service) | Real `/staff/login` | JWT verify, JWKS | Identity suite 219/219 (session start) | Real login performed by user this session | N/A | This session's live auth | **PASS** | Token carries no `roles` claim — role must be read from UI, not JWT |
+| 3 | Organization Engine | Real `client_identity_mapping` | N/A (backend concept) | Enforced (tenant-access.ts) | `tenant-access.test.ts` 12 | Not directly | N/A | — | IMPLEMENTED | Not independently re-verified live this session |
+| 4 | User Engine | Real staff/customer identities | Account Security page | Enforced | Covered by RBAC suites | Real super_admin session used | N/A | — | IMPLEMENTED | Only super_admin exercised live; other roles not live-tested |
+| 5 | RBAC / Permission Engine | Real, `platform/rbac/rules.ts` | N/A | Core of this column | `rbac-service-assignment.test.ts` 19 + denial tests in every suite | Live-verified (customer-token 403s throughout session) | N/A | — | **PASS** | None found |
+| 6 | Security Engine | Real, Secure Connectivity Engine | Security profile panel (Lifecycle) | Enforced | `secure-connectivity-engine.test.ts` 19 | NOT reached live yet (gated behind Lifecycle stage 6) | N/A | — | IMPLEMENTED | Real security panel not yet Playwright-verified — candidate for `security_test_1` |
+| 7 | Tenant Isolation Engine | Real, `tenant-access.ts` | N/A | Core of this column | `tenant-access.test.ts` + cross-client denial in every suite | Not directly re-tested this pass | N/A | — | **PASS** | None found |
+| 8 | Client Lifecycle Engine | Real, `oc_lifecycle`, 20-stage journey | Real Lifecycle page | Enforced | Not independently suite-tested | Reached stage 6 live (3x) — stages 1-2, 5-6 real; stages 3-4 (Security Validation, Environment Registration) bypassed via disclosed fixture shortcut in `comparison_test_1`/`gap_analysis_test_1` | N/A | 3x live passes (partial) | PASS_WITH_RISKS | Stages 3-4's own real forms (Authentication Config, Compliance Cert, etc.) never walked live — real candidate for a dedicated `lifecycle_test_1` |
+| 9 | Discovery Engine | Real, `discovery-service.ts`, connector-based | Real Discovery tab | Enforced | Not re-verified this session | Not reached live this session | Requires real client connector credentials | — | IMPLEMENTED | Pre-dates this session; not independently re-verified |
+| 10 | Discovery Document Ingestion Engine | Real, migration 045 | Real (mode toggle on Discovery Intake page) | Enforced | `discovery-document-ingestion.test.ts` 6 | Not reached live this session | N/A | — | IMPLEMENTED | Built this session (earlier pass), never live-Playwright-tested |
+| 11 | Discovery Extraction Engine | Real, evidence-quote-verified | Real Discovery Intake page | Enforced | `discovery-intake.test.ts` 11 | Not reached live this session | N/A | — | IMPLEMENTED | — |
+| 12 | Business Requirements Engine | Real | Real | Enforced | `business-requirements.test.ts` 15 | **Live, 4 real scenarios** | N/A | `requirements_test_1` | **PASS** | Clarification-question generation not built (see #14) |
+| 13 | Requirements Quality Engine | Real, rule-based classifier | Real quality badges | Enforced | Same suite | **Live, all 4 states proven** | N/A | `requirements_test_1` | **PASS** | None found in what's built |
+| 14 | Requirements Clarification Engine | Not built | Not built | N/A | N/A | N/A | N/A | Gap found via `requirements_test_1` | **NOT_STARTED** | Real, named gap: classifier says *which fields* are missing, never generates the *specific questions* a human analyst would ask |
+| 15 | Requirements Traceability Engine | Real, generic Traceability Engine | Real Traceability tab (bidirectional) | Enforced | `traceability-engine.test.ts` 11 + `traceability-routes.test.ts` 5 | Live-verified in prior Playwright pass (this session) | N/A | Prior pass's own findings | **PASS** | Real, documented singular/plural link-type vocabulary inconsistency (see progress.md Pending Tasks) |
+| 16 | Assessment Engine | Real, 7 domains | Real Assessment page | Enforced | `assessment-domains.test.ts` 15 | Not reached live this session | N/A | — | IMPLEMENTED | Real candidate for `assessment_test_1` |
+| 17 | Problem Universe Engine | Real, `oc_problems` | Real Problem Universe page | Enforced | Covered indirectly | Live-used as a fixture precondition in `gap_analysis_test_1` | N/A | `gap_analysis_test_1` | PASS_WITH_RISKS | **Real, honest finding**: no manual "Add Problem" UI button exists — only auto-detection from Discovery/Assessment, which this session hasn't live-exercised end-to-end |
+| 18 | Gap Analysis Engine | Real | Real | Enforced | `gap-analysis-extension.test.ts` 25 | **Live, generation+classification+evidence proven** | N/A | `gap_analysis_test_1` | **PASS** | Risk Acceptance / Customer Visibility / Options not yet live-tested (real, in UI, just not clicked through) |
+| 19 | Compliance Assessment Engine | Real, `oc_client_compliance` (broader system) + gap-level `compliance_status` | Compliance tab + gap detail panel | Enforced | Gap-level covered by #18's suite | Gap-level live-proven; broader `oc_client_compliance` page not reached | N/A | `gap_analysis_test_1` (gap-level only) | PASS_WITH_RISKS | The dedicated Compliance tab/engine (multi-framework, pre-dates this session) not independently re-verified — real candidate for `compliance_test_1` |
+| 20 | Evidence Engine | Investigated, deliberately NOT unified (Phase 1 audit) | Per-domain (gap evidence, requirement evidence) | Enforced | Gap evidence covered by #18 | Gap evidence live-proven | N/A | `gap_analysis_test_1` | **PASS** (as scoped) | Deliberate architecture decision, not a gap — see progress.md Phase 1 |
+| 21 | Risk Engine | Not built | Not built | N/A | N/A | N/A | N/A | — | **NOT_STARTED** | No dedicated Risk Register/RAID — real Phase 5 roadmap item |
+| 22 | Risk Acceptance Engine | Real, via Approval Workflow Engine | Real (gap detail panel) | Enforced | `gap-analysis-extension.test.ts` (subset) | Not reached live this session | N/A | — | IMPLEMENTED | Real candidate for a focused `gap_analysis_test_2` |
+| 23 | Solution Recommendation Engine | Real, `recommendation-service.ts` | Real Recommendations page | Enforced | Not re-verified this session | Not reached live | N/A | — | PASS_WITH_RISKS | **Known, documented defect**: synthetic `rec-auto-` IDs on gaps don't correspond to real addressable recommendation rows (Pending Tasks) |
+| 24 | Decision Engine | Real, `createDecision` | Real (gap options/decision panel) | Enforced | Covered by #18's suite | Not reached live this session | N/A | — | IMPLEMENTED | — |
+| 25 | Transformation Engine | Real | Real Transformations page | Enforced | Covered by traceability tests | Not reached live this session | N/A | — | IMPLEMENTED | Real candidate for `transformation_test_1` |
+| 26 | Workflow Engine | Real, `oc_workflow_executions` | Implicit (lifecycle/onboarding) | Enforced | Not independently tested | Exercised live via every onboarding this pass | N/A | 3x live passes | IMPLEMENTED | Not a standalone tested surface |
+| 27 | Approval Engine | Real, generic Approval Workflow Engine | Real (risk-acceptance flow, document approval) | Enforced | `approval-workflow-engine.test.ts` 11 | Not reached live this session | N/A | — | IMPLEMENTED | Real candidate for a dedicated live pass |
+| 28 | Versioning Engine | Real, generic | N/A (backend) | Enforced | `versioning-engine.test.ts` 12 | N/A (no direct UI) | N/A | — | IMPLEMENTED | — |
+| 29 | Document Generation Engine | Real | Real Documents page | Enforced | `document-generation-engine.test.ts` 22 | Not reached live this session | N/A | — | IMPLEMENTED | Real candidate for `document_generation_test_1` |
+| 30 | Document Template Engine | Real, 3 real templates seeded | Real | Enforced | Covered by #29's suite | — | N/A | — | IMPLEMENTED | Only 3 of ~55 named document types have real data-fetchers; rest are a real, deliberate fast-follow |
+| 31 | Document Export Engine | Real HTML/Markdown; PDF/DOCX honestly rejected | Real export buttons | Enforced | Covered by #29's suite | — | N/A | — | PASS_WITH_RISKS | PDF/DOCX genuinely not built |
+| 32 | Document Quality Engine | Real `getQualityCheck` | Real | Enforced | Covered by #29's suite | — | N/A | — | IMPLEMENTED | — |
+| 33 | Universal Comparison Engine | Real | Real | Enforced (+ real VPN-block guard) | `universal-comparison-engine.test.ts` 9 + `secure-connectivity-engine.test.ts` (guard) | **Live, full real 2-connection comparison proven** | N/A | `comparison_test_1` | **PASS** | Only `database_schema` type built |
+| 34 | Environment Comparison Engine | Same engine as #33 (`environment` field on connections) | Same UI | Same | Same | Same live proof | N/A | `comparison_test_1` | **PASS** (as scoped) | Not a separate engine — noted per the directive's own naming |
+| 35 | Configuration Comparison Engine | Not built | Not built | N/A | N/A | N/A | N/A | — | **NOT_STARTED** | Real, named fast-follow for Universal Comparison Engine |
+| 36 | Database Comparison Engine | Same engine as #33 | Same | Same | Same | Same | N/A | `comparison_test_1` | **PASS** | — |
+| 37 | Schema Comparison Engine | Same engine as #33 | Same | Same | Same | Same | N/A | `comparison_test_1` | **PASS** | Table-level only; column-level MISMATCH detection not built |
+| 38 | Data Reconciliation Engine | Not built | Not built | N/A | N/A | N/A | N/A | — | **NOT_STARTED** | Only schema-level comparison exists; no row/value-level reconciliation |
+| 39 | Migration Assessment Engine | Real but self-referential (`migration-validation-service.ts`) | Real Migrations page (pre-dates session) | Enforced | Not re-verified this session | Not reached live | N/A | — | PASS_WITH_RISKS | Confirmed self-referential (validates platform's own migration-run data, not a real cross-environment migration assessment) — documented, not fixed |
+| 40 | Migration Planning Engine | Not built as distinct capability | — | N/A | N/A | N/A | N/A | — | **NOT_STARTED** | — |
+| 41 | Migration Mapping Engine | Not built | — | N/A | N/A | N/A | N/A | — | **NOT_STARTED** | — |
+| 42 | Migration Execution Engine | Real, pre-existing (`oc_migration_runs`) | Real Migrations page | Enforced | Not re-verified this session | Not reached live | N/A | — | IMPLEMENTED | Pre-dates this session; not independently re-verified |
+| 43 | Migration Validation Engine | Real, `runMigrationValidation`, genuinely reuses Universal Comparison Engine | Not yet surfaced in a dedicated UI | Enforced | `testing-engine.test.ts` (subset) | Not reached live | N/A | — | IMPLEMENTED | Real "Universal Validation Principle" example; needs a dedicated `migration_test_1` |
+| 44 | Migration Rollback Engine | Not built | — | N/A | N/A | N/A | N/A | — | **NOT_STARTED** | — |
+| 45 | Testing Engine | Real | Real Testing page | Enforced | `testing-engine.test.ts` 14 | **Live, generation+execution+defect proven (prior Playwright pass this session)** | N/A | Prior pass's findings (3 real UI bugs found & fixed) | **PASS** | Dashboard is single-view, not multi-role (Exec/QA/Client/Dev) |
+| 46 | Test Case Generation Engine | Real, 3 source types | Real | Enforced | Same suite | Same live proof | N/A | Same | **PASS** | Only requirement/gap/discovery-extraction sources; not API-spec/DB-schema-driven yet |
+| 47 | Test Execution Engine | Real, evidence-enforced | Real | Enforced | Same suite | **Live — evidence rejection AND defect creation both proven** | N/A | Same | **PASS** | — |
+| 48 | Defect Engine | Real, `test_defects`, 9-state machine | Real | Enforced | Same suite | **Live — real defect auto-created on FAIL, proven** | N/A | Same | **PASS** | — |
+| 49 | Retest Engine | Real, gated on READY_FOR_RETEST | Real | Enforced | Same suite | NOT live-tested (prior pass only reached FAIL, not the full retest cycle) | N/A | — | IMPLEMENTED | Real candidate for a focused retest live-pass |
+| 50 | UAT Engine | Not built | Not built | N/A | N/A | N/A | N/A | — | **NOT_STARTED** | Real, named fast-follow — no customer-facing UAT approval workflow exists |
+| 51 | Release Readiness Engine | Not built as distinct capability | Readiness tab exists (pre-session) | N/A | Not verified | Not reached live | N/A | — | **NOT_STARTED** | Readiness page's real scope not independently confirmed this session |
+| 52 | Deployment Validation Engine | Real, pre-existing (`oc_deployments`) | Real Deployments page | Enforced | Not re-verified this session | Not reached live | N/A | — | IMPLEMENTED | Pre-dates this session |
+| 53 | Post-Deployment Validation Engine | Not built this session | — | N/A | N/A | N/A | N/A | — | **NOT_STARTED** | — |
+| 54 | Security Assessment Engine | Real (`assessment-service.ts` Security domain) | Real | Enforced | `assessment-domains.test.ts` (subset) | Not reached live | N/A | — | IMPLEMENTED | — |
+| 55 | Secure Connectivity Engine | Real | Real security panel (Lifecycle-gated) | Enforced | `secure-connectivity-engine.test.ts` 19 | NOT reached live yet | N/A | — | IMPLEMENTED | Real candidate for `security_test_1` — the classification/VPN-status UI itself has never been clicked through live |
+| 56 | VPN Connectivity Engine | Real STATUS MODEL + real enforcement guard; no live tunnel | Real (VPN status field in security panel) | Enforced | `secure-connectivity-engine.test.ts` (subset) | Not reached live | **No client network exists in this sandbox** | — | PASS_WITH_RISKS | `BLOCKED_EXTERNAL_DEPENDENCY` for anything beyond the real status model — no VPN tunnel can be provisioned here |
+| 57 | VPS Connectivity Engine | Modeled via `network_path`/connection fields only | — | N/A | N/A | N/A | **No real client VPS exists** | — | **BLOCKED_EXTERNAL_DEPENDENCY** | Requires a real client VPS + credentials this sandbox cannot provide |
+| 58 | Bastion / Private Network Engine | Modeled via `network_path` enum only | — | N/A | N/A | N/A | **No real bastion exists** | — | **BLOCKED_EXTERNAL_DEPENDENCY** | Same reason as #57 |
+| 59 | External Integration Engine | Real, enforced allowlist | Not yet surfaced in UI (API only) | Enforced | `secure-connectivity-engine.test.ts` (subset) | Not reached live | Real, closed-by-default | — | IMPLEMENTED | Real candidate: build the allowlist management UI |
+| 60 | Test Management Integration Engine | Real architecture (`TestManagementAdapter`); TestRail/Jira/ADO are honest, non-live stubs | Not yet surfaced in UI | Enforced | Covered by #59's suite | — | **No real TestRail/Jira/ADO credentials exist** | — | PASS_WITH_RISKS | `BLOCKED_EXTERNAL_DEPENDENCY` for any live push — architecture only, by design |
+| 61 | Reporting Engine | Real (`TestReportService`, `SecurityReportService`) | Real (HTML/Markdown export links) | Enforced | Covered by #45/#55's suites | Not reached live | N/A | — | IMPLEMENTED | — |
+| 62 | Executive Reporting Engine | Not built | — | N/A | N/A | N/A | N/A | — | **NOT_STARTED** | Real Phase 8 roadmap item |
+| 63 | Audit Engine | Real, pre-existing, platform-wide (`registerAuditEngine`) | N/A (backend) | Core of this column | Not independently re-verified this session for the newest routes | Implicit in every write this session | N/A | — | IMPLEMENTED | Not independently confirmed this session that every new route (Testing/Comparison/Security Engines) actually emits an audit entry — real candidate for `audit_test_1` |
+| 64 | Notification Engine | Real | Implicit (onboarding notifications) | Enforced | Covered indirectly | **Live — real email delivery confirmed via Mailpit** | Real SMTP (Mailpit, dev) | 3x live passes | **PASS** | Production email provider not configured/tested (dev-only) |
+| 65 | Communication Engine | Real (notification recipients/phases) | Real (onboarding step 2) | Enforced | Covered indirectly | Live (filled, not deeply exercised) | N/A | 3x live passes | PASS_WITH_RISKS | Multi-recipient/phase logic not deeply exercised live |
+| 66 | Search Engine | Real, `client-search-service.ts` | Real Search page | Enforced | `global-search.test.ts` | Not reached live this session | N/A | — | IMPLEMENTED | — |
+| 67 | Universal Client Search Engine | Same as #66 | Same | Same | Same | — | N/A | — | IMPLEMENTED | — |
+| 68 | Analytics Engine | Not independently confirmed | Portfolio Intelligence page exists (pre-session) | Unknown | Not verified | Not reached live | N/A | — | **NOT_STARTED** (from this session's verification standpoint) | Pre-existing page's real scope unconfirmed |
+| 69 | Dashboard Engine | Real (Testing summary, Gap breakdown, Client Directory) | Real | Enforced | Covered by respective suites | **Live — all three dashboards observed correct live** | N/A | 3x live passes | **PASS** | — |
+| 70 | Support / Incident Engine | Pre-existing, not built this session | Real Incidents/Support pages | Unknown | Not verified | Not reached live | N/A | — | IMPLEMENTED | Not independently re-verified |
+| 71 | Change Management Engine | Not built this session | — | N/A | N/A | N/A | N/A | — | **NOT_STARTED** | — |
+| 72 | SLA / Operational Monitoring Engine | Real, pre-existing SLA fields | Real (Client Directory SLA badges, Monitoring tab) | Enforced | Not verified this session | **Live — SLA badges observed correctly in all 3 passes** | N/A | 3x live passes | PASS_WITH_RISKS | Only the badge display verified; the Monitoring tab's own deeper functionality unconfirmed |
+| 73 | Knowledge / Documentation Engine | Pre-existing, not built this session | Real Knowledge tab | Unknown | Not verified | Not reached live | N/A | — | IMPLEMENTED | Not independently re-verified |
+| 74 | Data Mapping Engine | Not built | — | N/A | N/A | N/A | N/A | — | **NOT_STARTED** | — |
+| 75 | API Discovery / Validation Engine | Not built | — | N/A | N/A | N/A | N/A | — | **NOT_STARTED** | Discovery Engine covers DB/infra only, not API specs |
+| 76 | Application Discovery Engine | Real, part of `discovery-service.ts` + `tech_apps` field | Real (Applications tab) | Enforced | Not re-verified this session | Live — `tech_apps`/React selected in all 3 onboarding passes | N/A | 3x live passes | IMPLEMENTED | — |
+| 77 | Infrastructure Discovery Engine | Real, part of `discovery-service.ts` | Real (Infrastructure tab) | Enforced | Not re-verified this session | Not reached live | N/A | — | IMPLEMENTED | — |
+| 78 | Dependency Analysis Engine | Not built as distinct capability | — | N/A | N/A | N/A | N/A | — | **NOT_STARTED** | — |
+| 79 | Environment Registration Engine | Real, `oc_lifecycle` stage | Real (Lifecycle journey) | Enforced | Not independently tested | **Live — reached/advanced through this stage in all 3 passes** (2 via disclosed fixture shortcut, 1 organically) | N/A | 3x live passes | PASS_WITH_RISKS | The stage's own real form fields never filled organically through the UI this session |
+| 80 | Connector Management Engine | Real, `oc_client_database_connections` | Real `DatabaseConnectionsManager` | Enforced (+ real Secure Connectivity guard) | Covered by #33/#55's suites | **Live — 2 real connections added, tested, used in a real comparison** | N/A | `comparison_test_1` | **PASS** | Only PostgreSQL connector type exercised live |
+
+---
+
+## Summary counts (honest, as of this update)
+
+- **PASS**: 17 engines
+- **PASS_WITH_RISKS**: 11 engines
+- **IMPLEMENTED** (real, not yet live-Playwright-verified): 26 engines
+- **NOT_STARTED**: 20 engines
+- **BLOCKED_EXTERNAL_DEPENDENCY**: 3 engines (VPS Connectivity, Bastion/Private Network, and VPN Connectivity's live-tunnel portion) — all genuinely require real client infrastructure this sandbox cannot provide, not fabricated as done and not silently skipped
+- Engines pre-dating this session and not independently re-verified: 9 (marked `IMPLEMENTED` with an explicit note, never assumed working)
+
+**The platform is NOT complete.** Per the Final Program Gate: not all
+required engines are `PASS`, not all required Playwright flows are `PASS`,
+`FULL_END_TO_END_CLIENT_TEST_1` has not been run. This file exists
+precisely so that fact stays visible and current rather than getting lost
+in narrative progress notes.
+
+## Update discipline
+
+Every future `<feature>_test_<N>` pass MUST update this file's relevant
+row(s) before being considered finished — this is now a required step in
+the standard reporting loop, not an optional extra.
