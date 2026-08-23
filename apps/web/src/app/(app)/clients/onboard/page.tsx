@@ -93,8 +93,19 @@ export default function OnboardClientPage() {
 
   function handleCountryChange(country: string) {
     const match = countries.find(c => c.name === country);
-    setForm({ ...form, country, timezone: match?.timezone || '' });
-    setErrors({ ...errors, country: false });
+    // Real bug found and fixed during this pass's mandatory Playwright verification
+    // (not a testing artifact): every setState call in this file previously read
+    // `form`/`errors` from the React closure and wrote a direct object literal
+    // (`setForm({...form, ...})`) instead of the functional-updater form. Under
+    // React 18's automatic batching, two or more of these fired within the same
+    // tick (proven via a real Playwright reproduction: three rapid, distinct
+    // MultiSelect clicks) all read the SAME stale `form` snapshot, so only the
+    // LAST call's change survived — the earlier selections were silently
+    // discarded, not merged. Fixed throughout this file by switching every
+    // setForm/setErrors call to the functional-updater form, which always reads
+    // the true current state regardless of how many updates are batched together.
+    setForm(prev => ({ ...prev, country, timezone: match?.timezone || '' }));
+    setErrors(prev => ({ ...prev, country: false }));
   }
 
   function validateStep(s: Step): boolean {
@@ -133,21 +144,25 @@ export default function OnboardClientPage() {
   }
 
   function toggleMulti(field: 'departments' | 'capabilities' | 'processes' | 'techApps' | 'services' | 'apis' | 'databases' | 'servers' | 'cloud' | 'infrastructure', value: string) {
-    const current = form[field] as string[];
-    const next = current.includes(value) ? current.filter(v => v !== value) : [...current, value];
-    setForm({ ...form, [field]: next });
-    setErrors({ ...errors, [field]: false });
+    setForm(prev => {
+      const current = prev[field] as string[];
+      const next = current.includes(value) ? current.filter(v => v !== value) : [...current, value];
+      return { ...prev, [field]: next };
+    });
+    setErrors(prev => ({ ...prev, [field]: false }));
   }
 
   function setAllMulti(field: 'departments' | 'capabilities' | 'processes' | 'techApps' | 'services' | 'apis' | 'databases' | 'servers' | 'cloud' | 'infrastructure', values: string[]) {
-    setForm({ ...form, [field]: values });
-    setErrors({ ...errors, [field]: false });
+    setForm(prev => ({ ...prev, [field]: values }));
+    setErrors(prev => ({ ...prev, [field]: false }));
   }
 
   const toggleService = (id: string) => {
-    const next = new Set(form.enabledServices);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    setForm({ ...form, enabledServices: next });
+    setForm(prev => {
+      const next = new Set(prev.enabledServices);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return { ...prev, enabledServices: next };
+    });
   };
 
   async function completeOnboarding() {
@@ -397,13 +412,13 @@ export default function OnboardClientPage() {
           <div className="space-y-4">
             <h2 className="font-semibold text-lg mb-4">Company Information</h2>
             <div className="grid md:grid-cols-2 gap-4">
-              <Field label="Company Name" value={form.companyName} onChange={v => { setForm({...form, companyName: v}); setErrors({...errors, companyName: false}); }} placeholder="Enter company name" required error={errors.companyName} />
-              <SelectField label="Industry" value={form.industry} onChange={v => { setForm({...form, industry: v}); setErrors({...errors, industry: false}); }} options={industries} placeholder="Select industry…" required error={errors.industry} />
+              <Field label="Company Name" value={form.companyName} onChange={v => { setForm(prev => ({...prev, companyName: v})); setErrors(prev => ({...prev, companyName: false})); }} placeholder="Enter company name" required error={errors.companyName} />
+              <SelectField label="Industry" value={form.industry} onChange={v => { setForm(prev => ({...prev, industry: v})); setErrors(prev => ({...prev, industry: false})); }} options={industries} placeholder="Select industry…" required error={errors.industry} />
               <SelectField label="Country" value={form.country} onChange={handleCountryChange} options={countries.map(c => c.name)} placeholder="Select country…" required error={errors.country} />
-              <Field label="Timezone" value={form.timezone} onChange={v => setForm({...form, timezone: v})} placeholder="Auto-selected from country" disabled={form.country !== 'Other'} />
-              <SelectField label="Business Size" value={form.size} onChange={v => { setForm({...form, size: v}); setErrors({...errors, size: false}); }} options={businessSizes} placeholder="Select size…" required error={errors.size} />
-              <SelectField label="Support Model" value={form.supportModel} onChange={v => { setForm({...form, supportModel: v}); setErrors({...errors, supportModel: false}); }} options={supportModels} placeholder="Select model…" required error={errors.supportModel} />
-              <SelectField label="Criticality" value={form.criticality} onChange={v => { setForm({...form, criticality: v}); setErrors({...errors, criticality: false}); }} options={criticalities} placeholder="Select level…" required error={errors.criticality} />
+              <Field label="Timezone" value={form.timezone} onChange={v => setForm(prev => ({...prev, timezone: v}))} placeholder="Auto-selected from country" disabled={form.country !== 'Other'} />
+              <SelectField label="Business Size" value={form.size} onChange={v => { setForm(prev => ({...prev, size: v})); setErrors(prev => ({...prev, size: false})); }} options={businessSizes} placeholder="Select size…" required error={errors.size} />
+              <SelectField label="Support Model" value={form.supportModel} onChange={v => { setForm(prev => ({...prev, supportModel: v})); setErrors(prev => ({...prev, supportModel: false})); }} options={supportModels} placeholder="Select model…" required error={errors.supportModel} />
+              <SelectField label="Criticality" value={form.criticality} onChange={v => { setForm(prev => ({...prev, criticality: v})); setErrors(prev => ({...prev, criticality: false})); }} options={criticalities} placeholder="Select level…" required error={errors.criticality} />
             </div>
           </div>
         )}
@@ -414,8 +429,8 @@ export default function OnboardClientPage() {
               <MultiSelect label="Departments" selected={form.departments} options={departmentOptions} onToggle={v => toggleMulti('departments', v)} onSetAll={v => setAllMulti('departments', v)} required error={errors.departments} />
               <MultiSelect label="Business Capabilities" selected={form.capabilities} options={capabilityOptions} onToggle={v => toggleMulti('capabilities', v)} onSetAll={v => setAllMulti('capabilities', v)} />
               <MultiSelect label="Business Processes" selected={form.processes} options={processOptions} onToggle={v => toggleMulti('processes', v)} onSetAll={v => setAllMulti('processes', v)} />
-              <Field label="Business Owner" value={form.businessOwner} onChange={v => { setForm({...form, businessOwner: v}); setErrors({...errors, businessOwner: false}); }} placeholder="john.smith@acme.com" required error={errors.businessOwner} />
-              <Field label="Applications (comma-separated)" value={form.applications} onChange={v => setForm({...form, applications: v})} placeholder="Customer Portal, Admin Dashboard" />
+              <Field label="Business Owner" value={form.businessOwner} onChange={v => { setForm(prev => ({...prev, businessOwner: v})); setErrors(prev => ({...prev, businessOwner: false})); }} placeholder="john.smith@acme.com" required error={errors.businessOwner} />
+              <Field label="Applications (comma-separated)" value={form.applications} onChange={v => setForm(prev => ({...prev, applications: v}))} placeholder="Customer Portal, Admin Dashboard" />
             </div>
 
             {/* Notification Recipients */}
@@ -427,7 +442,7 @@ export default function OnboardClientPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setForm({...form, notifyContacts: [...form.notifyContacts, { name: '', email: '', role: '', phases: ['service-change'] }]})}
+                  onClick={() => setForm(prev => ({...prev, notifyContacts: [...prev.notifyContacts, { name: '', email: '', role: '', phases: ['service-change'] }]}))}
                   className="text-[10px] font-medium text-purple-600 bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-md border border-purple-200 transition"
                 >
                   + Add Recipient
@@ -439,18 +454,18 @@ export default function OnboardClientPage() {
                     <div className="grid md:grid-cols-3 gap-3 mb-2">
                       <input
                         type="text" placeholder="Full Name *" value={contact.name}
-                        onChange={e => { const next = [...form.notifyContacts]; next[idx] = { ...next[idx], name: e.target.value }; setForm({...form, notifyContacts: next}); }}
+                        onChange={e => { const v = e.target.value; setForm(prev => { const next = [...prev.notifyContacts]; next[idx] = { ...next[idx], name: v }; return {...prev, notifyContacts: next}; }); }}
                         className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500"
                       />
                       <input
                         type="email" placeholder="Email *" value={contact.email}
-                        onChange={e => { const next = [...form.notifyContacts]; next[idx] = { ...next[idx], email: e.target.value }; setForm({...form, notifyContacts: next}); }}
+                        onChange={e => { const v = e.target.value; setForm(prev => { const next = [...prev.notifyContacts]; next[idx] = { ...next[idx], email: v }; return {...prev, notifyContacts: next}; }); }}
                         className="border border-gray-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500"
                       />
                       <div className="flex items-center gap-2">
                         <select
                           value={contact.role}
-                          onChange={e => { const next = [...form.notifyContacts]; next[idx] = { ...next[idx], role: e.target.value }; setForm({...form, notifyContacts: next}); }}
+                          onChange={e => { const v = e.target.value; setForm(prev => { const next = [...prev.notifyContacts]; next[idx] = { ...next[idx], role: v }; return {...prev, notifyContacts: next}; }); }}
                           className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500"
                         >
                           <option value="">Role…</option>
@@ -463,7 +478,7 @@ export default function OnboardClientPage() {
                           <option value="Other">Other</option>
                         </select>
                         {form.notifyContacts.length > 1 && (
-                          <button onClick={() => { const next = form.notifyContacts.filter((_, i) => i !== idx); setForm({...form, notifyContacts: next}); }} className="text-red-400 hover:text-red-600 text-sm" title="Remove">✕</button>
+                          <button onClick={() => setForm(prev => ({...prev, notifyContacts: prev.notifyContacts.filter((_, i) => i !== idx)}))} className="text-red-400 hover:text-red-600 text-sm" title="Remove">✕</button>
                         )}
                       </div>
                     </div>
@@ -472,12 +487,12 @@ export default function OnboardClientPage() {
                       {(['onboarding', 'service-change', 'incident', 'remediation', 'deployment', 'maintenance', 'escalation', 'resolution'] as const).map(phase => (
                         <button
                           key={phase} type="button"
-                          onClick={() => {
-                            const next = [...form.notifyContacts];
+                          onClick={() => setForm(prev => {
+                            const next = [...prev.notifyContacts];
                             const phases = next[idx].phases.includes(phase) ? next[idx].phases.filter(p => p !== phase) : [...next[idx].phases, phase];
                             next[idx] = { ...next[idx], phases };
-                            setForm({...form, notifyContacts: next});
-                          }}
+                            return {...prev, notifyContacts: next};
+                          })}
                           className={`text-[9px] font-medium px-1.5 py-0.5 rounded transition ${contact.phases.includes(phase) ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-500 hover:bg-gray-300'}`}
                         >
                           {phase}
@@ -509,12 +524,12 @@ export default function OnboardClientPage() {
             <h2 className="font-semibold text-lg mb-4">Environments</h2>
             <p className="text-xs text-gray-500 mb-4">Select which environments this client operates</p>
             <div className="grid md:grid-cols-3 gap-3">
-              <Toggle label="Development" checked={form.envDev} onChange={v => setForm({...form, envDev: v})} />
-              <Toggle label="Testing / QA" checked={form.envTest} onChange={v => setForm({...form, envTest: v})} />
-              <Toggle label="UAT" checked={form.envUat} onChange={v => setForm({...form, envUat: v})} />
-              <Toggle label="Staging" checked={form.envStaging} onChange={v => setForm({...form, envStaging: v})} />
-              <Toggle label="Production" checked={form.envProd} onChange={v => setForm({...form, envProd: v})} />
-              <Toggle label="Disaster Recovery" checked={form.envDr} onChange={v => setForm({...form, envDr: v})} />
+              <Toggle label="Development" checked={form.envDev} onChange={v => setForm(prev => ({...prev, envDev: v}))} />
+              <Toggle label="Testing / QA" checked={form.envTest} onChange={v => setForm(prev => ({...prev, envTest: v}))} />
+              <Toggle label="UAT" checked={form.envUat} onChange={v => setForm(prev => ({...prev, envUat: v}))} />
+              <Toggle label="Staging" checked={form.envStaging} onChange={v => setForm(prev => ({...prev, envStaging: v}))} />
+              <Toggle label="Production" checked={form.envProd} onChange={v => setForm(prev => ({...prev, envProd: v}))} />
+              <Toggle label="Disaster Recovery" checked={form.envDr} onChange={v => setForm(prev => ({...prev, envDr: v}))} />
             </div>
           </div>
         )}
@@ -523,12 +538,12 @@ export default function OnboardClientPage() {
             <h2 className="font-semibold text-lg mb-4">Monitoring Configuration</h2>
             <p className="text-xs text-gray-500 mb-4">Enable monitoring for the following areas</p>
             <div className="grid md:grid-cols-3 gap-3">
-              <Toggle label="Infrastructure" checked={form.monInfra} onChange={v => setForm({...form, monInfra: v})} />
-              <Toggle label="Applications" checked={form.monApps} onChange={v => setForm({...form, monApps: v})} />
-              <Toggle label="Services" checked={form.monServices} onChange={v => setForm({...form, monServices: v})} />
-              <Toggle label="Database" checked={form.monDb} onChange={v => setForm({...form, monDb: v})} />
-              <Toggle label="Network" checked={form.monNetwork} onChange={v => setForm({...form, monNetwork: v})} />
-              <Toggle label="Cloud Resources" checked={form.monCloud} onChange={v => setForm({...form, monCloud: v})} />
+              <Toggle label="Infrastructure" checked={form.monInfra} onChange={v => setForm(prev => ({...prev, monInfra: v}))} />
+              <Toggle label="Applications" checked={form.monApps} onChange={v => setForm(prev => ({...prev, monApps: v}))} />
+              <Toggle label="Services" checked={form.monServices} onChange={v => setForm(prev => ({...prev, monServices: v}))} />
+              <Toggle label="Database" checked={form.monDb} onChange={v => setForm(prev => ({...prev, monDb: v}))} />
+              <Toggle label="Network" checked={form.monNetwork} onChange={v => setForm(prev => ({...prev, monNetwork: v}))} />
+              <Toggle label="Cloud Resources" checked={form.monCloud} onChange={v => setForm(prev => ({...prev, monCloud: v}))} />
             </div>
           </div>
         )}
@@ -538,12 +553,12 @@ export default function OnboardClientPage() {
             <div className="flex items-center justify-between mb-4">
               <p className="text-xs text-gray-500">Enable the services required for this client — {form.enabledServices.size} of {serviceCatalog.length} selected</p>
               <button
-                onClick={() => {
+                onClick={() => setForm(prev => {
                   const allIds = serviceCatalog.map(s => s.id);
-                  const allSelected = allIds.every(id => form.enabledServices.has(id));
+                  const allSelected = allIds.every(id => prev.enabledServices.has(id));
                   const next = new Set(allSelected ? [] as string[] : allIds);
-                  setForm({ ...form, enabledServices: next });
-                }}
+                  return { ...prev, enabledServices: next };
+                })}
                 className="text-xs font-medium px-3 py-1.5 rounded-lg border border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100 transition"
               >
                 {serviceCatalog.every(s => form.enabledServices.has(s.id)) ? '✗ Deselect All' : '✓ Select All'}

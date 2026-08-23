@@ -204,7 +204,10 @@ export function TestingEngineManager({ clientId }: { clientId: string }) {
             <Stat label="Blocked" value={report.totals.blocked} /><Stat label="Not Executed" value={report.totals.notExecuted} />
             <Stat label="Coverage" value={`${report.coveragePercent}%`} />
           </div>
-          <p className="text-[10px] text-gray-500 mt-2">Final Recommendation: <span className="font-semibold">{report.finalRecommendation.replace('_', ' ')}</span></p>
+          {/* Real bug found and fixed via live Playwright verification: .replace('_', ' ') (non-global)
+              only replaces the FIRST underscore in JS — PASS_WITH_RISKS rendered as "PASS WITH_RISKS".
+              Fixed to a global replace so every multi-underscore value renders correctly. */}
+          <p className="text-[10px] text-gray-500 mt-2">Final Recommendation: <span className="font-semibold">{report.finalRecommendation.replace(/_/g, ' ')}</span></p>
         </div>
       )}
 
@@ -243,7 +246,7 @@ export function TestingEngineManager({ clientId }: { clientId: string }) {
               <thead><tr className="bg-gray-50 text-gray-500 text-left"><th className="px-3 py-2">Title</th><th className="px-3 py-2">Severity</th><th className="px-3 py-2">Status</th></tr></thead>
               <tbody>{defects.map(d => (
                 <tr key={d.id} className="border-t"><td className="px-3 py-2">{d.title}</td><td className="px-3 py-2 capitalize">{d.severity}</td>
-                  <td className="px-3 py-2"><Badge className={DEFECT_META[d.status].className}>{d.status.replace('_', ' ')}</Badge></td></tr>
+                  <td className="px-3 py-2"><Badge className={DEFECT_META[d.status].className}>{d.status.replace(/_/g, ' ')}</Badge></td></tr>
               ))}</tbody>
             </table>
           </div>

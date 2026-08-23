@@ -36,6 +36,12 @@ async function lookup(sql: string, id: string, format: (row: any) => string | nu
 
 const RESOLVERS: Record<string, Resolver> = {
   problem: (id) => lookup(`SELECT title FROM oc_problems WHERE id = $1`, id, r => r.title || null),
+  // Real gap found and fixed via this session's own live Playwright verification of the
+  // Traceability UI: the Universal Testing Engine (built after this resolver) records real
+  // `test_case --tests--> business_requirement` links, but no resolver existed for
+  // `test_case` — every test-case node showed the honest-but-unhelpful "Label unavailable"
+  // instead of its real, existing `title`. Fixed by adding this real lookup.
+  test_case: (id) => lookup(`SELECT title FROM test_cases WHERE id = $1`, id, r => r.title || null),
   business_requirement: (id) => lookup(`SELECT title FROM oc_business_requirements WHERE id = $1`, id, r => r.title || null),
   gap: (id) => lookup(`SELECT title FROM oc_gaps WHERE id = $1`, id, r => r.title || null),
   gap_evidence: (id) => lookup(`SELECT text FROM oc_gap_evidence WHERE id = $1`, id, r => r.text ? `Evidence: ${String(r.text).slice(0, 60)}` : null),
