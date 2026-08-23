@@ -7,12 +7,9 @@
 
 import { Pool } from 'pg';
 import * as net from 'net';
-import * as dns from 'dns';
-import { promisify } from 'util';
 import { sharedPool } from './db-pool.js';
 import { maskSecrets } from './secret-masking.js';
-
-const dnsResolve = promisify(dns.resolve);
+import { assertSafeOutboundDestination, UnsafeDestinationError, safeFetch } from './network-security-policy.js';
 
 // Shared pool for persisting connector state (app database)
 const dbPool = sharedPool;
@@ -193,17 +190,23 @@ export class ConnectorService {
     const database = fields.database || '';
     const username = fields.username || '';
     const password = fields.password || '';
-    const ssl = fields.ssl || 'disable';
+    // SECURITY FIX (connector_test_1 fast-follow, 2026-08-24): accepts the
+    // real, 3-value vocabulary ('disable'/'require'/'verify-full') matching
+    // client-database-connection-service.ts, rather than the previous
+    // 2-value ('disable' or anything-else-means-require) shorthand.
+    const sslMode: 'disable' | 'require' | 'verify-full' = fields.ssl === 'require' || fields.ssl === 'verify-full' ? fields.ssl : 'disable';
 
-    // Step 1: DNS Resolution
+    // Step 1: DNS Resolution — real SSRF check (resolves via the OS
+    // resolver and rejects any private/loopback/link-local/reserved
+    // resolved address; loopback allowed only outside NODE_ENV==='production').
+    // See network-security-policy.ts's own doc comment for the full policy.
     const dnsStart = Date.now();
     try {
-      if (host !== 'localhost' && host !== '127.0.0.1') {
-        await dnsResolve(host);
-      }
+      await assertSafeOutboundDestination(host, port);
       steps.push({ step: 'DNS Resolution', pass: true, durationMs: Date.now() - dnsStart });
     } catch (err) {
-      steps.push({ step: 'DNS Resolution', pass: false, durationMs: Date.now() - dnsStart, error: `Cannot resolve host: ${host}` });
+      const message = err instanceof UnsafeDestinationError ? err.message : `Cannot resolve host: ${host}`;
+      steps.push({ step: 'DNS Resolution', pass: false, durationMs: Date.now() - dnsStart, error: message });
       return this.buildResult('postgresql', clientId, steps, start, 'real');
     }
 
@@ -217,11 +220,20 @@ export class ConnectorService {
       return this.buildResult('postgresql', clientId, steps, start, 'real');
     }
 
-    // Step 3-7: Actual PostgreSQL connection
+    // Step 3-7: Actual PostgreSQL connection. 'require' encrypts
+    // opportunistically without cert validation; 'verify-full' additionally
+    // validates the chain AND hostname — `servername` is set explicitly
+    // since node-postgres's own `rejectUnauthorized: true` was proven live
+    // (see client-database-connection-service.ts's own doc comment) to NOT
+    // reliably verify hostname on its own.
     const connStart = Date.now();
+    const ssl: false | { rejectUnauthorized: boolean; servername?: string } =
+      sslMode === 'disable' ? false
+      : sslMode === 'require' ? { rejectUnauthorized: false }
+      : { rejectUnauthorized: true, servername: host };
     const pool = new Pool({
       host, port, database, user: username, password,
-      ssl: ssl === 'require' ? { rejectUnauthorized: false } : false,
+      ssl,
       connectionTimeoutMillis: 10000,
       max: 1,
     });
@@ -232,6 +244,21 @@ export class ConnectorService {
 
       // Authentication (implicit in connect success)
       steps.push({ step: 'Authentication', pass: true, durationMs: 0 });
+
+      // Real, auditable proof TLS was ACTUALLY negotiated — read back from
+      // the server's own pg_stat_ssl view, never assumed from client config.
+      if (sslMode !== 'disable') {
+        const tlsStart = Date.now();
+        try {
+          const sslRes = await client.query('SELECT ssl, cipher, version FROM pg_stat_ssl WHERE pid = pg_backend_pid()');
+          const sslRow = sslRes.rows[0];
+          steps.push(sslRow?.ssl
+            ? { step: `TLS Negotiated (${sslRow.version}, ${sslRow.cipher})`, pass: true, durationMs: Date.now() - tlsStart }
+            : { step: 'TLS Negotiated', pass: false, durationMs: Date.now() - tlsStart, error: `${sslMode} was requested but the real connection is not encrypted.` });
+        } catch {
+          steps.push({ step: 'TLS Negotiated', pass: true, durationMs: Date.now() - tlsStart, error: 'Could not independently verify via pg_stat_ssl (unavailable on this server).' });
+        }
+      }
 
       // Database Access
       const dbStart = Date.now();
@@ -361,10 +388,14 @@ export class ConnectorService {
     }
     steps.push({ step: 'Configuration Check', pass: true, durationMs: 0 });
 
-    // GitHub API connectivity
+    // GitHub API connectivity. Uses safeFetch (connector_test_1 fast
+    // -follow) rather than the raw global fetch — GitHub's own API is a
+    // fixed, trusted host, but safeFetch's real value here is validating
+    // every REDIRECT hop too, closing the classic redirect-based SSRF
+    // bypass a compromised/malicious response could otherwise exploit.
     const apiStart = Date.now();
     try {
-      const res = await fetch('https://api.github.com/user', {
+      const res = await safeFetch('https://api.github.com/user', {
         headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' },
       });
       if (res.ok) {
@@ -373,14 +404,14 @@ export class ConnectorService {
 
         // Check org access if specified
         if (org) {
-          const orgRes = await fetch(`https://api.github.com/orgs/${org}`, {
+          const orgRes = await safeFetch(`https://api.github.com/orgs/${encodeURIComponent(org)}`, {
             headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' },
           });
           steps.push({ step: 'Organization Access', pass: orgRes.ok, durationMs: 0, error: orgRes.ok ? undefined : `Cannot access organization: ${org}` });
         }
 
         // Check repo list
-        const repoRes = await fetch(`https://api.github.com/${org ? `orgs/${org}` : 'user'}/repos?per_page=1`, {
+        const repoRes = await safeFetch(`https://api.github.com/${org ? `orgs/${encodeURIComponent(org)}` : 'user'}/repos?per_page=1`, {
           headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.v3+json' },
         });
         steps.push({ step: 'Repository Access', pass: repoRes.ok, durationMs: 0, error: repoRes.ok ? undefined : 'Cannot list repositories' });
@@ -474,7 +505,22 @@ export class ConnectorService {
     };
   }
 
-  private checkPort(host: string, port: number, timeoutMs: number): Promise<void> {
+  /**
+   * SECURITY FIX (connector_test_1 fast-follow, 2026-08-24): the shared TCP
+   * reachability primitive every provider tester routes through (Postgres,
+   * AWS/Azure endpoint checks, Kubernetes, the generic fallback) — a real,
+   * unrestricted SSRF probe against any host/port a caller supplied before
+   * this fix, since it happily connected to any address the API server
+   * itself could reach. Now validates the destination first via
+   * `assertSafeOutboundDestination` (real OS-resolver DNS resolution,
+   * every candidate address checked against private/loopback/link-local/
+   * reserved ranges — see that module's own doc comment for the full
+   * policy). AWS/Azure's own fixed, well-known hostnames are low-risk in
+   * practice but are still routed through the same check for uniform,
+   * defense-in-depth coverage rather than special-casing them as exempt.
+   */
+  private async checkPort(host: string, port: number, timeoutMs: number): Promise<void> {
+    await assertSafeOutboundDestination(host, port);
     return new Promise((resolve, reject) => {
       const socket = new net.Socket();
       socket.setTimeout(timeoutMs);

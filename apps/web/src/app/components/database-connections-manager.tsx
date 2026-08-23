@@ -12,6 +12,7 @@ export interface DatabaseConnection {
   status: 'not_tested' | 'connected' | 'failed' | 'disabled';
   lastTestMode: string | null; lastTestSteps: Array<{ step: string; pass: boolean; durationMs: number; error?: string }>;
   lastTestError: string; lastTestedAt: string | null; createdAt: string;
+  sslMode: 'disable' | 'require' | 'verify-full'; hasSslCaCertificate: boolean;
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -25,12 +26,18 @@ const STATUS_META: Record<string, { label: string; className: string; dot: strin
 };
 const ENV_OPTIONS = ['production', 'staging', 'uat', 'development'];
 const AUTH_OPTIONS = ['standard', 'iam', 'kerberos', 'certificate'];
+const SSL_MODE_OPTIONS: Array<{ value: 'disable' | 'require' | 'verify-full'; label: string; hint: string }> = [
+  { value: 'disable', label: 'Disable', hint: 'No TLS. Only use on a network you already trust (e.g. a VPN-only path).' },
+  { value: 'require', label: 'Require', hint: 'Encrypts the connection, but does not verify the server’s certificate.' },
+  { value: 'verify-full', label: 'Verify Full (recommended)', hint: 'Encrypts AND verifies the server’s certificate + hostname — provide a CA certificate below if the server uses one AskABD doesn’t already trust.' },
+];
 
 interface FormState {
   name: string; connectorType: string; host: string; port: string; databaseName: string;
   username: string; password: string; authType: string; environment: string; description: string; tagsInput: string;
+  sslMode: 'disable' | 'require' | 'verify-full'; sslCaCertificate: string;
 }
-const EMPTY_FORM: FormState = { name: '', connectorType: 'postgresql', host: '', port: '5432', databaseName: '', username: '', password: '', authType: 'standard', environment: 'production', description: '', tagsInput: '' };
+const EMPTY_FORM: FormState = { name: '', connectorType: 'postgresql', host: '', port: '5432', databaseName: '', username: '', password: '', authType: 'standard', environment: 'production', description: '', tagsInput: '', sslMode: 'require', sslCaCertificate: '' };
 
 const DEFAULT_PORTS: Record<string, string> = { postgresql: '5432', oracle: '1521', sqlserver: '1433', mysql: '3306', mongodb: '27017', other: '' };
 
@@ -54,6 +61,7 @@ function ConnectionCard({ conn, onTest, onRemove, onSaved, testingId }: {
   const [form, setForm] = useState<FormState>({
     name: conn.name, connectorType: conn.connectorType, host: conn.host, port: String(conn.port), databaseName: conn.databaseName,
     username: conn.username, password: '', authType: conn.authType, environment: conn.environment, description: conn.description, tagsInput: conn.tags.join(', '),
+    sslMode: conn.sslMode, sslCaCertificate: '',
   });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -71,8 +79,12 @@ function ConnectionCard({ conn, onTest, onRemove, onSaved, testingId }: {
         databaseName: form.databaseName.trim(), username: form.username.trim(), authType: form.authType,
         environment: form.environment, description: form.description.trim(),
         tags: form.tagsInput.split(',').map(t => t.trim()).filter(Boolean),
+        sslMode: form.sslMode,
       };
       if (form.password) body.password = form.password;
+      // Leave unchanged unless the field was actually edited — an empty
+      // textarea should not silently wipe out a previously-saved CA cert.
+      if (form.sslCaCertificate) body.sslCaCertificate = form.sslCaCertificate;
       body.clientId = conn.clientId;
       const res = await fetch(`${API}/api/v1/oc/database-connections/${conn.id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
@@ -120,6 +132,20 @@ function ConnectionCard({ conn, onTest, onRemove, onSaved, testingId }: {
                 <div><dt className="text-[9px] text-gray-400 uppercase">Authentication Type</dt><dd className="text-gray-700 font-medium mt-0.5 capitalize">{conn.authType}</dd></div>
                 <div><dt className="text-[9px] text-gray-400 uppercase">Username</dt><dd className="text-gray-700 font-medium mt-0.5">{conn.username}</dd></div>
                 <div><dt className="text-[9px] text-gray-400 uppercase">Password</dt><dd className="text-gray-400 font-medium mt-0.5">{conn.hasPassword ? '•••••••• (stored securely)' : 'Not set'}</dd></div>
+                <div>
+                  <dt className="text-[9px] text-gray-400 uppercase">TLS / Encryption</dt>
+                  <dd className="font-medium mt-0.5">
+                    {conn.sslMode === 'disable' ? (
+                      <span className="text-amber-600">Disabled — not encrypted</span>
+                    ) : (() => {
+                      const tlsStep = conn.lastTestSteps.find(s => s.step.startsWith('TLS Negotiated'));
+                      if (!tlsStep) return <span className="text-gray-500">{conn.sslMode === 'verify-full' ? 'Verify Full' : 'Require'} — not yet tested</span>;
+                      return tlsStep.pass
+                        ? <span className="text-green-700">🔒 {tlsStep.step.replace('TLS Negotiated ', '')}</span>
+                        : <span className="text-red-600">Requested but not confirmed — see Last Test Result</span>;
+                    })()}
+                  </dd>
+                </div>
               </dl>
               {conn.description && <div className="mt-3"><p className="text-[9px] text-gray-400 uppercase">Description</p><p className="text-gray-700 mt-0.5">{conn.description}</p></div>}
               {conn.tags.length > 0 && (
@@ -183,6 +209,16 @@ function ConnectionCard({ conn, onTest, onRemove, onSaved, testingId }: {
               <Field label="Tags">
                 <input value={form.tagsInput} onChange={e => setForm(f => ({ ...f, tagsInput: e.target.value }))} placeholder="comma, separated, tags" className={FIELD_CLASS} />
               </Field>
+              <Field label="TLS / Encryption" hint={SSL_MODE_OPTIONS.find(o => o.value === form.sslMode)?.hint}>
+                <select value={form.sslMode} onChange={e => setForm(f => ({ ...f, sslMode: e.target.value as FormState['sslMode'] }))} className={FIELD_CLASS}>
+                  {SSL_MODE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </Field>
+              {form.sslMode === 'verify-full' && (
+                <Field label="CA Certificate" hint={conn.hasSslCaCertificate ? 'A CA certificate is already saved. Leave blank to keep it unchanged.' : 'Required if the server uses a certificate AskABD doesn’t already trust (e.g. a self-signed or internal CA cert). Paste the real PEM-encoded certificate.'}>
+                  <textarea value={form.sslCaCertificate} onChange={e => setForm(f => ({ ...f, sslCaCertificate: e.target.value }))} placeholder={'-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----'} rows={4} className={`${FIELD_CLASS} font-mono text-[10px]`} />
+                </Field>
+              )}
               {error && <p className="text-[10px] text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1.5">{error}</p>}
               <div className="flex gap-2">
                 <Action variant="secondary" onClick={() => { setEditing(false); setError(null); }} className="!text-[10px] !px-3 !py-1.5">Cancel</Action>
@@ -246,6 +282,7 @@ export function DatabaseConnectionsManager({ clientId, onReadinessChange }: { cl
           databaseName: form.databaseName.trim(), username: form.username.trim(), password: form.password,
           authType: form.authType, environment: form.environment, description: form.description.trim(),
           tags: form.tagsInput.split(',').map(t => t.trim()).filter(Boolean),
+          sslMode: form.sslMode, sslCaCertificate: form.sslCaCertificate || undefined,
         }),
       });
       if (!res.ok) { const d = await res.json().catch(() => null); setError(d?.error?.message || 'Could not add this connection.'); return; }
@@ -332,6 +369,16 @@ export function DatabaseConnectionsManager({ clientId, onReadinessChange }: { cl
             <Field label="Tags">
               <input value={form.tagsInput} onChange={e => setForm(f => ({ ...f, tagsInput: e.target.value }))} placeholder="production, oracle" className={FIELD_CLASS} />
             </Field>
+            <Field label="TLS / Encryption" hint={SSL_MODE_OPTIONS.find(o => o.value === form.sslMode)?.hint}>
+              <select value={form.sslMode} onChange={e => setForm(f => ({ ...f, sslMode: e.target.value as FormState['sslMode'] }))} className={FIELD_CLASS}>
+                {SSL_MODE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </Field>
+            {form.sslMode === 'verify-full' && (
+              <Field label="CA Certificate" hint="Required if the server uses a certificate AskABD doesn’t already trust (e.g. a self-signed or internal CA cert). Paste the real PEM-encoded certificate.">
+                <textarea value={form.sslCaCertificate} onChange={e => setForm(f => ({ ...f, sslCaCertificate: e.target.value }))} placeholder={'-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----'} rows={4} className={`${FIELD_CLASS} font-mono text-[10px]`} />
+              </Field>
+            )}
             {error && <p className="text-[10px] text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1.5">{error}</p>}
             <div className="flex items-center justify-between pt-1">
               <p className="text-[9px] text-gray-400">All fields marked * are required.</p>

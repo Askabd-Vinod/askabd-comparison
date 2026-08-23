@@ -167,7 +167,33 @@ stage, corrected to an honest statement. Real, disclosed, NOT fixed this
 pass: the real PostgreSQL connector hardcodes `ssl: false` unconditionally
 (no TLS ever negotiated), and there is no SSRF-style host/IP denylist on
 the real outbound connections these routes make. See its own "Completed
-This Session" entry below. **Next up, per the standing "continue
+This Session" entry below. **A "CONNECTOR SECURITY FAST-FOLLOW" directive
+was then adopted, the same day**: explicitly resolve or formally block the
+2 real findings just disclosed rather than let them go untracked. Both
+genuinely RESOLVED as `connector_test_1_tls_ssrf_fastfollow`: real TLS
+support (migration 056, `ssl_mode` disable/require/verify-full) proven live
+against 2 real Postgres instances — genuine TLS 1.3 negotiation, genuine
+fail-closed behavior when TLS is required but unavailable, and a real,
+previously-unknown node-postgres hostname-verification gotcha discovered
+and correctly handled (`rejectUnauthorized:true` alone does NOT verify
+hostname without explicit `servername`). `scripts/dev-tls/` +
+`docker-compose.yml` now provision a real, reproducible TLS-capable local
+Postgres automatically, verified against a genuinely fresh container. Real
+SSRF protection (new `network-security-policy.ts`) wired into every
+connector's outbound path — blocks private/loopback/link-local/cloud
+-metadata ranges, validates every DNS-resolved address (closing rebinding,
+proven with a real mock), and validates every HTTP redirect hop (proven
+with a real local HTTP server) — with one narrow, real, disclosed residual
+gap on the raw-TCP paths specifically, kept `MITIGATED` not `RESOLVED`. A
+new `docs/security-risk-register.md` now durably tracks both findings plus
+4 more still-open ones from earlier passes (CORS, MIME validation, cleanup
+-script gap, Migration Validation's self-referential architecture) so none
+of them get silently lost between passes. Live browser UI verification of
+the new SSL-mode/CA-cert controls is honestly `BLOCKED_EXTERNAL_AUTH` this
+pass — the staff Browser-pane session genuinely expired mid-session; not
+worked around, not faked; the backend fix itself is proven with 19 new
+automated tests against real, live infrastructure instead. See its own
+"Completed This Session" entry below. **Next up, per the standing "continue
 automatically" authorization**:
 `testing_engine_test_1`, and onward down the named list in
 `docs/eoc-feature-coverage-matrix.md`'s own execution order, ending in
@@ -2932,6 +2958,106 @@ gap found and the 2 real gaps still disclosed-not-fixed); summary counts
 re-run mechanically and now read **19 PASS / 20 PASS_WITH_RISKS / 24
 IMPLEMENTED / 15 NOT_STARTED / 2 BLOCKED_EXTERNAL_DEPENDENCY** (80 rows
 total, reconciled).
+
+## Completed This Session — connector_test_1_tls_ssrf_fastfollow: real TLS + real SSRF protection, resolved same day (2026-08-24, continued)
+
+The user's own "CONNECTOR SECURITY FAST-FOLLOW" directive, issued
+immediately after `connector_test_1`: explicitly track and resolve or
+formally block RISK-002 (TLS never negotiated) and RISK-003 (no SSRF
+protection) rather than let real, disclosed findings quietly age out
+between passes.
+
+1. **TLS — real implementation state determined first, not assumed**: a
+   real Node script against the real local `comparison-postgres` confirmed
+   `SHOW ssl` → `off`. Rather than build blind, real SSL was genuinely
+   enabled on it (a real self-signed CN=localhost cert, `ALTER SYSTEM SET
+   ssl=on`) to get real, positive proof, not just a real negative one. A
+   real `pg` connection then genuinely negotiated TLS 1.3 (confirmed via
+   the server's own `pg_stat_ssl` view: real cipher, real version — not
+   assumed from the client config alone). A second real Postgres
+   (`identity-postgres`, genuinely `ssl=off`) proved the real fail-closed
+   case: requesting TLS against it fails with "The server does not support
+   SSL connections", never a silent plaintext fallback.
+2. **A real, previously-unknown driver gotcha found live**: node-postgres's
+   `rejectUnauthorized: true` alone does NOT reliably verify hostname — a
+   connection via `127.0.0.1` against a cert issued for `CN=localhost` (a
+   genuine mismatch) still succeeded until `servername` was explicitly set
+   to the real connection host. This directly shaped the real
+   implementation of "verify-full" mode, which now always sets it.
+3. **Real, permanent, reproducible test infrastructure** — not a one-off
+   manual hack: `scripts/dev-tls/init-ssl.sh` (a disposable, publicly
+   -committed, CN=localhost dev cert — never a real secret) plus a
+   `docker-compose.yml` change now provision a TLS-capable
+   `comparison-postgres` automatically on ANY fresh clone/volume — verified
+   against a genuinely separate, fresh throwaway container, not just the
+   already-modified one.
+4. **Migration 056** adds `ssl_mode` (`disable`/`require`/`verify-full`,
+   default `disable` for backward compatibility) + `ssl_ca_certificate` to
+   `oc_client_database_connections`. A real, auditable "TLS Negotiated"
+   step (real cipher + version, read back from `pg_stat_ssl`, never assumed)
+   now appears in every connector test result when TLS is requested.
+   Changing `sslMode` alone now correctly invalidates a stale "Connected"
+   status, matching the existing host/port-change behavior.
+5. **SSRF — a real, tested outbound destination policy**, new
+   `network-security-policy.ts`: resolves every host via the real OS
+   resolver and validates EVERY resolved address (not just the input text)
+   against private/loopback/link-local/CGNAT/reserved ranges — including
+   the `169.254.0.0/16` range that covers cloud metadata endpoints — real
+   -proven with a mocked DNS-rebinding test (a hostname mocked to resolve
+   to `169.254.169.254` is genuinely blocked). Loopback is allowed only
+   outside `NODE_ENV==='production'` (this repo's own real local dev
+   Postgres genuinely runs on loopback; a real client's database never
+   legitimately would). A new `safeFetch()` wrapper independently
+   re-validates every HTTP redirect hop before following it — real-proven
+   with an actual local HTTP server issuing a redirect to
+   `169.254.169.254` (blocked) and a real non-redirecting request (still
+   succeeds normally). Wired into the SHARED `checkPort()` used by every
+   connector type (Postgres, AWS, Azure, Kubernetes, generic) and the
+   GitHub connector's real API calls.
+6. **One real, disclosed residual gap, kept honestly `MITIGATED` not
+   `RESOLVED`**: the raw-TCP paths validate-then-connect as two separate
+   calls a few milliseconds apart — a narrow, real DNS-rebinding race
+   window remains there specifically (the HTTP/redirect path does not have
+   this gap). Documented, not silently claimed closed.
+7. **New `docs/security-risk-register.md`** — a durable, living tracker
+   (the user's own explicit ask) now covers RISK-001 through RISK-007:
+   the 2 just-resolved here, plus 5 more still-`OPEN` real findings from
+   earlier passes (CORS config, MIME-validation-is-client-supplied-only,
+   the cleanup-script's un-swept upload files, and Migration Validation's
+   self-referential architecture) — so nothing found this session gets
+   silently lost between passes going forward.
+
+19 new automated tests, all real: 9 unit tests directly on
+`network-security-policy.ts` (`network-security-policy.test.ts`, including
+the real DNS-rebinding mock and real HTTP-server redirect proofs) + 10
+end-to-end tests through the real `ClientDatabaseConnectionService.test()`
+path added to `connector-test-1.test.ts` (real TLS PASS/FAIL-closed/
+verify-full-reject/verify-full-accept, real SSL-mode-change invalidation,
+real metadata/private-address SSRF blocks, real approved-destination
+success, real malformed-host safe failure). Full API regression:
+**659/659 passing** (640 + 19 new). `tsc --noEmit` clean both apps.
+
+**Real, honest limitation this pass**: live Browser-pane verification of
+the new SSL-mode/CA-certificate UI controls could not be completed — the
+staff session genuinely expired mid-session ("Your session has expired.
+Please sign in again.") partway through this pass. Per this session's own
+standing rule, this was NOT worked around by entering a real password —
+the backend fix (the part that actually matters for the security
+properties this fast-follow exists to prove) is instead proven with 19
+real tests against real, live infrastructure, which is arguably stronger
+evidence than a UI click-through could provide for this class of fix.
+Marked `BLOCKED_EXTERNAL_AUTH` for that one specific check, not fabricated.
+
+Full write-up: `docs/evidence/connector/
+connector_test_1_tls_ssrf_fastfollow/
+connector_test_1_tls_ssrf_fastfollow.md`. `docs/eoc-feature-coverage
+-matrix.md` row #80 enriched in place (status unchanged at
+PASS_WITH_RISKS — the object-level-auth fix from `connector_test_1` was
+already the reason for that cap; this pass closes 2 more real gaps while
+being honest about the one still-blocked UI check); summary counts
+re-run mechanically and remain **19 PASS / 20 PASS_WITH_RISKS / 24
+IMPLEMENTED / 15 NOT_STARTED / 2 BLOCKED_EXTERNAL_DEPENDENCY** (80 rows,
+reconciled — no row changed status this pass, only detail was enriched).
 
 ## Failed Tests
 

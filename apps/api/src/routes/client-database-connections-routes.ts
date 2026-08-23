@@ -7,7 +7,7 @@
  * matches every other client-scoped management route group in this app.
  */
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { ClientDatabaseConnectionService, DatabaseConnectionOwnershipError, type ConnectorType } from '../services/client-database-connection-service.js';
+import { ClientDatabaseConnectionService, DatabaseConnectionOwnershipError, type ConnectorType, type SslMode } from '../services/client-database-connection-service.js';
 import { getAuth } from '../middleware/auth.js';
 
 const VALID_TYPES: ConnectorType[] = ['postgresql', 'oracle', 'sqlserver', 'mysql', 'mongodb', 'other'];
@@ -25,6 +25,7 @@ export async function clientDatabaseConnectionsRoutes(server: FastifyInstance): 
     const body = req.body as {
       name?: string; connectorType?: string; host?: string; port?: number | string; databaseName?: string;
       username?: string; password?: string; authType?: string; environment?: string; description?: string; tags?: string[];
+      sslMode?: string; sslCaCertificate?: string;
     };
     const connectorType = VALID_TYPES.includes(body.connectorType as ConnectorType) ? (body.connectorType as ConnectorType) : 'other';
     const auth = getAuth(req);
@@ -34,6 +35,7 @@ export async function clientDatabaseConnectionsRoutes(server: FastifyInstance): 
       databaseName: body.databaseName || '', username: body.username || '', password: body.password,
       authType: body.authType, environment: body.environment, description: body.description, tags: body.tags,
       createdBy: auth?.userId || 'unknown-staff',
+      sslMode: body.sslMode as SslMode | undefined, sslCaCertificate: body.sslCaCertificate,
     });
     if (!result.ok) return reply.status(400).send({ error: result.error });
     reply.status(201).send({ connection: result.value });
@@ -54,6 +56,7 @@ export async function clientDatabaseConnectionsRoutes(server: FastifyInstance): 
       clientId?: string;
       name?: string; connectorType?: string; host?: string; port?: number | string; databaseName?: string;
       username?: string; password?: string; authType?: string; environment?: string; description?: string; tags?: string[];
+      sslMode?: string; sslCaCertificate?: string;
     };
     if (!body.clientId) { reply.status(404).send({ error: { code: 'not_found', message: 'No such connection.' } }); return; }
     const auth = getAuth(req);
@@ -63,6 +66,7 @@ export async function clientDatabaseConnectionsRoutes(server: FastifyInstance): 
         host: body.host, port: body.port !== undefined ? (typeof body.port === 'string' ? parseInt(body.port, 10) : body.port) : undefined,
         databaseName: body.databaseName, username: body.username, password: body.password,
         authType: body.authType, environment: body.environment, description: body.description, tags: body.tags,
+        sslMode: body.sslMode as SslMode | undefined, sslCaCertificate: body.sslCaCertificate,
       }, auth?.userId || 'unknown-staff');
       if (!result.ok) return reply.status(result.error.code === 'not_found' ? 404 : 400).send({ error: result.error });
       reply.send({ connection: result.value });

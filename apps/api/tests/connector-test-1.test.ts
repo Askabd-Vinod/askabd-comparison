@@ -25,6 +25,9 @@ import Fastify from 'fastify';
 import { describe, expect, it, afterAll } from 'vitest';
 import * as jose from 'jose';
 import { randomUUID } from 'node:crypto';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { registerAuthMiddleware } from '../src/middleware/auth.js';
 import { registerAuthorizationMiddleware, registerTenantAccessMiddleware, COMPARISON_API_RULES } from '../src/platform/rbac/index.js';
 import { operationsCenterRoutes } from '../src/routes/operations-center-routes.js';
@@ -32,6 +35,11 @@ import { clientDatabaseConnectionsRoutes } from '../src/routes/client-database-c
 import { OperationsCenterService } from '../src/services/operations-center-service.js';
 import { ClientDatabaseConnectionService } from '../src/services/client-database-connection-service.js';
 import { sharedPool } from '../src/services/db-pool.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+/** The same disposable, publicly-committed, CN=localhost dev cert baked into
+ * comparison-postgres by scripts/dev-tls/init-ssl.sh — never a real secret. */
+const DEV_TLS_CA = path.join(__dirname, '..', '..', '..', 'scripts', 'dev-tls', 'server.crt');
 
 const SECRET = 'test-secret-value-not-a-real-secret';
 
@@ -281,5 +289,178 @@ describe('connector_test_1 — RBAC gaps found and fixed: connector-service.ts r
     expect(test.json().status).toBe('connected');
 
     await app.close();
+  });
+});
+
+/**
+ * connector_test_1 TLS fast-follow (2026-08-24). Real, live proof — not
+ * mocked — that TLS is genuinely negotiated and validated, using two real
+ * local Postgres instances this repo's own docker-compose.yml provisions:
+ * comparison-postgres (port 5442), which scripts/dev-tls/init-ssl.sh now
+ * enables real SSL on automatically for every fresh volume (see that
+ * script's own doc comment), and identity-postgres (port 5532, a sibling
+ * service in this same local dev environment) which genuinely has SSL off
+ * — the real "TLS required + absent" fixture, no fabrication needed.
+ */
+describe('connector_test_1 TLS fast-follow — real TLS negotiation and validation, not fabricated', () => {
+  it('sslMode "disable" (default) behaves exactly as before — no TLS negotiated', async () => {
+    const service = new ClientDatabaseConnectionService();
+    const clientId = await makeClient(`TLS disable ${randomUUID().slice(0, 8)}`);
+    const created = await service.create({
+      clientId, name: 'disable mode', connectorType: 'postgresql', host: 'localhost', port: 5442,
+      databaseName: 'comparison', username: 'comp_user', password: 'comp_local_pass', environment: 'development',
+    });
+    if (!created.ok) throw new Error('setup failed');
+    const tested = await service.test(created.value.id, clientId);
+    if (!tested.ok) throw new Error('test failed');
+    expect(tested.value.status).toBe('connected');
+    expect(tested.value.lastTestSteps.some(s => s.step.startsWith('TLS Negotiated'))).toBe(false);
+  });
+
+  it('sslMode "require" against a real TLS-capable Postgres → PASS, with real, auditable proof TLS was negotiated', async () => {
+    const service = new ClientDatabaseConnectionService();
+    const clientId = await makeClient(`TLS require PASS ${randomUUID().slice(0, 8)}`);
+    const created = await service.create({
+      clientId, name: 'require mode, real TLS server', connectorType: 'postgresql', host: 'localhost', port: 5442,
+      databaseName: 'comparison', username: 'comp_user', password: 'comp_local_pass', environment: 'production',
+      sslMode: 'require',
+    });
+    if (!created.ok) throw new Error('setup failed');
+    const tested = await service.test(created.value.id, clientId);
+    if (!tested.ok) throw new Error('test failed');
+    expect(tested.value.status).toBe('connected');
+    const tlsStep = tested.value.lastTestSteps.find(s => s.step.startsWith('TLS Negotiated'));
+    expect(tlsStep?.pass).toBe(true);
+    expect(tlsStep?.step).toMatch(/TLSv1/);
+  });
+
+  it('sslMode "require" against a real Postgres with SSL genuinely OFF → BLOCKED/FAILED closed, never a silent plaintext fallback', async () => {
+    const service = new ClientDatabaseConnectionService();
+    const clientId = await makeClient(`TLS require FAIL ${randomUUID().slice(0, 8)}`);
+    // identity-postgres — a real, sibling local service with ssl=off,
+    // confirmed live via `SHOW ssl;` before this suite was written.
+    const created = await service.create({
+      clientId, name: 'require mode, server has no TLS', connectorType: 'postgresql', host: 'localhost', port: 5532,
+      databaseName: 'identity', username: 'identity_user', password: 'identity_local_pass', environment: 'production',
+      sslMode: 'require',
+    });
+    if (!created.ok) throw new Error('setup failed');
+    const tested = await service.test(created.value.id, clientId);
+    if (!tested.ok) throw new Error('test failed');
+    expect(tested.value.status).toBe('failed');
+    expect(tested.value.lastTestError).toMatch(/TLS connection failed/i);
+  });
+
+  it('sslMode "verify-full" WITHOUT a trusted CA rejects the real server\'s self-signed certificate', async () => {
+    const service = new ClientDatabaseConnectionService();
+    const clientId = await makeClient(`TLS verify-full untrusted ${randomUUID().slice(0, 8)}`);
+    const created = await service.create({
+      clientId, name: 'verify-full, no CA provided', connectorType: 'postgresql', host: 'localhost', port: 5442,
+      databaseName: 'comparison', username: 'comp_user', password: 'comp_local_pass', environment: 'production',
+      sslMode: 'verify-full',
+    });
+    if (!created.ok) throw new Error('setup failed');
+    const tested = await service.test(created.value.id, clientId);
+    if (!tested.ok) throw new Error('test failed');
+    expect(tested.value.status).toBe('failed');
+    expect(tested.value.lastTestError).toMatch(/TLS connection failed/i);
+  });
+
+  it('sslMode "verify-full" WITH the real trusted CA and matching hostname → PASS, real chain + hostname validation', async () => {
+    const caCertificate = fs.readFileSync(DEV_TLS_CA, 'utf8');
+    const service = new ClientDatabaseConnectionService();
+    const clientId = await makeClient(`TLS verify-full trusted ${randomUUID().slice(0, 8)}`);
+    const created = await service.create({
+      clientId, name: 'verify-full, real CA trusted', connectorType: 'postgresql', host: 'localhost', port: 5442,
+      databaseName: 'comparison', username: 'comp_user', password: 'comp_local_pass', environment: 'production',
+      sslMode: 'verify-full', sslCaCertificate: caCertificate,
+    });
+    if (!created.ok) throw new Error('setup failed');
+    const tested = await service.test(created.value.id, clientId);
+    if (!tested.ok) throw new Error('test failed');
+    expect(tested.value.status).toBe('connected');
+    const tlsStep = tested.value.lastTestSteps.find(s => s.step.startsWith('TLS Negotiated'));
+    expect(tlsStep?.pass).toBe(true);
+  });
+
+  it('changing sslMode alone (no host/port/credential change) correctly invalidates a stale "Connected" status', async () => {
+    const service = new ClientDatabaseConnectionService();
+    const clientId = await makeClient(`TLS mode change invalidates ${randomUUID().slice(0, 8)}`);
+    const created = await service.create({
+      clientId, name: 'mode change test', connectorType: 'postgresql', host: 'localhost', port: 5442,
+      databaseName: 'comparison', username: 'comp_user', password: 'comp_local_pass', environment: 'development',
+    });
+    if (!created.ok) throw new Error('setup failed');
+    const tested = await service.test(created.value.id, clientId);
+    if (!tested.ok || tested.value.status !== 'connected') throw new Error('setup test failed');
+
+    const updated = await service.update(created.value.id, clientId, { sslMode: 'require' }, 'test');
+    if (!updated.ok) throw new Error('update failed');
+    expect(updated.value.status).toBe('not_tested');
+  });
+});
+
+/**
+ * connector_test_1 SSRF fast-follow (2026-08-24). Real, live proof through
+ * the actual `ClientDatabaseConnectionService.test()` path (not just the
+ * unit-level network-security-policy.test.ts) that a caller cannot use the
+ * "test connection" feature as an unrestricted server-side request
+ * primitive against AskABD's own infrastructure.
+ */
+describe('connector_test_1 SSRF fast-follow — real outbound destination policy enforced end-to-end', () => {
+  it('a connection pointed at a cloud metadata address is BLOCKED before any real network attempt', async () => {
+    const service = new ClientDatabaseConnectionService();
+    const clientId = await makeClient(`SSRF metadata ${randomUUID().slice(0, 8)}`);
+    const created = await service.create({
+      clientId, name: 'metadata probe attempt', connectorType: 'postgresql', host: '169.254.169.254', port: 80,
+      databaseName: 'x', username: 'x', password: 'x', environment: 'production',
+    });
+    if (!created.ok) throw new Error('setup failed');
+    const tested = await service.test(created.value.id, clientId);
+    if (!tested.ok) throw new Error('test failed');
+    expect(tested.value.status).toBe('failed');
+    const dnsStep = tested.value.lastTestSteps.find(s => s.step === 'DNS Resolution');
+    expect(dnsStep?.pass).toBe(false);
+    expect(dnsStep?.error).toMatch(/not permitted/i);
+  });
+
+  it('a connection pointed at a private RFC1918 address is BLOCKED before any real network attempt', async () => {
+    const service = new ClientDatabaseConnectionService();
+    const clientId = await makeClient(`SSRF private ${randomUUID().slice(0, 8)}`);
+    const created = await service.create({
+      clientId, name: 'private network probe attempt', connectorType: 'postgresql', host: '10.1.2.3', port: 5432,
+      databaseName: 'x', username: 'x', password: 'x', environment: 'production',
+    });
+    if (!created.ok) throw new Error('setup failed');
+    const tested = await service.test(created.value.id, clientId);
+    if (!tested.ok) throw new Error('test failed');
+    expect(tested.value.status).toBe('failed');
+    expect(tested.value.lastTestSteps.find(s => s.step === 'DNS Resolution')?.pass).toBe(false);
+  });
+
+  it('a genuinely approved destination (the real local Postgres) is ALLOWED and reaches a real result', async () => {
+    const service = new ClientDatabaseConnectionService();
+    const clientId = await makeClient(`SSRF approved ${randomUUID().slice(0, 8)}`);
+    const created = await service.create({
+      clientId, name: 'approved destination', connectorType: 'postgresql', host: 'localhost', port: 5442,
+      databaseName: 'comparison', username: 'comp_user', password: 'comp_local_pass', environment: 'development',
+    });
+    if (!created.ok) throw new Error('setup failed');
+    const tested = await service.test(created.value.id, clientId);
+    if (!tested.ok) throw new Error('test failed');
+    expect(tested.value.status).toBe('connected');
+  });
+
+  it('a malformed host is BLOCKED safely, never a crash', async () => {
+    const service = new ClientDatabaseConnectionService();
+    const clientId = await makeClient(`SSRF malformed ${randomUUID().slice(0, 8)}`);
+    const created = await service.create({
+      clientId, name: 'malformed host', connectorType: 'other', host: 'not a real host!!', port: 9999,
+      databaseName: 'x', username: 'x', password: 'x', environment: 'production',
+    });
+    if (!created.ok) throw new Error('setup failed');
+    const tested = await service.test(created.value.id, clientId);
+    expect(tested.ok).toBe(true);
+    if (tested.ok) expect(tested.value.status).toBe('failed');
   });
 });
