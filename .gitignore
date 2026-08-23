@@ -18,3 +18,15 @@ apps/api/uploads/
 infra/aws/.terraform/
 *.tfstate
 *.tfstate.*
+
+# Real Playwright evidence artifacts — only the BINARY captures (screenshots/
+# traces/videos) are local-only, matching the established uploads/ and
+# .terraform/ precedent (may incidentally capture real client-adjacent UI
+# state even from disposable QA fixtures). The structured .md/.html evidence
+# REPORTS are deliberately tracked — they contain no binary/visual capture,
+# only text observations, and are the durable, reviewable record.
+test-evidence/**/*.png
+test-evidence/**/*.mp4
+test-evidence/**/*.webm
+test-evidence/**/*.zip
+test-evidence/**/trace/

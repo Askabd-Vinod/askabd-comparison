@@ -1589,6 +1589,66 @@ services. `npm run health`: 11/11 (after the now-seventh instance of the
 known build-disrupts-dev-server-port-binding pattern, fixed via the
 now-standard procedure).
 
+## Completed This Session — Master Autonomous Client + Real-Time Validation Program adopted; comparison_test_1 (2026-08-23)
+
+The user issued a comprehensive, formal standard governing all future
+work: a dedicated disposable QA client per feature area
+(`AskABD PW <Feature> Test <NUMBER>`), a strict test/evidence naming
+convention (`<feature>_test_<number>`), a structured `/test-evidence/`
+directory per feature, a mandatory screenshot/report convention, and a
+formal per-feature reporting format. Adopted immediately:
+
+1. **`test-evidence/`** created at the repo root with one subdirectory
+   per major engine (comparison, requirements, gap-analysis, documents,
+   migration, testing, security, connectors, uat). **A real, deliberate
+   `.gitignore` distinction made**: only binary captures (`*.png`,
+   `*.mp4`, `*.webm`, `*.zip`, `trace/`) are untracked, matching the
+   established `uploads/`/`.terraform/` precedent (may incidentally
+   capture real client-adjacent UI state); the structured `.md`/`.html`
+   evidence reports themselves are deliberately tracked in git — text
+   observations only, the durable reviewable record the user's own
+   example structure explicitly named.
+2. **A real, honest limitation identified and disclosed, not
+   papered over**: no tool available this session saves Browser-pane
+   screenshots as discrete `.png` files to disk, and Playwright trace/
+   video capture is not enabled. Every real screenshot/observation this
+   pass was captured live in the session transcript, not as separate
+   numbered image files — recorded explicitly as `TRACE_NOT_AVAILABLE` /
+   `VIDEO_NOT_AVAILABLE` in the evidence report, per the user's own
+   "document the limitation, never claim evidence that doesn't exist"
+   convention.
+3. **`comparison_test_1`** — the first full pass under the new standard,
+   validating the Universal Comparison Engine authenticated end-to-end
+   for the first time this session (previously only unauthenticated-
+   boundary + API tests). Real client `AskABD PW Comparison Test 001`
+   created through the actual onboarding wizard; its Lifecycle status
+   was advanced directly to the "Connector Configuration" stage via a
+   real, attributed, explicitly-logged fixture-setup shortcut (disclosed
+   honestly as NOT a Lifecycle Engine UI test — that remains a real,
+   separate fast-follow) so the real `DatabaseConnectionsManager` UI
+   could be reached; two real PostgreSQL connections added and tested
+   through that real UI; a real comparison run executed
+   (`+ New Comparison` → `Run Comparison`) returning a real, correct
+   **199 matches / 0 differences** (both connections point at the same
+   real dev database); persistence verified twice (reload, and
+   navigate-away-and-return); console and network confirmed clean; full
+   exact-ID cleanup performed and verified (zero orphans across 8
+   affected tables, both protected clients unchanged, real Client
+   Directory back to exactly 6 clients, confirmed both by direct query
+   and by reloading the real UI). **A real, reproducible tool-level
+   click-delivery quirk found and worked around, not an app defect**:
+   the "Test" button for the second of two connections in the same list
+   silently failed to register across three different click methods
+   (ref-click, coordinate-click, a mis-scoped JS ancestor-text
+   traversal) before precisely indexing the live-queried DOM node
+   resolved it — each attempt verified against the real database status,
+   never assumed from the click alone. Full write-up:
+   `test-evidence/comparison/comparison_test_1/comparison_test_1.md`.
+4. **No code was changed this pass** — a pure, real validation run.
+   `npm run health`: 11/11. The existing 581/581 API and 33/33 Web
+   regression baselines are unaffected and were not re-run (no source
+   files touched).
+
 ## Failed Tests
 
 **Secure Client Environment Connectivity Engine pass (2026-08-23)**: no
