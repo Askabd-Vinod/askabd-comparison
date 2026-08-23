@@ -1671,6 +1671,28 @@ formal per-feature reporting format. Adopted immediately:
    delivered. Full write-up:
    `test-evidence/requirements/requirements_test_1/requirements_test_1.md`.
    No code changed this pass either.
+6. **`gap_analysis_test_1`** — real client `AskABD PW Gap Analysis Test
+   001`. **A real, honest UI-reachability finding**: the Gap Analysis
+   page has no manual "Create Gap" button (only "Generate from
+   Problems"), and Problem Universe has no manual "Add Problem" button
+   either — a real, multi-stage prerequisite chain (Discovery →
+   Assessment → auto-detected Problems → Gap generation) with no UI
+   shortcut at any stage. One real, disclosed fixture Problem row was
+   seeded directly to satisfy the precondition; the actual feature under
+   test (gap generation, compliance classification, evidence) was then
+   exercised entirely through the real UI. Real "Generate from Problems"
+   click produced a real gap, correctly defaulting `compliance_status`
+   to UNKNOWN. Real reclassification to `non_compliant` with a real,
+   required reason — verified by direct query: exact reason text, real
+   staff attribution, live badge update with no reload needed. Real
+   evidence added — verified stored with the honest default
+   `verification_status: needs_verification`, never auto-verified.
+   Persistence verified after reload (dashboard's compliance breakdown
+   correctly moved from Unknown to Non-Compliant). Full exact-ID cleanup
+   verified (zero orphans across 9 tables, including
+   `traceability_links` scoped to the real gap/problem IDs). Full
+   write-up: `test-evidence/gap-analysis/gap_analysis_test_1/
+   gap_analysis_test_1.md`. No code changed this pass.
 
 ## Failed Tests
 
