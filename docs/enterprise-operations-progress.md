@@ -2220,9 +2220,9 @@ database and verified via direct query).
 
 ## Last Verified Commit
 
-**Update (2026-08-23, `compliance_test_1` pass)**: commit hash to be
-recorded in a follow-up docs commit immediately after this one lands (same
-two-commit pattern used for every prior pass). This pass: pure, real
+**Update (2026-08-23, `compliance_test_1` pass)**: `e51f4f4` on
+`feature/reliability-hardening`, pushed to origin — confirmed
+`0c11fd6..e51f4f4`. `main` reconfirmed unchanged at `b63f797`. This pass: pure, real
 validation of the Compliance Automation Engine — no application code
 changed, only `docs/` and `test-evidence/`.
 
