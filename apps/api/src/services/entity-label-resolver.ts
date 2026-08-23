@@ -23,8 +23,16 @@
  * `gap_options_decisions` is a genuinely mixed source — its real IDs come
  * from TWO different tables (`oc_gap_options` and `oc_decisions`) under one
  * type string, so its resolver tries both real tables in turn.
+ *
+ * Real fix (found via `traceability_test_1`): the alias table below now
+ * imports `TYPE_ALIASES` from `traceability-engine.ts` instead of keeping
+ * its own separate copy — the engine's own chain queries (`walk()`,
+ * `getOutboundLinks`/`getInboundLinks`) were made alias-aware there too,
+ * so this file's alias list and the engine's query-matching alias list can
+ * never drift apart into two different "canonical" answers.
  */
 import { sharedPool } from './db-pool.js';
+import { TYPE_ALIASES } from './traceability-engine.js';
 
 type Resolver = (id: string) => Promise<string | null>;
 
@@ -56,13 +64,7 @@ const RESOLVERS: Record<string, Resolver> = {
   gap_option: (id) => lookup(`SELECT name FROM oc_gap_options WHERE id = $1`, id, r => r.name ? `Option: ${r.name}` : null),
 };
 
-const ALIASES: Record<string, string> = {
-  business_requirements: 'business_requirement',
-  gaps: 'gap',
-  transformations: 'transformation',
-  discovery_sources: 'discovery_source',
-  assessments: 'assessment',
-};
+const ALIASES: Record<string, string> = TYPE_ALIASES;
 
 export async function resolveEntityLabel(entityType: string, entityId: string): Promise<string | null> {
   if (entityType === 'gap_options_decisions') {

@@ -149,3 +149,53 @@ describe('TraceabilityEngine — real multi-hop chain traversal', () => {
     expect(await engine.getBackwardChain('lonely_type', lonely)).toEqual([]);
   });
 });
+
+describe('TraceabilityEngine — real type-alias awareness (found via traceability_test_1)', () => {
+  // Real, live-reproduced bug: document-generation-engine.ts records links
+  // using the PLURAL data-source-registry key ('business_requirements'),
+  // while gap-analysis-service.ts and the Traceability UI's own query root
+  // use the SINGULAR form ('business_requirement') for the exact same real
+  // concept. Before this fix, a real, correctly-created link row was
+  // invisible from a singular-rooted chain lookup — not a missing link,
+  // a real one the exact-match query simply couldn't find.
+  it('a link recorded under the PLURAL form is found by a chain query rooted at the SINGULAR form', async () => {
+    const br = node();
+    const doc = node();
+    await engine.link('business_requirements', br, 'generated_document', doc, 'derives_from', null); // plural, exactly as document-generation-engine.ts writes it
+
+    const forward = await engine.getForwardChain('business_requirement', br); // singular root, exactly as the Traceability UI queries
+    expect(forward.map(c => c.targetId)).toEqual([doc]);
+
+    const outbound = await engine.getOutboundLinks('business_requirement', br);
+    expect(outbound.map(l => l.targetId)).toEqual([doc]);
+  });
+
+  it('works symmetrically the other direction: a SINGULAR-recorded link is found by a PLURAL-rooted query', async () => {
+    const gap = node();
+    const rec = node();
+    await engine.link('gap', gap, 'recommendation', rec, 'derives_from', null); // singular, as gap-analysis-service.ts writes it
+
+    const forward = await engine.getForwardChain('gaps', gap); // plural root
+    expect(forward.map(c => c.targetId)).toEqual([rec]);
+  });
+
+  it('a real multi-hop chain spanning BOTH vocabularies in the same path resolves correctly end to end', async () => {
+    const br = node();
+    const doc = node();
+    const extra = node();
+    await engine.link('business_requirements', br, 'generated_document', doc, 'derives_from', null); // plural hop 1
+    await engine.link('generated_document', doc, 'downstream_thing', extra, 'relates_to', null); // singular-style hop 2
+
+    const forward = await engine.getForwardChain('business_requirement', br);
+    expect(forward.map(c => c.targetId)).toEqual([doc, extra]);
+    expect(forward.map(c => c.depth)).toEqual([1, 2]);
+  });
+
+  it('a type with no known alias is unaffected — behaves exactly as before', async () => {
+    const a = node(); const b = node();
+    await engine.link('totally_unaliased_type', a, 'other', b, 'relates_to', null);
+    expect((await engine.getForwardChain('totally_unaliased_type', a)).map(c => c.targetId)).toEqual([b]);
+    // The alias's OWN unrelated canonical form must not accidentally match an unrelated node.
+    expect(await engine.getForwardChain('gap', a)).toEqual([]);
+  });
+});

@@ -29,9 +29,10 @@ Registry, real capability negotiation — just adopted, first vertical
 slice done this pass on the Universal Comparison Engine). Validated so
 far under directive (3)'s execution order: `comparison_test_1`,
 `requirements_test_1`, `gap_analysis_test_1`, `discovery_test_1`,
-`assessment_test_1`, `compliance_test_1`, `solution_test_1`. **Next up,
-per the standing "continue automatically" authorization**:
-`traceability_test_1`, and onward down the named list in
+`assessment_test_1`, `compliance_test_1`, `solution_test_1`,
+`traceability_test_1`. **Next up, per the standing "continue
+automatically" authorization**:
+`document_generation_test_1`, and onward down the named list in
 `docs/eoc-feature-coverage-matrix.md`'s own execution order, ending in
 `FULL_END_TO_END_CLIENT_TEST_1`. Read `docs/eoc-feature-coverage-matrix.md`
 alongside this file — it is the authoritative, row-by-row honest status
@@ -1924,6 +1925,43 @@ formal per-feature reporting format. Adopted immediately:
     orphans, both protected clients confirmed unchanged. Full write-up:
     `test-evidence/solution/solution_test_1/solution_test_1.md`.
     `docs/eoc-feature-coverage-matrix.md` row #23 updated.
+13. **`traceability_test_1`** — real client `AskABD PW Traceability Test
+    1`. Built a fresh, real multi-hop chain through the actual UI: one
+    real Business Requirement, 3 real test cases generated from it via
+    the Testing Engine (real backward links), and 1 real Business
+    Requirements Document generated from it via the Documents page (a
+    real forward link). **Converted this session's own previously-only-
+    documented "singular/plural traceability link-type vocabulary
+    inconsistency" Pending Tasks item into a concretely reproduced, root-
+    caused, fixed, and regression-tested defect**: the real document-
+    derived link (recorded as `business_requirements`, plural, per
+    `document-generation-engine.ts`'s own code) was genuinely invisible
+    from the Traceability UI's singular-rooted (`business_requirement`)
+    chain query — not a missing link, a real one an overly-strict
+    exact-match query couldn't find. Fixed by adding a real, exported
+    `TYPE_ALIASES` canonical map + `expandTypeAliases()` helper directly
+    in `traceability-engine.ts` (formalizing the Pending Tasks note's own
+    suggested resolution option "(b)"), making `walk()`,
+    `getOutboundLinks`, and `getInboundLinks` all alias-aware; refactored
+    `entity-label-resolver.ts` to import this same table instead of
+    keeping a separate copy (closing a real future-drift risk); made the
+    frontend's own `EntityChip` type→label map alias-aware too (a real,
+    live-found, purely cosmetic follow-on — the found link's chip showed
+    the raw `BUSINESS_REQUIREMENTS` string before this). Also fixed a
+    real, minor, stale-copy issue on the same page (still said "forward
+    chain" from before the earlier bidirectional-rendering fix). 4 new
+    real regression tests added to `traceability-engine.test.ts` (now 20)
+    proving alias-matching both directions, a real multi-hop chain
+    spanning both vocabularies, and that unrelated types are unaffected.
+    Full API regression: 595/595 passing. Re-verified live: both
+    directions now render correctly together for the same real chain.
+    Full exact-ID cleanup performed, including the entity-keyed
+    `traceability_links` table (no `client_id` column — real entity ids
+    collected first, exactly the 4 real link rows they created deleted
+    and verified). Zero orphans, both protected clients confirmed
+    unchanged. Full write-up: `test-evidence/traceability/
+    traceability_test_1/traceability_test_1.md`.
+    `docs/eoc-feature-coverage-matrix.md` row #15 updated.
 
 ## Failed Tests
 
@@ -2147,7 +2185,8 @@ one. The one test failure above was correctly diagnosed as non-code.
    (would require understanding/reworking this method's relationship to
    the separate, real `recommendation-service.ts` — its own scoped task,
    not a fly-by fix).
-6. **Out of scope, flagged not fixed, designed around not papered over**:
+6. **RESOLVED at the read layer via `traceability_test_1` (2026-08-23,
+   this pass) — real rows still not migrated, real remaining work**:
    `traceability_links.source_type`/`target_type` has been recorded under
    TWO different vocabularies for the same real concepts by different
    services — singular (`business_requirement`, `gap`, `transformation`,
@@ -2155,17 +2194,23 @@ one. The one test failure above was correctly diagnosed as non-code.
    and plural, data-source-registry-key form (`business_requirements`,
    `gaps`, `transformations`, `gap_options_decisions`,
    `discovery_sources`, `assessments`, from
-   `document-generation-engine.ts`). Found while building the Requirements
-   Traceability Matrix UI. `entity-label-resolver.ts` defensively aliases
-   both forms so display degrades gracefully, but the underlying
-   `traceability_links` rows themselves are not normalized to one
-   vocabulary — that would mean auditing/migrating already-recorded link
-   rows across 3 services, real, separate work, out of scope for a
-   UI-surfacing task. A future pass should either (a) pick one
-   vocabulary and migrate existing rows plus the 3 call sites, or (b)
-   formalize the alias table as a permanent, documented part of the
-   Traceability Engine's own contract rather than a resolver-only
-   workaround.
+   `document-generation-engine.ts`). Originally found while building the
+   Requirements Traceability Matrix UI (display-only alias in
+   `entity-label-resolver.ts`); `traceability_test_1` concretely
+   reproduced its real functional impact (a genuinely invisible real
+   link) and fixed resolution option "(b)" from this item's own prior
+   text: `traceability-engine.ts` now exports a canonical `TYPE_ALIASES`
+   map + `expandTypeAliases()`, and `walk()`/`getOutboundLinks`/
+   `getInboundLinks` all match every known alias form, not just the exact
+   string passed in; `entity-label-resolver.ts` now imports this same
+   table instead of keeping a separate copy. **Still real, deliberately
+   deferred**: existing already-recorded `traceability_links` rows are
+   NOT migrated to one vocabulary (option "(a)" from this item's original
+   text) — the 3 write-side call sites still each use their own
+   historical vocabulary; only the read/query path was fixed. A future
+   pass could still choose to normalize the write side and backfill
+   existing rows for full internal consistency, though the real
+   user-facing symptom (an invisible link) is now resolved.
 7. **Out of scope, flagged not fixed**: `entity-label-resolver.ts`'s
    `recommendation` resolver currently points at `oc_gap_options` (the
    only real, individually-addressable table close to that concept) —
@@ -2253,6 +2298,18 @@ for the full list through 037; `038_business_requirements.sql` through
 database and verified via direct query).
 
 ## Last Verified Commit
+
+**Update (2026-08-23, `traceability_test_1` pass)**: commit hash to be
+recorded in a follow-up docs commit immediately after this one lands
+(same two-commit pattern used for every prior pass). This pass: a real
+backend fix (`traceability-engine.ts`'s new alias-aware chain queries,
+`entity-label-resolver.ts` refactored to share the same alias table) plus
+two small, real frontend fixes (`traceability-manager.tsx`'s chip-label
+aliasing, `traceability/page.tsx`'s stale copy) and `traceability_test_1`'s
+live Playwright pass. Full API regression re-confirmed 595/595 passing (4
+new alias-awareness tests).
+
+## Older: solution_test_1
 
 **Update (2026-08-23, `solution_test_1` pass)**: `45cb670` on
 `feature/reliability-hardening`, pushed to origin — confirmed

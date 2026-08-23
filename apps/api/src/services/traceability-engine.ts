@@ -18,6 +18,45 @@
  */
 import { sharedPool } from './db-pool.js';
 
+/**
+ * Real, live-reproduced fix (found via `traceability_test_1`): a real
+ * BRD document generated from a real business requirement creates a
+ * `traceability_links` row via `document-generation-engine.ts`, whose
+ * `sourceType` is literally its own internal data-source-registry key —
+ * PLURAL (`business_requirements`) — while every other writer
+ * (`gap-analysis-service.ts`, `decision-transformation-service.ts`, the
+ * Traceability UI's own query root) uses the SINGULAR form
+ * (`business_requirement`). Before this fix, that meant a real,
+ * correctly-created link row was silently invisible from the singular
+ * root's forward chain — not a missing link, a real link the exact-match
+ * query simply couldn't find. `entity-label-resolver.ts` already aliased
+ * both forms for DISPLAY purposes only; this is the same alias table
+ * formalized as part of the engine's own query contract (per the
+ * doc-comment's own "(b) formalize the alias table" resolution option),
+ * so a chain lookup finds a real link regardless of which of the two
+ * historically-inconsistent forms it happened to be recorded under.
+ * Existing rows are NOT migrated (real, separate, deliberately deferred
+ * work) — this fixes the READ path, which is where the real user-facing
+ * impact is.
+ */
+export const TYPE_ALIASES: Record<string, string> = {
+  business_requirements: 'business_requirement',
+  gaps: 'gap',
+  transformations: 'transformation',
+  discovery_sources: 'discovery_source',
+  assessments: 'assessment',
+};
+
+/** Every real string a `traceability_links` row might use for this same logical type — the canonical form plus any known alias(es), in both directions. */
+export function expandTypeAliases(type: string): string[] {
+  const canonical = TYPE_ALIASES[type] || type;
+  const forms = new Set<string>([type, canonical]);
+  for (const [plural, singular] of Object.entries(TYPE_ALIASES)) {
+    if (singular === canonical) forms.add(plural);
+  }
+  return Array.from(forms);
+}
+
 export type LinkType = 'derives_from' | 'implements' | 'tests' | 'blocks' | 'depends_on' | 'relates_to';
 
 export interface TraceabilityLink {
@@ -83,20 +122,20 @@ export class TraceabilityEngine {
     return (res.rowCount ?? 0) > 0;
   }
 
-  /** Direct outbound links only (this entity as source) — one hop, not a chain. */
+  /** Direct outbound links only (this entity as source) — one hop, not a chain. Alias-aware, same as `walk()` — see its doc comment. */
   async getOutboundLinks(sourceType: string, sourceId: string): Promise<TraceabilityLink[]> {
     const res = await sharedPool.query<Row>(
-      `SELECT * FROM traceability_links WHERE source_type = $1 AND source_id = $2 ORDER BY created_at ASC`,
-      [sourceType, sourceId]
+      `SELECT * FROM traceability_links WHERE source_type = ANY($1::text[]) AND source_id = $2 ORDER BY created_at ASC`,
+      [expandTypeAliases(sourceType), sourceId]
     );
     return res.rows.map(toLink);
   }
 
-  /** Direct inbound links only (this entity as target) — one hop, not a chain. */
+  /** Direct inbound links only (this entity as target) — one hop, not a chain. Alias-aware, same as `walk()` — see its doc comment. */
   async getInboundLinks(targetType: string, targetId: string): Promise<TraceabilityLink[]> {
     const res = await sharedPool.query<Row>(
-      `SELECT * FROM traceability_links WHERE target_type = $1 AND target_id = $2 ORDER BY created_at ASC`,
-      [targetType, targetId]
+      `SELECT * FROM traceability_links WHERE target_type = ANY($1::text[]) AND target_id = $2 ORDER BY created_at ASC`,
+      [expandTypeAliases(targetType), targetId]
     );
     return res.rows.map(toLink);
   }
@@ -129,12 +168,19 @@ export class TraceabilityEngine {
     // exact mirror image of forward, written out explicitly rather than
     // built by string manipulation, so both directions are easy to verify
     // by eye and neither risks a column-name-splicing bug.
+    // Only the base case (the root node itself) needs alias-awareness —
+    // once the recursive step is past the first hop, it's matching two
+    // real, already-recorded type strings against each other
+    // (`tl.source_type = chain.target_type`), which is correct regardless
+    // of which vocabulary either happened to use.
+    const rootTypes = expandTypeAliases(entityType);
+
     const sql = direction === 'forward'
       ? `WITH RECURSIVE chain AS (
            SELECT id, source_type, source_id, target_type, target_id, link_type, created_by, created_at, 1 AS depth,
                   ARRAY[source_type || ':' || source_id] AS path
            FROM traceability_links
-           WHERE source_type = $1 AND source_id = $2
+           WHERE source_type = ANY($1::text[]) AND source_id = $2
            UNION ALL
            SELECT tl.id, tl.source_type, tl.source_id, tl.target_type, tl.target_id, tl.link_type, tl.created_by, tl.created_at,
                   chain.depth + 1, chain.path || (tl.source_type || ':' || tl.source_id)
@@ -149,7 +195,7 @@ export class TraceabilityEngine {
            SELECT id, source_type, source_id, target_type, target_id, link_type, created_by, created_at, 1 AS depth,
                   ARRAY[target_type || ':' || target_id] AS path
            FROM traceability_links
-           WHERE target_type = $1 AND target_id = $2
+           WHERE target_type = ANY($1::text[]) AND target_id = $2
            UNION ALL
            SELECT tl.id, tl.source_type, tl.source_id, tl.target_type, tl.target_id, tl.link_type, tl.created_by, tl.created_at,
                   chain.depth + 1, chain.path || (tl.target_type || ':' || tl.target_id)
@@ -161,7 +207,7 @@ export class TraceabilityEngine {
          SELECT DISTINCT ON (id) id, source_type, source_id, target_type, target_id, link_type, created_by, created_at, depth
          FROM chain ORDER BY id, depth ASC`;
 
-    const res = await sharedPool.query<ChainRow>(sql, [entityType, entityId, maxDepth]);
+    const res = await sharedPool.query<ChainRow>(sql, [rootTypes, entityId, maxDepth]);
     return res.rows.map(toChainLink).sort((a, b) => a.depth - b.depth);
   }
 }

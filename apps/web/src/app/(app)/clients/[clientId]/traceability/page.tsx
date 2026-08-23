@@ -20,9 +20,10 @@ export default async function ClientTraceabilityPage({ params }: PageProps) {
     <div>
       <h2 className="font-semibold text-lg mb-1">Traceability</h2>
       <p className="text-xs text-gray-500 mb-6">
-        The real, recorded chain from a business requirement down to everything that derives from it —
-        gaps, recommendations, transformations, generated documents — every hop a real link row, never an
-        inferred or fabricated relationship. Pick a requirement below to see its real forward chain.
+        The real, recorded chain from a business requirement to everything that derives from it —
+        gaps, recommendations, transformations, generated documents — and everything that points back
+        into it, like test cases. Every hop a real link row, never an inferred or fabricated
+        relationship. Pick a requirement below to see its real trace, in both directions.
       </p>
       <TraceabilityManager clientId={clientId} requirements={requirements} />
     </div>

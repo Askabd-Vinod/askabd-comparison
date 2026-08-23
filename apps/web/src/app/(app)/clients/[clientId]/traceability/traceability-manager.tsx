@@ -27,12 +27,26 @@ const TYPE_COLOR: Record<string, string> = {
   transformation: 'bg-green-50 text-green-700 border-green-200',
   generated_document: 'bg-gray-100 text-gray-700 border-gray-200',
 };
+// Real fix (found via traceability_test_1): traceability_links rows can
+// legitimately carry either the singular ('business_requirement') or
+// plural, data-source-registry-key ('business_requirements') form of the
+// same real type — see traceability-engine.ts's own TYPE_ALIASES doc
+// comment for the full history. The backend chain query is now
+// alias-aware, so a plural-recorded link is genuinely found; this map
+// normalizes the DISPLAY side the same way, so its chip shows the same
+// friendly "Requirement" label regardless of which form it was recorded
+// under, rather than falling back to the raw, unfriendly type string.
+const TYPE_DISPLAY_ALIASES: Record<string, string> = {
+  business_requirements: 'business_requirement', gaps: 'gap', transformations: 'transformation',
+  discovery_sources: 'discovery_source', assessments: 'assessment',
+};
 
 function EntityChip({ type, id, label }: { type: string; id: string; label: string | null }) {
-  const cls = TYPE_COLOR[type] || 'bg-gray-50 text-gray-500 border-gray-200';
+  const canonicalType = TYPE_DISPLAY_ALIASES[type] || type;
+  const cls = TYPE_COLOR[canonicalType] || 'bg-gray-50 text-gray-500 border-gray-200';
   return (
     <span className={`inline-flex flex-col items-start text-left px-2 py-1 rounded-md border ${cls}`}>
-      <span className="text-[8px] font-semibold uppercase tracking-wide opacity-70">{TYPE_LABEL[type] || type}</span>
+      <span className="text-[8px] font-semibold uppercase tracking-wide opacity-70">{TYPE_LABEL[canonicalType] || type}</span>
       <span className="text-[11px] font-medium">
         {label ?? <span className="italic opacity-60">Label unavailable ({id.slice(0, 8)}…)</span>}
       </span>
