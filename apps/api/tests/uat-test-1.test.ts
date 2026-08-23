@@ -287,6 +287,38 @@ describe('UAT routes — RBAC + tenant isolation (Security Testing Addendum, min
     expect(JSON.stringify(res.json())).not.toMatch(/syntax error|relation|column/i);
   });
 
+  it('a genuinely empty-body POST to every UAT decision/create route is a safe 4xx, never an unhandled "Cannot read properties of undefined" crash (real bug found and fixed in release-readiness-routes.ts, audited across this sibling file)', async () => {
+    const app = await buildApp();
+    const { clientId, testCaseId } = await makeClientWithCase('UAT RBAC — Empty Body Audit');
+    const admin = await adminToken();
+    const cycle = await uat.createCycle(clientId, 'Empty Body Audit Cycle', '', [testCaseId], 'staff-actor');
+
+    const createNoBody = await app.inject({ method: 'POST', url: `/api/v1/oc/clients/${clientId}/uat/cycles`, headers: { authorization: `Bearer ${admin}` } });
+    expect(createNoBody.statusCode).toBeLessThan(500);
+
+    const workflow = await uat.requestSignoff(cycle.id, clientId, 'test-actor').catch(() => null); // not ready yet, expected to fail — fine, just need a real-shaped id below
+    const decisionRoutes = ['approve', 'reject', 'request-changes'];
+    for (const route of decisionRoutes) {
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/v1/oc/clients/${clientId}/uat/cycles/${cycle.id}/signoff/${workflow?.id ?? 'no-real-workflow'}/${route}`,
+        headers: { authorization: `Bearer ${admin}` },
+      });
+      expect(res.statusCode).toBeLessThan(500);
+    }
+
+    const orgExec = `org-uat-emptybody-${randomUUID()}`;
+    cleanupOrgContexts.push(orgExec);
+    await mappingService.createMapping({ clientId, orgContext: orgExec, createdBy: 'test-fixture' });
+    const customerToken = await signToken({ sub: 'customer-emptybody', org: orgExec, roles: [] });
+    const execNoBody = await app.inject({
+      method: 'POST', url: `/api/v1/oc/portal/${clientId}/uat/cycles/${cycle.id}/test-cases/${testCaseId}/executions`,
+      headers: { authorization: `Bearer ${customerToken}` },
+    });
+    expect(execNoBody.statusCode).toBeLessThan(500);
+    expect(execNoBody.statusCode).toBeGreaterThanOrEqual(400);
+  });
+
   it('the real business rule is enforced at the HTTP layer too: requesting sign-off before all cases are terminal returns 409, not a fabricated success', async () => {
     const app = await buildApp();
     const { clientId, testCaseId } = await makeClientWithCase('UAT RBAC — Signoff Not Ready HTTP');

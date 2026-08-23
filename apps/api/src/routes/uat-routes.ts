@@ -47,7 +47,7 @@ export async function uatRoutes(server: FastifyInstance): Promise<void> {
 
   server.post('/oc/clients/:clientId/uat/cycles', async (req: FastifyRequest, reply: FastifyReply) => {
     const { clientId } = req.params as { clientId: string };
-    const body = req.body as { name?: string; description?: string; testCaseIds?: string[] };
+    const body = (req.body as { name?: string; description?: string; testCaseIds?: string[] } | undefined) ?? {};
     const actor = getAuth(req)?.userId ?? null;
     try {
       const cycle = await uat.createCycle(clientId, body.name ?? '', body.description ?? '', body.testCaseIds ?? [], actor);
@@ -82,7 +82,7 @@ export async function uatRoutes(server: FastifyInstance): Promise<void> {
 
   server.post('/oc/clients/:clientId/uat/cycles/:cycleId/signoff/:workflowId/approve', async (req: FastifyRequest, reply: FastifyReply) => {
     const { clientId, workflowId } = req.params as { clientId: string; cycleId: string; workflowId: string };
-    const body = req.body as { note?: string };
+    const body = (req.body as { note?: string } | undefined) ?? {};
     const actor = getAuth(req)?.userId ?? null;
     try {
       reply.send(await uat.approveSignoff(workflowId, clientId, actor, body.note));
@@ -93,7 +93,7 @@ export async function uatRoutes(server: FastifyInstance): Promise<void> {
 
   server.post('/oc/clients/:clientId/uat/cycles/:cycleId/signoff/:workflowId/reject', async (req: FastifyRequest, reply: FastifyReply) => {
     const { clientId, workflowId } = req.params as { clientId: string; cycleId: string; workflowId: string };
-    const body = req.body as { note?: string };
+    const body = (req.body as { note?: string } | undefined) ?? {};
     const actor = getAuth(req)?.userId ?? null;
     try {
       reply.send(await uat.rejectSignoff(workflowId, clientId, actor, body.note ?? ''));
@@ -104,7 +104,7 @@ export async function uatRoutes(server: FastifyInstance): Promise<void> {
 
   server.post('/oc/clients/:clientId/uat/cycles/:cycleId/signoff/:workflowId/request-changes', async (req: FastifyRequest, reply: FastifyReply) => {
     const { clientId, workflowId } = req.params as { clientId: string; cycleId: string; workflowId: string };
-    const body = req.body as { note?: string };
+    const body = (req.body as { note?: string } | undefined) ?? {};
     const actor = getAuth(req)?.userId ?? null;
     try {
       reply.send(await uat.requestSignoffChanges(workflowId, clientId, actor, body.note ?? ''));
@@ -144,7 +144,7 @@ export async function uatRoutes(server: FastifyInstance): Promise<void> {
       return reply.status(401).send({ error: { code: 'not_authenticated', message: 'Sign in to record a UAT result.' } });
     }
     try {
-      const execution = await uat.recordExecution(cycleId, clientId, testCaseId, req.body as any, auth.userId);
+      const execution = await uat.recordExecution(cycleId, clientId, testCaseId, (req.body as any) ?? {}, auth.userId);
       reply.status(201).send(execution);
     } catch (err) {
       handleServiceError(err, reply);

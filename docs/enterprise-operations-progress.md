@@ -225,8 +225,71 @@ Full API regression: 675/675 passing (was 659; +16 new). Zero DB orphans
 verified post-run. Live UI still `BLOCKED_EXTERNAL_AUTH` (staff session
 still expired) and no dedicated UAT UI exists yet regardless — capped at
 `IMPLEMENTED`, not `PASS`, matching the `migration_test_1` precedent. See
-`docs/evidence/uat/uat_test_1/uat_test_1.md`. **Next up, per the standing
-"continue automatically" authorization**: `release_readiness_test_1`, and
+`docs/evidence/uat/uat_test_1/uat_test_1.md`.
+
+**Update (2026-08-24, continued)**: built the **Release Readiness Engine**
+(`release_readiness_test_1`) — the next `NOT_STARTED` row (#51) —
+confirmed as a genuinely distinct capability from the pre-existing
+per-client "Readiness" tab (which reuses `health-score`, a different
+question) by reading that page's real code first. New
+`release-readiness-service.ts`: real, read-only go/no-go aggregation over
+5 already-existing signals (lifecycle stage reaching `audit-passed`,
+persisted migration-validation result, critical-test-case pass rate, open
+critical/high defects, UAT sign-off via this session's own `uat_test_1`)
+— deliberately never re-triggers `runValidation()` itself (a real,
+disclosed side-effecting check, RISK-007) so a readiness check has no
+side effect. Real, enforced business rule: sign-off cannot be requested
+unless every blocking dimension is a real pass. Reuses
+`ApprovalWorkflowEngine` a second time this session
+(`entityType:'release_signoff'`, `entityId: clientId`). Staff-only
+(Admin.Access), no client-facing routes, matching the migration/lifecycle
+precedent. 10 new tests, all real, covering the aggregation logic and
+staff-only RBAC.
+
+Found and fixed a real bug during this pass's own testing: an empty-body
+POST crashed with an unhandled `TypeError` instead of a clean 4xx (Fastify
+leaves `request.body` as `undefined`, not `{}}`, when no body is sent).
+Mechanically audited the same pattern (`grep -rn "req.body as"
+apps/api/src/routes/*.ts`) and found 100+ pre-existing occurrences
+platform-wide; fixed every route in the two files this pass actually
+touched (`uat-routes.ts`, `release-readiness-routes.ts`), added a real
+`EXECUTION_STATUSES` validation to `UatService.recordExecution` to avoid
+a raw Postgres CHECK-constraint leak, and tracked the remaining ~90
+occurrences honestly as `docs/security-risk-register.md` RISK-009
+(`MITIGATED` for this pass's own routes, `OPEN` platform-wide) rather than
+either silently fixing everything (too large/risky a diff for this pass)
+or silently ignoring the rest.
+
+A real, zero-orphans DB sweep after this pass's full regression found and
+fixed 3 more real, unrelated cleanup gaps (an ad-hoc debug script's
+leftover client row, a genuinely reproducible cleanup bug in
+`release-readiness-test-1.test.ts`'s own `afterAll` that orphaned a
+`uat_signoff` approval-workflow row every run — root-caused and fixed,
+re-verified across two more clean runs — and 2 pre-existing leftover
+debug-fixture clients from an earlier session) — all documented in
+RISK-006's extended entry.
+
+Also investigated and honestly disclosed a real, pre-existing test
+-infrastructure characteristic discovered while chasing a trustworthy
+full-regression number: **the full 75-file `vitest run` suite is
+genuinely, intermittently flaky in this environment** — 5 full-suite
+attempts this pass alternated between 2 catastrophic failures (400+
+tests failing with `relation "..." does not exist` errors) and 3
+completely clean runs (686/686 passing), with the DB independently
+verified healthy and unchanged after every failing run, and this
+feature's own 2 new test files passing 27/27 every single time in focused
+isolation regardless of the full-suite's flakiness. Working hypothesis
+(connection-pool sizing vs. Vitest's parallel-worker model), full
+evidence, and a suggested fix are tracked as RISK-010 — a real, disclosed
+signal, not silently smoothed over by only reporting the clean numbers.
+See `docs/evidence/release_readiness/release_readiness_test_1/
+release_readiness_test_1.md` for the full write-up. Coverage matrix row
+#51 moved `NOT_STARTED` -> `IMPLEMENTED` (capped below `PASS` for the same
+reason as `uat_test_1` — no dedicated UI yet, and Playwright remains
+`BLOCKED_EXTERNAL_AUTH`).
+
+**Next up, per the standing "continue automatically" authorization**:
+`deployment_validation_test_1` / `post_delivery_test_1` (rows #52-53), and
 onward down the named list in `docs/eoc-feature-coverage-matrix.md`'s own
 execution order, ending in `FULL_END_TO_END_CLIENT_TEST_1`. Read
 `docs/eoc-feature-coverage-matrix.md` alongside this file — it is the
@@ -236,7 +299,9 @@ still green (services may need `npm run dev:all` again if the machine was
 restarted between sessions; the Web dev-server health check specifically
 needs `/staff/login` pre-warmed first with a longer-timeout curl — a known
 Next.js dev first-compile timing quirk, not a defect, see Last Health
-Check below).
+Check below). Also re-check RISK-010 (full-suite flakiness) if it
+recurs — consider whether a dedicated fix pass is now warranted before
+trusting any future "full regression: N/N passing" claim at face value.
 
 ### Original phase-based task description (superseded by the above, kept for history)
 

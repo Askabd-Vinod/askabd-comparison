@@ -467,6 +467,16 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   { method: 'POST', path: '/api/v1/oc/clients/:clientId/uat/cycles/:cycleId/signoff/:workflowId/approve', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/clients/:clientId/uat/cycles/:cycleId/signoff/:workflowId/reject', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/clients/:clientId/uat/cycles/:cycleId/signoff/:workflowId/request-changes', permissions: ['Admin.Access'] },
+
+  // ─── release_readiness_test_1 (2026-08-24) ──────────────────────────────
+  // Staff-only real go/no-go aggregation before a client's go-live
+  // transition (release-readiness-routes.ts) — AskABD's own internal
+  // decision, not a client-facing flow, same precedent as migration/
+  // lifecycle routes above.
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/release-readiness', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/release-readiness/signoff', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/release-readiness/signoff/request', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/release-readiness/signoff/:workflowId/:decision', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/test-executions', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/test-runs/:runIdA/compare/:runIdB', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/test-defects', permissions: ['Admin.Access'] },

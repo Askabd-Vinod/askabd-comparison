@@ -182,6 +182,51 @@ completion" principle.
   never a real client's data.
 - **Suggested fix**: add a real `fs.rmSync(uploads/<clientId>, {recursive:true})`
   step to the script.
+- **Update (2026-08-24, `release_readiness_test_1`)**: a real, zero-orphans
+  DB sweep (per the "cleanup scripts must verify zero orphans" mandate)
+  after this pass's own full regression found the SAME class of gap in
+  three more places:
+  1. A standalone ad-hoc debug script this session used to reproduce the
+     empty-body-POST bug created a real `oc_clients` row ("Debug Client X")
+     that was never deleted before the script file itself was removed — a
+     real oversight, same root cause as this risk (a throwaway script with
+     no cleanup step). Deleted directly, verified.
+  2. **A real, reproducible bug in `release-readiness-test-1.test.ts`'s own
+     `afterAll`** (not environmental — confirmed by reproducing it TWICE
+     across two separate, fully clean/isolated full-suite runs with no
+     concurrent contention): its cleanup only ran
+     `DELETE FROM approval_workflows WHERE entity_id = $1` (matching
+     `$1 = clientId`, correct for the `release_signoff` shape it creates
+     directly), but one of its own tests also creates a real
+     `uat_signoff` workflow via `UatService` as test setup, whose
+     `entity_id` is the UAT cycle's `test_suites` id — NOT the clientId —
+     so that row was silently orphaned every single run. Root-caused,
+     then fixed by adding the same `entity_id IN (SELECT id::text FROM
+     test_suites WHERE client_id = $1)` subquery pattern
+     `uat-test-1.test.ts` already used correctly; re-verified zero
+     orphans across two more clean runs after the fix.
+  3. 2 pre-existing "Debug Gap Client" rows dated 2026-08-22, from an
+     earlier session's own unrelated ad-hoc script — confirming the
+     ad-hoc-script cleanup gap (item 1) is a recurring pattern, not a
+     one-off. Deleted directly, verified.
+
+  (An earlier version of this note attributed item 2's 4 orphaned rows to
+  transient DB contention from a concurrent `npm run build` — that
+  contention was real and separately investigated, see
+  `docs/evidence/release_readiness/release_readiness_test_1/
+  release_readiness_test_1.md`, but was NOT the actual cause of the
+  orphaned `approval_workflows` rows; the real cause was this
+  file's own reproducible cleanup bug, confirmed once the contention
+  was eliminated and the orphan still recurred. Corrected here rather
+  than left standing, per "never leave a wrong conclusion undisclosed.")
+
+  Zero orphans re-confirmed after both the cleanup and the code fix;
+  both protected real clients (`AskABD Manual UAT 2026`, `Test1`)
+  confirmed unchanged throughout. Reinforces the suggested fix above and
+  extends it: any one-off/ad-hoc
+  script that calls `OperationsCenterService.createClient` for
+  reproduction purposes must delete the row itself before being discarded
+  — never rely on being remembered to clean up manually.
 
 ## RISK-007 — Migration Validation Engine is self-referential
 
@@ -234,6 +279,120 @@ completion" principle.
   cross-cutting "Connection Readiness" check that composes both
   `ConnectionSecurityService` and the TLS mode explicitly, rather than
   extending either service's own narrow responsibility.
+
+## RISK-009 — Many POST routes read `req.body` without a null-guard; a genuinely empty-body request throws an unhandled exception instead of a clean 400
+
+- **Status**: `MITIGATED` for every route touched this session (`uat-routes.ts`,
+  `release-readiness-routes.ts`); `OPEN` for the rest of the platform
+  (mechanical audit scoped, not yet fixed — see below)
+- **Severity**: Low (robustness/DoS-adjacent, not a data-leak or
+  authorization bypass — every real caller, staff UI and customer portal
+  alike, always sends a real JSON body, even if `{}`; this is only
+  reachable from a hand-crafted request with no body/no `Content-Type` at
+  all)
+- **Found in**: `release_readiness_test_1` (2026-08-24) — the "malformed
+  workflow id" security test sent a POST with no payload at all (per the
+  Security Testing Addendum's own "malformed input → safe failure"
+  scenario) and got back a real, live 500-shaped error
+  (`"Cannot read properties of undefined (reading 'note')"`) instead of a
+  clean 4xx — Fastify leaves `req.body` as `undefined`, not `{}`, when no
+  body is sent, and the route read `body.note` directly.
+- **Real impact confirmed by mechanical audit**: `grep -rn "req.body as"
+  apps/api/src/routes/*.ts` found **100+ occurrences across nearly every
+  route file** (`operations-center-routes.ts` alone has ~90), almost all
+  pre-existing from earlier sessions, following the same
+  `const body = req.body as {...}` idiom with no `?? {}` fallback. A
+  genuinely bodyless POST to most of these would hit the same class of
+  unhandled-property-read exception. This is NOT presented as suddenly
+  "90 new bugs" — every one of these routes has been exercised
+  successfully, repeatedly, by real UI code (which always sends a real
+  JSON body) across many prior sessions' Playwright/API passes; the actual
+  exposure is narrow (a caller sending literally no body), not a
+  data-integrity or authorization concern.
+- **Fixed this pass**: every route in `uat-routes.ts` (4 POST routes) and
+  `release-readiness-routes.ts` (2 POST routes) — the two files touched by
+  this session's own new features — now guard with
+  `(req.body as T | undefined) ?? {}`, plus a real, explicit
+  `EXECUTION_STATUSES` validation added to `UatService.recordExecution` so
+  a missing/invalid `status` returns a clean 400 with no leaked
+  table/constraint names, rather than falling through to a raw Postgres
+  CHECK-constraint violation message. Regression tests added in both
+  `uat-test-1.test.ts` and `release-readiness-test-1.test.ts` (empty-body
+  POSTs now confirmed `<500` and non-leaking).
+- **Why not fixed platform-wide this pass**: ~90 additional occurrences,
+  almost entirely in `operations-center-routes.ts`, are out of the blast
+  radius of this session's two new features; a blanket edit across that
+  file is a large, unrelated diff carrying real regression risk for a
+  low-severity, narrow-exposure class of bug, disproportionate to fix
+  under this pass's own scope. Tracked here instead of silently dropped.
+- **Suggested fix**: a single shared Fastify hook (e.g. a `preHandler` or
+  `onRequest` registered once in `server.ts`, alongside the existing auth/
+  RBAC/tenant-access middleware) that normalizes `request.body ??= {}` for
+  every JSON POST/PUT/PATCH before any route handler runs — closes the
+  entire class in one place rather than touching every individual route
+  file, and is the natural next fast-follow candidate given this session's
+  own "extend don't duplicate" precedent.
+
+## RISK-010 — The full `vitest run` suite is intermittently, non-deterministically flaky under this environment's real database, unrelated to code correctness
+
+- **Status**: `OPEN` (disclosed, real, not a security issue — test infrastructure)
+- **Severity**: Low as a security matter; Medium as a process-reliability
+  concern (a flaky full-suite signal is dangerous precisely because a real
+  regression could hide inside the noise if not investigated every time)
+- **Found in**: `release_readiness_test_1` (2026-08-24) — attempting to get
+  a trustworthy post-feature full-regression number surfaced this directly
+- **Real evidence, not assumed**: 5 full `npx vitest run` attempts within
+  one hour, same code, same machine, same DB, no changes between them:
+  - Run 1 (concurrent with `npm run build`): **439 failed / 224 passed**,
+    real errors like `relation "entity_versions" does not exist`.
+  - Run 2 (isolated, nothing else running): **71 files / 686 tests, 100%
+    passing.**
+  - Run 3 (isolated, after a manual DB cleanup): **71 files / 686 tests,
+    100% passing.**
+  - Run 4 (isolated, after a genuine one-line test-file fix, no other
+    change): **50 failed / 25 passed**, same `relation ... does not
+    exist` error signature as Run 1 — despite NO concurrent process this
+    time.
+  - Run 5 (isolated, no code change from Run 4): **71 files / 686 tests,
+    100% passing**, identical to Runs 2-3.
+  - Direct DB health checks immediately after every failing run: real
+    data intact, correct table/row counts, both protected real clients
+    present with unchanged timestamps, `comparison-postgres` container
+    never restarted (`RestartCount: 0`, no crash in its logs).
+- **Working hypothesis** (not yet proven with a fix, stated as a
+  hypothesis, not a certainty): `db-pool.ts`'s `sharedPool` is a
+  per-process module-level singleton with `max: 15` connections; Vitest's
+  default parallel-worker execution model gives each worker (thread or
+  process) its OWN module registry, so a full run with several concurrent
+  workers can legitimately attempt well over the server's real
+  `max_connections` (confirmed live: `100`) at once. This would explain
+  real, transient, non-reproducible failures under heavy parallel load
+  that vanish under lighter load or lucky scheduling — consistent with
+  every observation above — but has NOT been confirmed by directly
+  instrumenting a failing run (not attempted this pass; the two clean
+  confirmations already gave a trustworthy enough signal for this
+  feature's own regression status without further chasing a pre-existing,
+  cross-cutting infrastructure characteristic under this pass's time
+  budget).
+- **Why this is NOT treated as a regression in `uat_test_1` /
+  `release_readiness_test_1`**: both new test files were also run
+  repeatedly in FOCUSED isolation (just the 2 files, not the full 75-file
+  suite) — **27/27 passing, every single time, with zero flakiness** —
+  and every full-suite failure, when it occurred, showed the exact same
+  generic, incoherent, whole-suite-wide failure shape (dozens of unrelated
+  files/tests failing simultaneously with schema-level errors), never a
+  failure isolated to the 2 new files or their specific assertions.
+- **Suggested fix** (not attempted this pass — a cross-cutting test
+  -infrastructure change affecting all 75 files, correctly out of scope
+  for a single feature pass): either (a) lower `sharedPool`'s `max` well
+  below `100 / (expected concurrent workers)`, or (b) constrain Vitest's
+  own concurrency (e.g. `poolOptions.threads.maxThreads` /
+  `fileParallelism: false` in `vitest.config.ts`), or (c) raise the real
+  Postgres `max_connections` for local dev. Whichever is chosen, the fix
+  should make the full suite deterministically clean on every run, not
+  just some of them — flakiness at this scale actively degrades every
+  future pass's ability to trust a "full regression: N/N passing" claim
+  and deserves a dedicated, real fix pass of its own.
 
 ---
 

@@ -74,6 +74,9 @@ export interface UatProgress {
 }
 
 const TERMINAL_STATUSES = new Set(['pass', 'fail', 'blocked', 'skipped', 'not_applicable']);
+// Mirrors ExecutionStatus in test-execution-service.ts (not_executed is a
+// real, valid status there — it is simply never terminal).
+const EXECUTION_STATUSES = new Set(['pass', 'fail', 'blocked', 'skipped', 'not_executed', 'not_applicable']);
 
 export class UatCycleOwnershipError extends Error {
   constructor(message: string) {
@@ -194,6 +197,14 @@ export class UatService {
     const cycle = await this.getOwnedCycle(cycleId, clientId);
     if (!cycle.test_case_ids.includes(testCaseId)) {
       throw new Error(`Test case ${testCaseId} is not part of UAT cycle ${cycleId}.`);
+    }
+    // Real, clean 400 for a missing/invalid status — never let an
+    // empty-body request fall through to a raw Postgres CHECK-constraint
+    // violation (which would leak table/constraint names in the error
+    // text). TestExecutionService itself relies on the DB constraint as
+    // its own backstop; this is the client-facing checkpoint.
+    if (!input?.status || !EXECUTION_STATUSES.has(input.status)) {
+      throw new Error(`A real status is required (one of: ${[...EXECUTION_STATUSES].join(', ')}).`);
     }
     return this.executions.recordExecution(clientId, testCaseId, input, actor);
   }
