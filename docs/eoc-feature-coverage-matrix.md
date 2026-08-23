@@ -38,7 +38,7 @@ fabricating precision a wall of checkmarks would imply:
 
 Allowed statuses (unchanged from the directive): `NOT_STARTED`,
 `IN_PROGRESS`, `IMPLEMENTED`, `TESTING`, `PASS`, `PASS_WITH_RISKS`,
-`BLOCKED`, `BLOCKED_EXTERNAL_DEPENDENCY`, `FAIL`.
+`BLOCKED`, `BLOCKED_EXTERNAL_DEPENDENCY`, `BLOCKED_EXTERNAL_AUTH`, `FAIL`.
 
 - `IMPLEMENTED` = real, working, API/DB-verified (often with a real
   automated test suite), but not yet exercised through authenticated
@@ -49,6 +49,34 @@ Allowed statuses (unchanged from the directive): `NOT_STARTED`,
   marked `IMPLEMENTED` with an honest note that this session did not
   independently re-verify them, never assumed working from the nav
   menu's mere existence.
+
+**Methodology note, adopted 2026-08-23 (AUTHENTICATED PLAYWRIGHT EVIDENCE
+RULE)**: this file distinguishes two real, different verification
+mechanisms used across this session, both genuine, neither fabricated:
+
+1. **The in-app Browser pane** (`mcp__Claude_Browser__*`) — the
+   mechanism used for essentially every `PASS` row through
+   `environment_comparison_test_1`: real clicks, real forms, real
+   observed results, against a real authenticated staff session the user
+   themselves logged into directly (their password never seen or
+   handled). This remains a legitimate, real verification method and
+   those rows' historical status is NOT retroactively downgraded.
+2. **Real, standalone Playwright** (`scripts/playwright-evidence/`) — the
+   newly-mandated mechanism for physically-saved PNG evidence at
+   `docs/evidence/`. Getting Playwright itself authenticated as staff
+   requires one of four approved mechanisms (existing storageState file /
+   secure local bootstrap / interactive auth in the authorized browser /
+   securely-stored test credentials) — none is currently available (two
+   real attempts were tried and genuinely blocked; a third, the user
+   exporting their own session to a local file, is in progress — see
+   `enterprise-operations-progress.md`). Until that file exists, any
+   suite's **authenticated** real-Playwright evidence reads
+   `BLOCKED_EXTERNAL_AUTH`, and per that rule's own explicit instruction
+   the row's overall Status is capped at `PASS_WITH_RISKS`/`IMPLEMENTED`
+   — never plain `PASS` — even when the same feature was genuinely,
+   correctly verified via the Browser pane in the same pass. Unauthenticated
+   Playwright and API/unit/integration tests continue normally and are
+   not affected by this cap.
 
 ---
 

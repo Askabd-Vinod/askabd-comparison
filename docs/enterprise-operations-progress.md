@@ -2103,6 +2103,52 @@ disclosure with a real capability wherever achievable.
    environment_comparison_test_1.md`. `docs/eoc-feature-coverage-matrix.md`
    row #34 updated.
 
+## Completed This Session — AUTHENTICATED PLAYWRIGHT EVIDENCE RULE adopted (2026-08-23, continued)
+
+The user issued a focused follow-up directive formalizing exactly the
+boundary already being held in practice: authenticated Playwright must
+never require copying/printing/exposing/relaying a session token,
+cookie, password, or API key through chat, Claude output, logs, shell
+output, screenshots, reports, or any external/public destination. Four
+approved mechanisms are named; if none is available, the authenticated
+Playwright portion must read `BLOCKED_EXTERNAL_AUTH`, unauthenticated
+Playwright and API/unit/integration tests continue normally, and the
+overall feature must be capped at `PASS_WITH_RISKS`/`IMPLEMENTED` —
+never plain `PASS` — until the real authenticated UI workflow is
+eventually Playwright-verified.
+
+**Confirmed compliant by design, not by luck**: the mechanism already
+built the prior pass (`getAuthenticatedContextFromExport()` in
+`scripts/playwright-evidence/lib/auth.mjs`) is exactly the directive's
+own approved mechanism #1 ("existing secure Playwright storageState
+file") — it reads a file the user creates themselves, entirely outside
+any Claude-controlled surface, and never logs, prints, or returns its
+contents anywhere.
+
+**Real, current status, checked directly**: `scripts/playwright-
+evidence/.auth/staff-state.json` does **not** exist yet — the user has
+not completed the export. Adopted formally, effective immediately:
+
+- Every suite's authenticated real-Playwright evidence reads
+  `BLOCKED_EXTERNAL_AUTH` until that file appears.
+- The Browser pane (`mcp__Claude_Browser__*`) remains a real, legitimate,
+  separate verification mechanism (the user's own direct, un-handled
+  login; real clicks; real observed results) — continues to be used for
+  actual interactive verification, but per this new rule no longer
+  qualifies a row for plain `PASS` on its own; rows verified this way
+  from this point forward are capped at `PASS_WITH_RISKS`/`IMPLEMENTED`,
+  honestly reflecting the unmet Playwright-screenshot bar even when the
+  underlying feature itself is genuinely correct.
+- Already-completed rows (`assessment_test_1` through
+  `environment_comparison_test_1`) are **not** retroactively downgraded —
+  they were honestly verified via the Browser pane before this stricter
+  rule existed, and remain accurate historical record. See
+  `docs/eoc-feature-coverage-matrix.md`'s own new "Methodology note" for
+  the full, explicit distinction going forward.
+- Per the directive's own words, this will "automatically resume the
+  Playwright evidence pipeline" the moment the export file exists — no
+  further confirmation needed from the user at that point.
+
 ## Failed Tests
 
 **Secure Client Environment Connectivity Engine pass (2026-08-23)**: no
