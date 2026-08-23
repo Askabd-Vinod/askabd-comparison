@@ -196,6 +196,45 @@ completion" principle.
 - **Suggested fix**: wire it to the real Universal Comparison Engine the way
   `TestReportService.runMigrationValidation` already does.
 
+## RISK-008 — VPN/security-profile enforcement does not cross-check the connection's real TLS mode
+
+- **Status**: `OPEN` (disclosed, architectural, not fixed)
+- **Severity**: Low-Medium
+- **Found in**: re-evaluation triggered by the connector TLS/SSRF fast
+  -follow (2026-08-24), per the standing "re-evaluate every risk whenever
+  related infrastructure changes" rule
+- **Real impact**: `ConnectionSecurityService.assertReadyForConnection()` —
+  the real, enforced guard the Universal Comparison Engine calls before
+  every real connection attempt — only inspects `vpnStatus` (via
+  `VPN_BLOCK_REASONS`). It has no awareness of the connection's own real
+  `ssl_mode` (added this session in the TLS fast-follow). A connection
+  could be marked `vpnStatus: 'not_required'` (passes the guard cleanly,
+  implying a direct/already-secured network path) while its real `ssl_mode`
+  is `'disable'` — meaning credentials and data would genuinely transit an
+  unencrypted connection with no guard catching the combination. Confirmed
+  by reading the real code, not assumed: `assertReadyForConnection` takes
+  only `sourceType`/`sourceId` and never queries
+  `oc_client_database_connections.ssl_mode` at all.
+- **Why not fixed yet**: closing this cleanly requires
+  `ConnectionSecurityService` (a generic, polymorphic service also used for
+  `oc_connectors`) to reach into `ClientDatabaseConnectionService`'s own
+  table for one specific source type, or for the reverse dependency
+  direction — a real cross-service coupling decision that deserves
+  deliberate design, not a rushed fix layered on at the end of an already
+  -large session. Re-confirmed via a full re-run of
+  `secure-connectivity-engine.test.ts` (19/19 still passing) that the
+  EXISTING VPN guard itself remains genuinely enforced and unaffected by
+  this gap — this is a real omission, not a regression.
+- **Suggested fix**: either (a) `assertReadyForConnection` accepts an
+  optional real `sslMode` parameter that callers already have available
+  (the comparison engine already looks up the connection immediately
+  before calling this guard) and adds a new `VPN_BLOCK_REASONS`-shaped rule
+  for the risky `not_required` + `disable` combination on
+  `dataClassification`-sensitive connections, or (b) a dedicated
+  cross-cutting "Connection Readiness" check that composes both
+  `ConnectionSecurityService` and the TLS mode explicitly, rather than
+  extending either service's own narrow responsibility.
+
 ---
 
 ## Mechanical cross-reference
