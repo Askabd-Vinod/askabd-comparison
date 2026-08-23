@@ -43,6 +43,17 @@ export type ComparisonObjectStatus =
   | 'match' | 'mismatch' | 'missing' | 'extra' | 'unknown'
   | 'expected_difference' | 'approved_override' | 'approved_exception' | 'unapproved_difference' | 'not_assessed';
 
+/**
+ * Traffic-light severity for the human-facing status line — a real,
+ * fixed mapping per `status`, never dependent on which physical column
+ * (left/right) an environment happens to be displayed in this run, so a
+ * user re-running the same comparison with sides swapped sees the exact
+ * same severity for the exact same real-world fact (only which literal
+ * environment name reads "reference" vs "target" changes, per the
+ * "BIDIRECTIONAL COMPARISON UI" directive's own swap-invariance rule).
+ */
+export type DisplaySeverity = 'red' | 'orange' | 'green' | 'neutral';
+
 export interface ComparisonObjectResult {
   objectType: string; // 'table' | 'column' | 'index' | 'config_key'
   name: string;
@@ -52,6 +63,20 @@ export interface ComparisonObjectResult {
   /** Populated only when a real baseline rule was consulted for this key. */
   baselineValue?: string;
   overrideReason?: string;
+  /** Populated only for a real approved_override backed by a named per-environment override record. */
+  overrideApprovedBy?: string;
+  overrideApprovedAt?: string;
+  /**
+   * Real, user-facing status line — "Missing in Staging" /
+   * "Missing in Production" / "Match" / "Approved Override" etc, built
+   * from the ACTUAL environment names of this specific run (never
+   * "Missing on Left/Right" — see `buildDisplayStatus()`). Always
+   * present on a completed result; the internal `status` above remains
+   * the source of truth for baseline/exception/summary logic.
+   */
+  displayIcon: string;
+  displayText: string;
+  displaySeverity: DisplaySeverity;
 }
 
 export interface ComparisonSummary {
@@ -115,23 +140,75 @@ function buildSummary(results: ComparisonObjectResult[]): ComparisonSummary {
  */
 function classifyConfigFinding(
   leftValue: string, rightValue: string, leftEnv: string, rightEnv: string, rule: BaselineRule | undefined
-): { status: ComparisonObjectStatus; baselineValue?: string; overrideReason?: string } {
+): { status: ComparisonObjectStatus; baselineValue?: string; overrideReason?: string; overrideApprovedBy?: string; overrideApprovedAt?: string } {
   if (leftValue === rightValue) return { status: 'match' };
   if (!rule) return { status: 'mismatch' }; // no baseline rule for this key — the original, real, baseline-agnostic finding
   if (rule.expectedToVaryByEnvironment) return { status: 'expected_difference', baselineValue: rule.approvedValue };
 
-  const approvedFor = (env: string, actual: string): { approved: boolean; reason?: string } => {
+  const approvedFor = (env: string, actual: string): { approved: boolean; reason?: string; approvedBy?: string; approvedAt?: string } => {
     const override = rule.overrides?.[env];
-    if (override) return { approved: override.value === actual, reason: override.reason };
+    if (override) return { approved: override.value === actual, reason: override.reason, approvedBy: override.approvedBy, approvedAt: override.approvedAt };
     if (rule.approvedValue !== undefined) return { approved: rule.approvedValue === actual };
     return { approved: false };
   };
   const left = approvedFor(leftEnv, leftValue);
   const right = approvedFor(rightEnv, rightValue);
   if (left.approved && right.approved) {
-    return { status: 'approved_override', baselineValue: rule.approvedValue, overrideReason: right.reason || left.reason };
+    const source = right.reason ? right : left; // whichever side actually carries the named override record
+    return {
+      status: 'approved_override', baselineValue: rule.approvedValue, overrideReason: source.reason,
+      overrideApprovedBy: source.approvedBy, overrideApprovedAt: source.approvedAt,
+    };
   }
   return { status: 'unapproved_difference', baselineValue: rule.approvedValue };
+}
+
+/**
+ * Real, dynamic environment display name — never a hardcoded
+ * "Staging"/"Production" string, always derived from the actual
+ * environment value recorded against this specific connection/snapshot.
+ * `uat` is special-cased to the conventional acronym; an already
+ * custom-cased value (e.g. a client's own "Client UAT" label) is passed
+ * through unchanged rather than re-cased into something wrong.
+ */
+export function formatEnvironmentLabel(env: string | null | undefined): string {
+  const trimmed = (env || '').trim();
+  if (!trimmed) return 'Unknown Environment';
+  if (trimmed.toLowerCase() === 'uat') return 'UAT';
+  if (/[a-z]/.test(trimmed) && /[A-Z]/.test(trimmed)) return trimmed; // already custom-cased — leave a real client-specific label alone
+  return trimmed.split(/[\s_-]+/).filter(Boolean).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+}
+
+/**
+ * The real, user-facing status line — "BIDIRECTIONAL COMPARISON UI"
+ * directive: never "Missing on Left"/"Missing on Right"/"Extra on
+ * Right" — always the ACTUAL environment name of whichever side
+ * genuinely lacks the object. `missing` (present in left, absent in
+ * right) and `extra` (absent in left, present in right) both become the
+ * same real-world sentence shape, "Missing in {the side that lacks it}",
+ * from the perspective of the side that has it.
+ *
+ * Severity is a fixed function of `status` alone (see `DisplaySeverity`
+ * above) so re-running the same real comparison with sides swapped never
+ * flips severity for the same real-world fact — only the environment
+ * name in the sentence changes, and only because the actual data
+ * genuinely changed sides.
+ */
+function buildDisplayStatus(
+  status: ComparisonObjectStatus, leftEnvLabel: string, rightEnvLabel: string
+): { icon: string; text: string; severity: DisplaySeverity } {
+  switch (status) {
+    case 'match': return { icon: '🟢', text: 'Match', severity: 'green' };
+    case 'missing': return { icon: '🔴', text: `Missing in ${rightEnvLabel}`, severity: 'red' };
+    case 'extra': return { icon: '🟠', text: `Missing in ${leftEnvLabel}`, severity: 'orange' };
+    case 'mismatch': return { icon: '🔴', text: 'Mismatch', severity: 'red' };
+    case 'expected_difference': return { icon: '🟢', text: 'Expected Difference', severity: 'green' };
+    case 'approved_override': return { icon: '🟢', text: 'Approved Override', severity: 'green' };
+    case 'approved_exception': return { icon: '🟠', text: 'Approved Exception', severity: 'orange' };
+    case 'unapproved_difference': return { icon: '🔴', text: 'Unapproved Difference', severity: 'red' };
+    case 'not_assessed': return { icon: '⚪', text: 'Not Assessed', severity: 'neutral' };
+    case 'unknown': default: return { icon: '⚪', text: 'Unknown', severity: 'neutral' };
+  }
 }
 
 export interface ComparisonRun {
@@ -146,6 +223,9 @@ export interface ComparisonRun {
   rightSnapshotId: string | null;
   baselineId: string | null;
   baselineVersion: string | null;
+  /** Real, dynamic environment display names for this specific run's two sides — see `formatEnvironmentLabel()`. */
+  leftEnvironmentLabel: string | null;
+  rightEnvironmentLabel: string | null;
   status: 'running' | 'completed' | 'failed';
   results: ComparisonObjectResult[];
   summary: ComparisonSummary;
@@ -159,7 +239,9 @@ type RunRow = {
   id: string; client_id: string; comparison_type: 'database_schema' | 'configuration'; left_label: string; right_label: string;
   left_connection_id: string | null; right_connection_id: string | null;
   left_snapshot_id: string | null; right_snapshot_id: string | null;
-  baseline_id: string | null; baseline_version: string | null; status: 'running' | 'completed' | 'failed';
+  baseline_id: string | null; baseline_version: string | null;
+  left_environment: string | null; right_environment: string | null;
+  status: 'running' | 'completed' | 'failed';
   results: ComparisonObjectResult[]; summary: ComparisonSummary; error_message: string | null;
   created_by: string | null; created_at: Date; completed_at: Date | null;
 };
@@ -169,7 +251,9 @@ function toRun(r: RunRow): ComparisonRun {
     id: r.id, clientId: r.client_id, comparisonType: r.comparison_type, leftLabel: r.left_label, rightLabel: r.right_label,
     leftConnectionId: r.left_connection_id, rightConnectionId: r.right_connection_id,
     leftSnapshotId: r.left_snapshot_id, rightSnapshotId: r.right_snapshot_id,
-    baselineId: r.baseline_id, baselineVersion: r.baseline_version, status: r.status,
+    baselineId: r.baseline_id, baselineVersion: r.baseline_version,
+    leftEnvironmentLabel: r.left_environment, rightEnvironmentLabel: r.right_environment,
+    status: r.status,
     results: r.results || [], summary: r.summary || EMPTY_SUMMARY,
     errorMessage: r.error_message, createdBy: r.created_by, createdAt: r.created_at.toISOString(),
     completedAt: r.completed_at?.toISOString() ?? null,
@@ -191,25 +275,33 @@ function diffConfigs(
 ): ComparisonObjectResult[] {
   const looksSecret = (key: string) => /password|secret|token|api[_-]?key|credential/i.test(key);
   const allKeys = new Set([...Object.keys(left), ...Object.keys(right)]);
+  const leftEnvLabel = formatEnvironmentLabel(leftEnv);
+  const rightEnvLabel = formatEnvironmentLabel(rightEnv);
+  const withDisplay = (r: Omit<ComparisonObjectResult, 'displayIcon' | 'displayText' | 'displaySeverity'>): ComparisonObjectResult => {
+    const d = buildDisplayStatus(r.status, leftEnvLabel, rightEnvLabel);
+    return { ...r, displayIcon: d.icon, displayText: d.text, displaySeverity: d.severity };
+  };
   const results: ComparisonObjectResult[] = [];
   for (const key of Array.from(allKeys).sort()) {
     const inLeft = Object.prototype.hasOwnProperty.call(left, key);
     const inRight = Object.prototype.hasOwnProperty.call(right, key);
     const display = (v: string) => (looksSecret(key) ? '••••••••' : v);
 
-    if (inLeft && !inRight) { results.push({ objectType: 'config_key', name: key, status: 'missing', leftDetail: display(left[key]!), rightDetail: 'not present' }); continue; }
-    if (!inLeft && inRight) { results.push({ objectType: 'config_key', name: key, status: 'extra', leftDetail: 'not present', rightDetail: display(right[key]!) }); continue; }
+    if (inLeft && !inRight) { results.push(withDisplay({ objectType: 'config_key', name: key, status: 'missing', leftDetail: display(left[key]!), rightDetail: 'not present' })); continue; }
+    if (!inLeft && inRight) { results.push(withDisplay({ objectType: 'config_key', name: key, status: 'extra', leftDetail: 'not present', rightDetail: display(right[key]!) })); continue; }
 
     // Both present — the real decision tree (Section 42), only exercised
     // when a real baseline rule exists for this key; otherwise falls back
     // to the original, real, baseline-agnostic match/mismatch.
     const classification = classifyConfigFinding(left[key]!, right[key]!, leftEnv, rightEnv, rules?.[key]);
-    results.push({
+    results.push(withDisplay({
       objectType: 'config_key', name: key, status: classification.status,
       leftDetail: display(left[key]!), rightDetail: display(right[key]!),
       baselineValue: classification.baselineValue !== undefined ? display(classification.baselineValue) : undefined,
       overrideReason: classification.overrideReason,
-    });
+      overrideApprovedBy: classification.overrideApprovedBy,
+      overrideApprovedAt: classification.overrideApprovedAt,
+    }));
   }
   return results;
 }
@@ -238,7 +330,7 @@ async function inspectSchema(config: DatabaseConnectionConfig): Promise<{ tables
   }
 }
 
-interface ConnectionMeta { name: string; connectorType: string; host: string; port: number; database: string; username: string; passwordRef: string | null }
+interface ConnectionMeta { name: string; connectorType: string; host: string; port: number; database: string; username: string; passwordRef: string | null; environment: string | null }
 
 /**
  * Real lookup — deliberately targets oc_client_database_connections (the
@@ -260,7 +352,7 @@ interface ConnectionMeta { name: string; connectorType: string; host: string; po
  */
 async function lookupConnection(connectionId: string, clientId: string): Promise<ConnectionMeta | null> {
   const res = await sharedPool.query(
-    `SELECT name, connector_type, host, port, database_name, username, password_ref FROM oc_client_database_connections WHERE id = $1 AND client_id = $2`,
+    `SELECT name, connector_type, host, port, database_name, username, password_ref, environment FROM oc_client_database_connections WHERE id = $1 AND client_id = $2`,
     [connectionId, clientId]
   );
   const row = res.rows[0];
@@ -268,6 +360,7 @@ async function lookupConnection(connectionId: string, clientId: string): Promise
   return {
     name: row.name, connectorType: row.connector_type, host: row.host, port: row.port,
     database: row.database_name, username: row.username, passwordRef: row.password_ref,
+    environment: row.environment ?? null,
   };
 }
 
@@ -314,9 +407,9 @@ export class UniversalComparisonEngine {
     }
 
     const inserted = await sharedPool.query<RunRow>(
-      `INSERT INTO comparison_runs (client_id, comparison_type, left_label, right_label, left_connection_id, right_connection_id, created_by)
-       VALUES ($1, 'database_schema', $2, $3, $4, $5, $6) RETURNING *`,
-      [clientId, leftMeta.name, rightMeta.name, leftConnectionId, rightConnectionId, actor]
+      `INSERT INTO comparison_runs (client_id, comparison_type, left_label, right_label, left_connection_id, right_connection_id, left_environment, right_environment, created_by)
+       VALUES ($1, 'database_schema', $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [clientId, leftMeta.name, rightMeta.name, leftConnectionId, rightConnectionId, formatEnvironmentLabel(leftMeta.environment), formatEnvironmentLabel(rightMeta.environment), actor]
     );
     const runRow = inserted.rows[0];
     if (!runRow) throw new Error('comparison_runs insert returned no row');
@@ -366,14 +459,18 @@ export class UniversalComparisonEngine {
     }
 
     const allTables = new Set([...leftInspect.tables, ...rightInspect.tables]);
+    const leftEnvLabel = formatEnvironmentLabel(leftMeta.environment);
+    const rightEnvLabel = formatEnvironmentLabel(rightMeta.environment);
     const results: ComparisonObjectResult[] = [];
     for (const table of Array.from(allTables).sort()) {
       const inLeft = leftInspect.tables.has(table);
       const inRight = rightInspect.tables.has(table);
       const status: ComparisonObjectStatus = inLeft && inRight ? 'match' : inLeft ? 'missing' : 'extra';
+      const d = buildDisplayStatus(status, leftEnvLabel, rightEnvLabel);
       results.push({
         objectType: 'table', name: table, status,
         leftDetail: inLeft ? 'present' : 'not present', rightDetail: inRight ? 'present' : 'not present',
+        displayIcon: d.icon, displayText: d.text, displaySeverity: d.severity,
       });
     }
 
@@ -426,9 +523,9 @@ export class UniversalComparisonEngine {
     const summary = buildSummary(results);
 
     const inserted = await sharedPool.query<RunRow>(
-      `INSERT INTO comparison_runs (client_id, comparison_type, left_label, right_label, left_snapshot_id, right_snapshot_id, baseline_id, baseline_version, status, results, summary, created_by, completed_at)
-       VALUES ($1, 'configuration', $2, $3, $4, $5, $6, $7, 'completed', $8, $9, $10, NOW()) RETURNING *`,
-      [clientId, `${left.name} (${left.environment})`, `${right.name} (${right.environment})`, leftSnapshotId, rightSnapshotId, baselineId || null, baselineVersion, JSON.stringify(results), JSON.stringify(summary), actor]
+      `INSERT INTO comparison_runs (client_id, comparison_type, left_label, right_label, left_snapshot_id, right_snapshot_id, baseline_id, baseline_version, left_environment, right_environment, status, results, summary, created_by, completed_at)
+       VALUES ($1, 'configuration', $2, $3, $4, $5, $6, $7, $8, $9, 'completed', $10, $11, $12, NOW()) RETURNING *`,
+      [clientId, `${left.name} (${left.environment})`, `${right.name} (${right.environment})`, leftSnapshotId, rightSnapshotId, baselineId || null, baselineVersion, formatEnvironmentLabel(left.environment), formatEnvironmentLabel(right.environment), JSON.stringify(results), JSON.stringify(summary), actor]
     );
     const runRow = inserted.rows[0];
     if (!runRow) throw new Error('comparison_runs insert returned no row');
@@ -450,10 +547,13 @@ export class UniversalComparisonEngine {
   async applyExceptionToRun(runId: string, clientId: string, configKey: string): Promise<ComparisonRun> {
     const run = await this.getRun(runId);
     if (!run || run.clientId !== clientId) throw new Error('Comparison run not found for this client.');
+    const leftEnvLabel = run.leftEnvironmentLabel || 'the left environment';
+    const rightEnvLabel = run.rightEnvironmentLabel || 'the right environment';
     const results = run.results.map(r => {
       if (r.name !== configKey) return r;
       if (r.status !== 'mismatch' && r.status !== 'unapproved_difference') return r;
-      return { ...r, status: 'approved_exception' as ComparisonObjectStatus };
+      const d = buildDisplayStatus('approved_exception', leftEnvLabel, rightEnvLabel);
+      return { ...r, status: 'approved_exception' as ComparisonObjectStatus, displayIcon: d.icon, displayText: d.text, displaySeverity: d.severity };
     });
     const summary = buildSummary(results);
     const updated = await sharedPool.query<RunRow>(

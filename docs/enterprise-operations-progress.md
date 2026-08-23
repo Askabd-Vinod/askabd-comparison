@@ -54,8 +54,15 @@ classification layer (migration 053) on the SAME Configuration Comparison
 engine, matching the directive's own Section 42 decision tree and Section
 43's exact 9-status UI display literally. Row #35 of the coverage matrix
 was enriched in place (extend, don't duplicate — applies to documentation
-too), not given a new row. **Next up, per the standing "continue
-automatically" authorization**:
+too), not given a new row. **A further correction directive was then
+adopted** ("BIDIRECTIONAL COMPARISON UI"): never show internal "Missing
+on Left/Right"/"Extra" wording — always the actual environment names,
+dynamically, and provably swap-invariant. Built and validated this pass as
+`bidirectional_comparison_ui_test_1` (migration 054) — see its own
+"Completed This Session" entry below. Rows #33 and #35 of the coverage
+matrix were both enriched in place (this display layer applies
+engine-wide, to both comparison types). **Next up, per the standing
+"continue automatically" authorization**:
 `migration_test_1`, and onward down the named list in
 `docs/eoc-feature-coverage-matrix.md`'s own execution order, ending in
 `FULL_END_TO_END_CLIENT_TEST_1`. Read `docs/eoc-feature-coverage-matrix.md`
@@ -2308,6 +2315,83 @@ type) — extend, don't duplicate, applied again.
    — `[Create Gap]`, `[Remediate]`, and the full `[Use Baseline]/
    [Apply Approved Setting]/[Preview Change]/[Request Approval]` flow
    (Section 44) are not yet built.
+
+## Completed This Session — Bidirectional Comparison UI: real, dynamic, environment-aware status (never "Missing on Left/Right"); bidirectional_comparison_ui_test_1 (2026-08-23, continued)
+
+A focused correction directive was adopted: internal comparison concepts
+like "Missing on Left"/"Missing on Right"/"Extra on Left"/"Extra on
+Right" are not user-friendly and must never appear — the result must
+always use the ACTUAL environment names the user selected, computed
+dynamically, and the wording must stay correct even when the user swaps
+which side is displayed left vs right. Built as a real display layer
+(migration 054) on top of the SAME `ComparisonObjectResult`/
+`comparison_runs` model used by every comparison type — extend, don't
+duplicate, applied again, and applies engine-wide (both database-schema
+and configuration comparisons), not just one type.
+
+1. **Migration 054** — `comparison_runs.left_environment`/
+   `right_environment`: the real, formatted environment display name for
+   each side, captured at run-creation time from each real connection's
+   or snapshot's own, already-existing `environment` column.
+2. `formatEnvironmentLabel()` — dynamic Title Case, `uat` → `UAT`, an
+   already custom-cased label passed through unchanged. `buildDisplayStatus()`
+   — the real, reusable mapping from internal status to a real sentence:
+   `missing` (present left, absent right) → `Missing in {right
+   environment}`, red; `extra` (absent left, present right) → `Missing in
+   {left environment}`, orange; plus real icon/severity for every other
+   status. Severity is a fixed function of status alone, so the SAME real
+   fact always gets the SAME real sentence — proven swap-invariant by a
+   dedicated automated test (see below), not just visually inspected.
+3. Wired into both `runDatabaseSchemaComparison` and `diffConfigs()`
+   (configuration comparison), and into `applyExceptionToRun` (a "Mark as
+   Intentional" reclassification recomputes the display line too).
+4. A real, disclosed gap closed proactively while building the
+   "View Difference" detail for an approved override: `classifyConfigFinding()`
+   computed a named override's real `approvedBy`/`approvedAt` fields but
+   never surfaced them — now propagated through to the result row.
+5. Real UI: table headers now show the actual environment names, not
+   "Left"/"Right"; `✓ Present`/`✕ Missing` presence cells for structural
+   differences; the badge renders the server-computed icon/text directly;
+   a real "View Difference" action shows WHAT EXISTS/WHAT IS MISSING/
+   EXPECTED/WHY IT MATTERS/RECOMMENDATION (missing/extra), real values +
+   DIFFERENCE + EXPECTED + RISK + RECOMMENDATION (mismatch/unapproved),
+   or BASELINE/OVERRIDE/APPROVED BY/REASON (approved override) — built
+   only from real, already-available data; where a specific business
+   impact genuinely cannot be determined, it says so honestly instead of
+   inventing one (no dependency/impact-inference engine exists in v1).
+6. 5 new real tests added to `universal-comparison-engine.test.ts` (now
+   33), including **a real swap-invariance test** — the same two
+   snapshots compared both ways, proving the same real fact reads the
+   same real sentence in both directions, never flipping which
+   environment is named just because display order changed. Full API
+   regression: **612/612 passing**. `tsc --noEmit` clean on both apps.
+7. **`bidirectional_comparison_ui_test_1`** — real client `AskABD PW
+   Bidirectional Status Test 1`. Built two real snapshots deliberately
+   mirroring the directive's own worked examples (`public.products`
+   present only in Production, `public.orders_v2` present only in
+   Staging, `DB_TYPE` UUID vs VARCHAR). The real, live result reproduced
+   the directive's own two worked "missing" examples **verbatim**: `🔴
+   Missing in Staging` and `🟠 Missing in Production` (confirmed NOT
+   "Extra on Right"). Ran the SAME comparison swapped (Staging↔Production)
+   and confirmed live the SAME real facts still read the SAME real
+   sentences, only the icon/severity legitimately following the run's own
+   left/right structural role — exactly matching every one of the
+   directive's own worked examples in both directions. "View Difference"
+   verified live rendering the exact WHAT EXISTS/WHAT IS MISSING/EXPECTED/
+   WHY IT MATTERS/RECOMMENDATION shape. "Mark as Intentional" verified
+   live updating the display line to a real, dynamic `Approved Exception`
+   with no stale wording. **Playwright marked `BLOCKED_EXTERNAL_AUTH`**
+   (export file still does not exist, re-checked immediately before this
+   pass); verified instead via the real Browser-pane mechanism, in both
+   directions. Full exact-ID FK-ordered cleanup across 70 client-scoped
+   tables inside one transaction, zero orphans verified; both protected
+   clients confirmed unchanged. Full write-up: `test-evidence/
+   bidirectional-comparison-ui/bidirectional_comparison_ui_test_1/
+   bidirectional_comparison_ui_test_1.md`. `docs/eoc-feature-coverage-
+   matrix.md` rows #33 and #35 enriched in place (status unchanged —
+   PASS and PASS_WITH_RISKS respectively, this being a display-layer
+   enhancement, not a new capability); summary counts re-run mechanically
+   (unchanged: 21/16/26/15/2).
 
 ## Failed Tests
 

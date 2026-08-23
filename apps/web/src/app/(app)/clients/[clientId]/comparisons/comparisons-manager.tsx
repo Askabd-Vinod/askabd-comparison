@@ -13,9 +13,15 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4200';
 export type ComparisonObjectStatus =
   | 'match' | 'mismatch' | 'missing' | 'extra' | 'unknown'
   | 'expected_difference' | 'approved_override' | 'approved_exception' | 'unapproved_difference' | 'not_assessed';
+export type DisplaySeverity = 'red' | 'orange' | 'green' | 'neutral';
 export interface ComparisonObjectResult {
   objectType: string; name: string; status: ComparisonObjectStatus; leftDetail: string; rightDetail: string;
-  baselineValue?: string; overrideReason?: string;
+  baselineValue?: string; overrideReason?: string; overrideApprovedBy?: string; overrideApprovedAt?: string;
+  // Real, dynamic, environment-aware status line — "Missing in Staging",
+  // never "Missing on Left/Right" — see the "BIDIRECTIONAL COMPARISON UI"
+  // directive. Computed server-side from the ACTUAL environment names of
+  // this run (see ComparisonRun.leftEnvironmentLabel/rightEnvironmentLabel).
+  displayIcon: string; displayText: string; displaySeverity: DisplaySeverity;
 }
 export interface ComparisonSummary {
   total: number; match: number; mismatch: number; missing: number; extra: number; unknown: number;
@@ -25,7 +31,10 @@ export interface ComparisonRun {
   id: string; clientId: string; comparisonType: 'database_schema' | 'configuration'; leftLabel: string; rightLabel: string;
   leftConnectionId: string | null; rightConnectionId: string | null;
   leftSnapshotId: string | null; rightSnapshotId: string | null;
-  baselineId: string | null; baselineVersion: string | null; status: 'running' | 'completed' | 'failed';
+  baselineId: string | null; baselineVersion: string | null;
+  /** Real environment display names for this run's two sides, e.g. "Production"/"Staging"/"UAT" — never hardcoded. */
+  leftEnvironmentLabel: string | null; rightEnvironmentLabel: string | null;
+  status: 'running' | 'completed' | 'failed';
   results: ComparisonObjectResult[]; summary: ComparisonSummary; errorMessage: string | null;
   createdBy: string | null; createdAt: string; completedAt: string | null;
 }
@@ -78,11 +87,24 @@ function StatusBadge({ status }: { status: ComparisonRun['status'] }) {
   );
 }
 
-function ObjectBadge({ status }: { status: ComparisonObjectStatus }) {
-  const meta = OBJECT_META[status];
+// Traffic-light severity, real and fixed per finding — never dependent on
+// which physical column an environment happens to sit in (see
+// buildDisplayStatus() server-side). Icon+text are always shown together,
+// never color alone.
+const SEVERITY_CLASSNAME: Record<DisplaySeverity, string> = {
+  red: 'text-red-700 bg-red-50 border-red-200',
+  orange: 'text-orange-700 bg-orange-50 border-orange-200',
+  green: 'text-green-700 bg-green-50 border-green-200',
+  neutral: 'text-gray-500 bg-gray-50 border-gray-200',
+};
+
+/** Renders the real, dynamic, environment-aware status line the server
+ * already computed — e.g. "🔴 Missing in Staging" — never a generic
+ * "Missing on Left/Right" the user would have to mentally translate. */
+function ObjectBadge({ icon, text, severity }: { icon: string; text: string; severity: DisplaySeverity }) {
   return (
-    <span className={`inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded border ${meta.className}`}>
-      <span aria-hidden="true">{meta.icon}</span>{meta.label}
+    <span className={`inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded border ${SEVERITY_CLASSNAME[severity]}`}>
+      <span aria-hidden="true">{icon}</span>{text}
     </span>
   );
 }
@@ -195,10 +217,69 @@ const KEY_TO_STATUS: Record<string, ComparisonObjectStatus> = {
   unapprovedDifference: 'unapproved_difference', notAssessed: 'not_assessed',
 };
 
+/** Real "View Difference" detail — WHAT EXISTS / WHAT IS MISSING /
+ * EXPECTED / WHY IT MATTERS / RECOMMENDATION, built only from real,
+ * already-available data (never a fabricated business explanation). Where
+ * this platform genuinely cannot determine a specific impact, it says so
+ * honestly instead of inventing one. */
+function DifferenceDetail({ result, run }: { result: ComparisonObjectResult; run: ComparisonRun }) {
+  const leftEnv = run.leftEnvironmentLabel || run.leftLabel;
+  const rightEnv = run.rightEnvironmentLabel || run.rightLabel;
+  const objectWord = run.comparisonType === 'configuration' ? 'configuration key' : 'object';
+  const rows: { label: string; content: React.ReactNode }[] = [];
+
+  if (result.status === 'missing' || result.status === 'extra') {
+    const presentEnv = result.status === 'missing' ? leftEnv : rightEnv;
+    const missingEnv = result.status === 'missing' ? rightEnv : leftEnv;
+    const presentValue = result.status === 'missing' ? result.leftDetail : result.rightDetail;
+    rows.push({ label: 'WHAT EXISTS', content: <>{presentEnv} contains <span className="font-mono">{result.name}</span>{presentValue && presentValue !== 'present' ? <> (<span className="font-mono">{presentValue}</span>)</> : ''}.</> });
+    rows.push({ label: 'WHAT IS MISSING', content: <>{missingEnv} does not contain <span className="font-mono">{result.name}</span>.</> });
+    rows.push({ label: 'EXPECTED', content: result.baselineValue !== undefined ? <>Approved baseline value: <span className="font-mono">{result.baselineValue}</span>, expected present in both environments.</> : <>Present in both environments, unless this is an intentional environment-specific difference.</> });
+    rows.push({ label: 'WHY IT MATTERS', content: <span className="italic text-gray-400">Not automatically determined — no dependency/impact evidence is available for this {objectWord} in v1. Verify manually before promoting further.</span> });
+    rows.push({ label: 'RECOMMENDATION', content: <>Add <span className="font-mono">{result.name}</span> to {missingEnv}, or mark this as intentional if the difference is expected.</> });
+  } else if (result.status === 'mismatch' || result.status === 'unapproved_difference') {
+    rows.push({ label: leftEnv.toUpperCase(), content: <span className="font-mono">{result.leftDetail}</span> });
+    rows.push({ label: rightEnv.toUpperCase(), content: <span className="font-mono">{result.rightDetail}</span> });
+    rows.push({ label: 'DIFFERENCE', content: <>The value differs between {leftEnv} and {rightEnv}.</> });
+    rows.push({ label: 'EXPECTED', content: result.baselineValue !== undefined ? <span className="font-mono">{result.baselineValue}</span> : <span className="italic text-gray-400">No approved baseline value defined for this key.</span> });
+    if (result.status === 'unapproved_difference') {
+      rows.push({ label: 'RISK', content: 'This difference is not covered by any approved override or exception — real, unreviewed drift.' });
+    }
+    rows.push({ label: 'RECOMMENDATION', content: result.baselineValue !== undefined ? <>Align both environments to the approved value, or record an approved exception if the difference is intentional.</> : <>Confirm which value is correct, then align both environments or define a baseline rule for this key.</> });
+  } else if (result.status === 'approved_override') {
+    rows.push({ label: 'BASELINE', content: result.baselineValue !== undefined ? <span className="font-mono">{result.baselineValue}</span> : '—' });
+    rows.push({ label: 'ENVIRONMENT OVERRIDE', content: <span className="font-mono">{result.rightDetail}</span> });
+    rows.push({ label: 'APPROVED BY', content: result.overrideApprovedBy || <span className="italic text-gray-400">Not recorded</span> });
+    rows.push({ label: 'REASON', content: result.overrideReason || <span className="italic text-gray-400">Not recorded</span> });
+  } else if (result.status === 'approved_exception') {
+    rows.push({ label: leftEnv.toUpperCase(), content: <span className="font-mono">{result.leftDetail}</span> });
+    rows.push({ label: rightEnv.toUpperCase(), content: <span className="font-mono">{result.rightDetail}</span> });
+    rows.push({ label: 'CLASSIFICATION', content: 'Approved Exception — the original difference is never hidden, only formally accepted.' });
+  } else if (result.status === 'expected_difference') {
+    rows.push({ label: leftEnv.toUpperCase(), content: <span className="font-mono">{result.leftDetail}</span> });
+    rows.push({ label: rightEnv.toUpperCase(), content: <span className="font-mono">{result.rightDetail}</span> });
+    rows.push({ label: 'REASON', content: 'This key is configured to intentionally vary by environment — never flagged as a defect.' });
+  }
+
+  return (
+    <div className="bg-white border rounded-md p-3 space-y-2 text-[11px]">
+      {rows.map((r, i) => (
+        <div key={i} className="grid grid-cols-[110px_1fr] gap-2">
+          <span className="text-[9px] font-semibold text-gray-400 uppercase pt-0.5">{r.label}</span>
+          <span className="text-gray-700">{r.content}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function RunCard({ run, clientId, onRunUpdated }: { run: ComparisonRun; clientId: string; onRunUpdated: (run: ComparisonRun) => void }) {
   const [expanded, setExpanded] = useState(false);
   const [exceptionRowKey, setExceptionRowKey] = useState<string | null>(null);
+  const [detailRowKey, setDetailRowKey] = useState<string | null>(null);
   const panelId = useId();
+  const leftEnv = run.leftEnvironmentLabel || run.leftLabel;
+  const rightEnv = run.rightEnvironmentLabel || run.rightLabel;
 
   // "Differ" at a glance means genuinely unresolved — an expected
   // difference, approved override, or approved exception is NOT a
@@ -261,51 +342,73 @@ function RunCard({ run, clientId, onRunUpdated }: { run: ComparisonRun; clientId
                     <thead>
                       <tr className="bg-gray-100 text-gray-500 text-left">
                         <th className="px-2 py-1.5 font-medium">{run.comparisonType === 'configuration' ? 'Config Key' : 'Table'}</th>
-                        <th className="px-2 py-1.5 font-medium">{run.leftLabel}</th>
-                        <th className="px-2 py-1.5 font-medium">{run.rightLabel}</th>
+                        <th className="px-2 py-1.5 font-medium">{leftEnv}</th>
+                        <th className="px-2 py-1.5 font-medium">{rightEnv}</th>
                         <th className="px-2 py-1.5 font-medium">Status</th>
-                        {run.comparisonType === 'configuration' && <th className="px-2 py-1.5 font-medium">Action</th>}
+                        <th className="px-2 py-1.5 font-medium">Action</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {run.results.map((r, i) => (
-                        <Fragment key={i}>
-                          <tr className="border-t align-top">
-                            <td className="px-2 py-1.5 font-mono text-gray-700">{r.name}</td>
-                            <td className="px-2 py-1.5 text-gray-500">{r.leftDetail}</td>
-                            <td className="px-2 py-1.5 text-gray-500">{r.rightDetail}</td>
-                            <td className="px-2 py-1.5">
-                              <ObjectBadge status={r.status} />
-                              {r.baselineValue !== undefined && (
-                                <p className="text-[8px] text-gray-400 mt-0.5">Baseline: <span className="font-mono">{r.baselineValue}</span></p>
-                              )}
-                              {r.overrideReason && <p className="text-[8px] text-gray-400 mt-0.5 italic">"{r.overrideReason}"</p>}
-                            </td>
-                            {run.comparisonType === 'configuration' && (
+                      {run.results.map((r, i) => {
+                        // Per the "BIDIRECTIONAL COMPARISON UI" directive: for a
+                        // structural presence difference, each column shows a real
+                        // ✓ Present / ✕ Missing indicator (not internal "left/right"
+                        // wording); for match/mismatch/baseline-aware statuses,
+                        // both real values are shown as before.
+                        const isPresenceDiff = r.status === 'missing' || r.status === 'extra';
+                        const leftPresent = r.status !== 'extra';
+                        const rightPresent = r.status !== 'missing';
+                        return (
+                          <Fragment key={i}>
+                            <tr className="border-t align-top">
+                              <td className="px-2 py-1.5 font-mono text-gray-700">{r.name}</td>
+                              <td className="px-2 py-1.5 text-gray-500">
+                                {isPresenceDiff ? (leftPresent ? <span className="text-green-600">✓ Present</span> : <span className="text-red-600">✕ Missing</span>) : r.leftDetail}
+                              </td>
+                              <td className="px-2 py-1.5 text-gray-500">
+                                {isPresenceDiff ? (rightPresent ? <span className="text-green-600">✓ Present</span> : <span className="text-red-600">✕ Missing</span>) : r.rightDetail}
+                              </td>
                               <td className="px-2 py-1.5">
-                                {EXCEPTIONABLE.includes(r.status) && (
+                                <ObjectBadge icon={r.displayIcon} text={r.displayText} severity={r.displaySeverity} />
+                                {r.baselineValue !== undefined && (
+                                  <p className="text-[8px] text-gray-400 mt-0.5">Baseline: <span className="font-mono">{r.baselineValue}</span></p>
+                                )}
+                                {r.overrideReason && <p className="text-[8px] text-gray-400 mt-0.5 italic">"{r.overrideReason}"</p>}
+                              </td>
+                              <td className="px-2 py-1.5 whitespace-nowrap">
+                                <button onClick={() => setDetailRowKey(k => k === r.name ? null : r.name)} className="text-[9px] font-semibold text-purple-600 hover:text-purple-800">
+                                  {detailRowKey === r.name ? 'Hide' : 'View Difference'}
+                                </button>
+                                {run.comparisonType === 'configuration' && EXCEPTIONABLE.includes(r.status) && (
                                   exceptionRowKey === r.name ? (
-                                    <button onClick={() => setExceptionRowKey(null)} className="text-[9px] text-gray-500 hover:text-gray-800">Cancel</button>
+                                    <button onClick={() => setExceptionRowKey(null)} className="text-[9px] text-gray-500 hover:text-gray-800 ml-2">Cancel</button>
                                   ) : (
-                                    <button onClick={() => setExceptionRowKey(r.name)} className="text-[9px] font-semibold text-indigo-600 hover:text-indigo-800">Mark as Intentional</button>
+                                    <button onClick={() => setExceptionRowKey(r.name)} className="text-[9px] font-semibold text-indigo-600 hover:text-indigo-800 ml-2">Mark as Intentional</button>
                                   )
                                 )}
                               </td>
-                            )}
-                          </tr>
-                          {exceptionRowKey === r.name && (
-                            <tr className="border-t bg-gray-50">
-                              <td colSpan={5} className="px-2 py-2">
-                                <ExceptionForm
-                                  clientId={clientId} runId={run.id} configKey={r.name}
-                                  onDone={(updatedRun) => { onRunUpdated(updatedRun); setExceptionRowKey(null); }}
-                                  onCancel={() => setExceptionRowKey(null)}
-                                />
-                              </td>
                             </tr>
-                          )}
-                        </Fragment>
-                      ))}
+                            {detailRowKey === r.name && (
+                              <tr className="border-t bg-gray-50">
+                                <td colSpan={5} className="px-2 py-2">
+                                  <DifferenceDetail result={r} run={run} />
+                                </td>
+                              </tr>
+                            )}
+                            {exceptionRowKey === r.name && (
+                              <tr className="border-t bg-gray-50">
+                                <td colSpan={5} className="px-2 py-2">
+                                  <ExceptionForm
+                                    clientId={clientId} runId={run.id} configKey={r.name}
+                                    onDone={(updatedRun) => { onRunUpdated(updatedRun); setExceptionRowKey(null); }}
+                                    onCancel={() => setExceptionRowKey(null)}
+                                  />
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

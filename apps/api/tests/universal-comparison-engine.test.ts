@@ -86,12 +86,12 @@ async function makeClient(name: string) {
 }
 
 /** Real connection row pointing at THIS environment's own real dev Postgres — a genuine, independently-resolvable credential. */
-async function makeRealConnection(clientId: string, name: string) {
+async function makeRealConnection(clientId: string, name: string, environment: string = 'development') {
   const service = new ClientDatabaseConnectionService();
   const result = await service.create({
     clientId, name, connectorType: 'postgresql', host: 'localhost', port: 5442,
     databaseName: 'comparison', username: 'comp_user', password: 'comp_local_pass',
-    environment: 'development', createdBy: 'test',
+    environment, createdBy: 'test',
   });
   if (!result.ok) throw new Error('Failed to create real test connection: ' + JSON.stringify(result.error));
   return result.value.id;
@@ -470,6 +470,7 @@ describe('Configuration Baselines / Overrides / Exceptions (migration 053) — D
     expect(finding.status).toBe('approved_override');
     expect(finding.baselineValue).toBe('30');
     expect(finding.overrideReason).toBe('Higher production workload');
+    expect(finding.overrideApprovedBy).toBe('ops-lead'); // real named override record, not just a bare reason string
     expect(run.summary.approvedOverride).toBe(1);
     await app.close();
   });
@@ -548,6 +549,161 @@ describe('Configuration Baselines / Overrides / Exceptions (migration 053) — D
     expect(res.statusCode).toBe(200);
     expect(res.json().baseline.status).toBe('approved');
     expect(res.json().baseline.approvedBy).toBe('admin-1');
+    await app.close();
+  });
+});
+
+describe('Bidirectional Comparison UI (migration 054) — real, dynamic environment-aware status, never "Missing on Left/Right"', () => {
+  async function makeSnapshot(app: Awaited<ReturnType<typeof buildApp>>, admin: string, clientId: string, name: string, environment: string, config: Record<string, string>) {
+    const res = await app.inject({
+      method: 'POST', url: `/api/v1/oc/clients/${clientId}/configuration-snapshots`,
+      headers: { authorization: `Bearer ${admin}` }, payload: { name, environment, config },
+    });
+    expect(res.statusCode).toBe(201);
+    return res.json().snapshot.id as string;
+  }
+
+  it('never uses "Missing on Left/Right" or "Extra" wording — always the real environment name, with the directive\'s own icon/severity rule', async () => {
+    const app = await buildApp();
+    const clientId = await makeClient(`Env Status ${randomUUID().slice(0, 8)}`);
+    const admin = await adminToken();
+    const prodId = await makeSnapshot(app, admin, clientId, 'Prod Config', 'production', { API_TIMEOUT_MS: '3000', LOG_LEVEL: 'info', SHARED_KEY: 'same' });
+    const stagingId = await makeSnapshot(app, admin, clientId, 'Staging Config', 'staging', { LOG_LEVEL: 'debug', NEW_FEATURE_Y: 'enabled', SHARED_KEY: 'same' });
+
+    const res = await app.inject({
+      method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/configuration`,
+      headers: { authorization: `Bearer ${admin}` }, payload: { leftSnapshotId: prodId, rightSnapshotId: stagingId },
+    });
+    const run = res.json().run;
+    expect(run.leftEnvironmentLabel).toBe('Production');
+    expect(run.rightEnvironmentLabel).toBe('Staging');
+
+    const byKey = Object.fromEntries(run.results.map((r: any) => [r.name, r]));
+
+    // Present in Production (left), absent in Staging (right) -> real object status 'missing', but the
+    // human-facing text must name the actual environment that lacks it, never "Missing on Right".
+    expect(byKey.API_TIMEOUT_MS.status).toBe('missing');
+    expect(byKey.API_TIMEOUT_MS.displayText).toBe('Missing in Staging');
+    expect(byKey.API_TIMEOUT_MS.displayIcon).toBe('🔴');
+    expect(byKey.API_TIMEOUT_MS.displaySeverity).toBe('red');
+    expect(byKey.API_TIMEOUT_MS.displayText).not.toMatch(/left|right/i);
+
+    // Absent in Production (left), present in Staging (right) -> real object status 'extra', but again
+    // the human-facing text must name the environment that actually lacks it — Production — never "Extra on Right".
+    expect(byKey.NEW_FEATURE_Y.status).toBe('extra');
+    expect(byKey.NEW_FEATURE_Y.displayText).toBe('Missing in Production');
+    expect(byKey.NEW_FEATURE_Y.displayIcon).toBe('🟠');
+    expect(byKey.NEW_FEATURE_Y.displaySeverity).toBe('orange');
+    expect(JSON.stringify(run)).not.toMatch(/missing on (left|right)/i);
+    expect(JSON.stringify(run)).not.toMatch(/extra on (left|right)/i);
+
+    expect(byKey.LOG_LEVEL.status).toBe('mismatch');
+    expect(byKey.LOG_LEVEL.displayText).toBe('Mismatch');
+    expect(byKey.LOG_LEVEL.displaySeverity).toBe('red');
+
+    expect(byKey.SHARED_KEY.status).toBe('match');
+    expect(byKey.SHARED_KEY.displayText).toBe('Match');
+    expect(byKey.SHARED_KEY.displayIcon).toBe('🟢');
+    expect(byKey.SHARED_KEY.displaySeverity).toBe('green');
+    await app.close();
+  });
+
+  it('swap must also work: reversing which side is left/right keeps the SAME real environment named for the SAME real fact', async () => {
+    const app = await buildApp();
+    const clientId = await makeClient(`Env Swap ${randomUUID().slice(0, 8)}`);
+    const admin = await adminToken();
+    const prodId = await makeSnapshot(app, admin, clientId, 'Prod Config', 'production', { ONLY_IN_PROD: 'x' });
+    const stagingId = await makeSnapshot(app, admin, clientId, 'Staging Config', 'staging', {});
+
+    // Production first (left), Staging second (right).
+    const forward = await app.inject({
+      method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/configuration`,
+      headers: { authorization: `Bearer ${admin}` }, payload: { leftSnapshotId: prodId, rightSnapshotId: stagingId },
+    });
+    const forwardRun = forward.json().run;
+    const forwardKey = forwardRun.results.find((r: any) => r.name === 'ONLY_IN_PROD');
+    expect(forwardKey.status).toBe('missing'); // present left (prod), absent right (staging)
+    expect(forwardKey.displayText).toBe('Missing in Staging');
+
+    // Now swapped: Staging first (left), Production second (right) — the exact same real-world fact
+    // (Staging genuinely lacks ONLY_IN_PROD) must still read "Missing in Staging", never flip to
+    // "Missing in Production" just because display order changed.
+    const reversed = await app.inject({
+      method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/configuration`,
+      headers: { authorization: `Bearer ${admin}` }, payload: { leftSnapshotId: stagingId, rightSnapshotId: prodId },
+    });
+    const reversedRun = reversed.json().run;
+    expect(reversedRun.leftEnvironmentLabel).toBe('Staging');
+    expect(reversedRun.rightEnvironmentLabel).toBe('Production');
+    const reversedKey = reversedRun.results.find((r: any) => r.name === 'ONLY_IN_PROD');
+    expect(reversedKey.status).toBe('extra'); // absent left (staging), present right (prod) this time
+    expect(reversedKey.displayText).toBe('Missing in Staging'); // same real fact, same real sentence
+    await app.close();
+  });
+
+  it('"uat" is displayed as the conventional acronym, dynamically, not hardcoded per-comparison-type', async () => {
+    const app = await buildApp();
+    const clientId = await makeClient(`Env UAT ${randomUUID().slice(0, 8)}`);
+    const admin = await adminToken();
+    const uatId = await makeSnapshot(app, admin, clientId, 'UAT Config', 'uat', { A: '1' });
+    const devId = await makeSnapshot(app, admin, clientId, 'Dev Config', 'development', { A: '2' });
+    const res = await app.inject({
+      method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/configuration`,
+      headers: { authorization: `Bearer ${admin}` }, payload: { leftSnapshotId: uatId, rightSnapshotId: devId },
+    });
+    const run = res.json().run;
+    expect(run.leftEnvironmentLabel).toBe('UAT');
+    expect(run.rightEnvironmentLabel).toBe('Development');
+    await app.close();
+  });
+
+  it('the database-schema comparison type carries the same real dynamic environment labels, not just configuration comparisons', async () => {
+    const app = await buildApp();
+    const clientId = await makeClient(`Env Schema ${randomUUID().slice(0, 8)}`);
+    const admin = await adminToken();
+    const leftId = await makeRealConnection(clientId, 'Prod Instance', 'production');
+    const rightId = await makeRealConnection(clientId, 'Staging Instance', 'staging');
+    const res = await app.inject({
+      method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/database-schema`,
+      headers: { authorization: `Bearer ${admin}` }, payload: { leftConnectionId: leftId, rightConnectionId: rightId },
+    });
+    const run = res.json().run;
+    expect(run.leftEnvironmentLabel).toBe('Production');
+    expect(run.rightEnvironmentLabel).toBe('Staging');
+    // Same real database on both real connections -> every real table matches -> real, dynamic "Match" text.
+    expect(run.results.length).toBeGreaterThan(0);
+    for (const r of run.results) {
+      expect(r.status).toBe('match');
+      expect(r.displayText).toBe('Match');
+      expect(r.displayIcon).toBe('🟢');
+    }
+    await app.close();
+  });
+
+  it('"Mark as Intentional" recomputes the display line to a real, dynamic "Approved Exception" — never leaves the stale Mismatch wording', async () => {
+    const app = await buildApp();
+    const clientId = await makeClient(`Env Exception ${randomUUID().slice(0, 8)}`);
+    const admin = await adminToken();
+    const prodId = await makeSnapshot(app, admin, clientId, 'Prod Config', 'production', { WORKER_COUNT: '100' });
+    const stagingId = await makeSnapshot(app, admin, clientId, 'Staging Config', 'staging', { WORKER_COUNT: '10' });
+    const runRes = await app.inject({
+      method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/configuration`,
+      headers: { authorization: `Bearer ${admin}` }, payload: { leftSnapshotId: prodId, rightSnapshotId: stagingId },
+    });
+    const runId = runRes.json().run.id;
+    const before = runRes.json().run.results.find((r: any) => r.name === 'WORKER_COUNT');
+    expect(before.displayText).toBe('Mismatch');
+
+    const exRes = await app.inject({
+      method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/${runId}/exceptions`,
+      headers: { authorization: `Bearer ${admin}` }, payload: { configKey: 'WORKER_COUNT', reason: 'Cost-optimized production scaling' },
+    });
+    expect(exRes.statusCode).toBe(201);
+    const after = exRes.json().run.results.find((r: any) => r.name === 'WORKER_COUNT');
+    expect(after.status).toBe('approved_exception');
+    expect(after.displayText).toBe('Approved Exception');
+    expect(after.displayIcon).toBe('🟠');
+    expect(after.displaySeverity).toBe('orange');
     await app.close();
   });
 });
