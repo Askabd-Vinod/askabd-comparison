@@ -2191,9 +2191,9 @@ database and verified via direct query).
 
 ## Last Verified Commit
 
-**Update (2026-08-23, `assessment_test_1` pass)**: commit hash to be
-recorded in a follow-up docs commit immediately after this one lands (same
-two-commit pattern used for every prior pass). This pass: two real
+**Update (2026-08-23, `assessment_test_1` pass)**: `762a2ae` on
+`feature/reliability-hardening`, pushed to origin — confirmed
+`9f9e73a..762a2ae`. `main` reconfirmed unchanged at `b63f797`. This pass: two real
 `assessment/page.tsx` fixes (a proactive discovery-page-style error-race
 fix, and a live-found Infrastructure/domain-assessment conflation fix —
 see the dedicated "Completed This Session" entry above) plus
