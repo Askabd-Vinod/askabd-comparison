@@ -73,6 +73,34 @@ interface Row {
 
 export type Result<T> = { ok: true; value: T } | { ok: false; error: { code: string; message: string } };
 
+/**
+ * SECURITY FIX (connector_test_1, 2026-08-24): `update`, `remove`, and
+ * `test` previously looked up a connection by `id` ALONE — no `client_id`
+ * check anywhere in this service. Their routes (`PATCH/DELETE /oc/
+ * database-connections/:id`, `POST /oc/database-connections/:id/test`)
+ * carry no `:clientId` URL segment either, so tenant-access.ts's own
+ * clientId-membership check never even applies to them (it skips any route
+ * where it can't find a clientId to check). The only protection was
+ * RBAC's `Admin.Access` gate — which today happens to correlate with the
+ * same roles tenant-access.ts lets bypass cross-client checks anyway, but
+ * that is a coincidence of today's role configuration, not an enforced
+ * guarantee: the instant a client-scoped-but-non-cross-client staff role
+ * exists, this becomes a real path for one client's real database
+ * credentials (host/port/username, and via `password_ref` the actual
+ * secret) to be read, silently repointed to an attacker-controlled host,
+ * or deleted by someone only authorized for a DIFFERENT client. Every
+ * caller now passes the real, tenant-access-verified `clientId`; a
+ * mismatch throws this error, and the routes turn it into the same `404`
+ * shape as "doesn't exist" (never distinguishing the two, so this can't be
+ * used to probe which connection IDs are real).
+ */
+export class DatabaseConnectionOwnershipError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DatabaseConnectionOwnershipError';
+  }
+}
+
 function toConnection(row: Row): DatabaseConnection {
   return {
     id: row.id, clientId: row.client_id, name: row.name, connectorType: row.connector_type,
@@ -141,10 +169,11 @@ export class ClientDatabaseConnectionService {
     return { ok: true, value: created };
   }
 
-  async update(id: string, input: UpdateInput, actor: string): Promise<Result<DatabaseConnection>> {
+  async update(id: string, clientId: string, input: UpdateInput, actor: string): Promise<Result<DatabaseConnection>> {
     const existingRes = await this.db.query<Row>('SELECT * FROM oc_client_database_connections WHERE id = $1', [id]);
     if (existingRes.rows.length === 0) return { ok: false, error: { code: 'not_found', message: 'No such connection.' } };
     const existing = existingRes.rows[0]!;
+    if (existing.client_id !== clientId) throw new DatabaseConnectionOwnershipError('This connection does not belong to this client.');
 
     if (input.name !== undefined && !input.name.trim()) return { ok: false, error: { code: 'validation', message: 'Connection name is required.' } };
     if (input.host !== undefined && !input.host.trim()) return { ok: false, error: { code: 'validation', message: 'Host or IP address is required.' } };
@@ -189,9 +218,10 @@ export class ClientDatabaseConnectionService {
     return { ok: true, value: updated };
   }
 
-  async remove(id: string, actor: string): Promise<Result<{ id: string }>> {
+  async remove(id: string, clientId: string, actor: string): Promise<Result<{ id: string }>> {
     const existingRes = await this.db.query<Row>('SELECT client_id, name FROM oc_client_database_connections WHERE id = $1', [id]);
     if (existingRes.rows.length === 0) return { ok: false, error: { code: 'not_found', message: 'No such connection.' } };
+    if ((existingRes.rows[0] as any).client_id !== clientId) throw new DatabaseConnectionOwnershipError('This connection does not belong to this client.');
     await this.db.query('DELETE FROM oc_client_database_connections WHERE id = $1', [id]);
     await this.audit(id, (existingRes.rows[0] as any).client_id, 'database_connection.removed', actor, { name: (existingRes.rows[0] as any).name });
     return { ok: true, value: { id } };
@@ -203,10 +233,11 @@ export class ClientDatabaseConnectionService {
    * TCP-reachability-only test — never fabricated success for a protocol this
    * deployment has no driver for.
    */
-  async test(id: string): Promise<Result<DatabaseConnection>> {
+  async test(id: string, clientId: string): Promise<Result<DatabaseConnection>> {
     const existingRes = await this.db.query<Row>('SELECT * FROM oc_client_database_connections WHERE id = $1', [id]);
     if (existingRes.rows.length === 0) return { ok: false, error: { code: 'not_found', message: 'No such connection.' } };
     const row = existingRes.rows[0]!;
+    if (row.client_id !== clientId) throw new DatabaseConnectionOwnershipError('This connection does not belong to this client.');
     const password = row.password_ref ? await getSecretProvider().getSecret(row.password_ref) : '';
 
     const steps: Array<{ step: string; pass: boolean; durationMs: number; error?: string }> = [];

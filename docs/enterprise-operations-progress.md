@@ -140,8 +140,35 @@ disclosed but not fixed this pass (a CORS `credentials:true` + wildcard
 -origin misconfiguration, low exploitability since this API's auth is
 Bearer-header-only; and client-supplied-only MIME validation on document
 upload, no content sniffing). See its own "Completed This Session" entry
-below. **Next up, per the standing "continue automatically"
-authorization**:
+below. **A "CONNECTOR SECURITY + CLIENT ENVIRONMENT ADDENDUM" directive
+was then adopted**: for `connector_test_1` and every future connector
+feature, validate the full lifecycle (create→configure→validate→connect→
+discover→read→compare→execute→disconnect→rotate→revoke→delete) and treat
+connectors as high-risk infrastructure — object-level authorization,
+credential ownership, secret masking, TLS, and the 7-scenario test matrix
+including "Client A → Client B connector using Client A resource ID →
+DENIED". `connector_test_1` (Connector Management Engine, row #80) found
+the session's most severe object-level-authorization bug yet: `PATCH/
+DELETE /oc/database-connections/:id` and `POST .../:id/test` — the routes
+behind the real, actively-used database connector — carried no `:clientId`
+URL segment at all, and the underlying service looked up connections by
+opaque `id` ALONE. Any caller who knew a connection's id could read,
+silently repoint to an attacker-controlled host, or delete another
+client's real database connection (host/port/username, and via
+`password_ref` the actual secret) regardless of which client they were
+authorized for. Fixed with a real ownership check at the service layer,
+proven with 9 new tests AND a real live attack attempt from the browser
+against a real connection (blocked, target genuinely unchanged
+afterward). Also fixed: 3 more `connector-service.ts` routes with no RBAC
+rule; `maskSecrets()` hardening on that service's error text; and a real,
+fabricated UI claim ("All connections use encrypted channels. Credentials
+stored using AES-256-GCM.") shown on the live Connector Configuration
+stage, corrected to an honest statement. Real, disclosed, NOT fixed this
+pass: the real PostgreSQL connector hardcodes `ssl: false` unconditionally
+(no TLS ever negotiated), and there is no SSRF-style host/IP denylist on
+the real outbound connections these routes make. See its own "Completed
+This Session" entry below. **Next up, per the standing "continue
+automatically" authorization**:
 `testing_engine_test_1`, and onward down the named list in
 `docs/eoc-feature-coverage-matrix.md`'s own execution order, ending in
 `FULL_END_TO_END_CLIENT_TEST_1`. Read `docs/eoc-feature-coverage-matrix.md`
@@ -2818,6 +2845,93 @@ data-integrity issue). Full write-up:
 summary counts re-run mechanically and now read **20 PASS / 19
 PASS_WITH_RISKS / 24 IMPLEMENTED / 15 NOT_STARTED / 2
 BLOCKED_EXTERNAL_DEPENDENCY** (80 rows total, reconciled).
+
+## Completed This Session — connector_test_1: the session's most severe object-level-authorization bug, found and fixed (2026-08-24, continued)
+
+The Connector Security + Client Environment Addendum's own explicit test
+case — "Client A → Client B connector using Client A resource ID →
+DENIED" — led straight to it: `PATCH/DELETE /oc/database-connections/:id`
+and `POST .../:id/test` (the routes behind the real, actively-used
+database connector every comparison and discovery operation depends on)
+carried **no `:clientId` URL segment at all**, and
+`ClientDatabaseConnectionService.update/remove/test` looked up a
+connection by its opaque `id` **alone** — no `client_id` check anywhere.
+Unlike every earlier IDOR found this session, this one directly exposed
+**live, active credentials** (via `password_ref`) and a **live network
+destination**: any caller who knew a connection's id could read its real
+host/port/username, **silently repoint `host` to an attacker-controlled
+server** so the next real comparison/discovery run would actually talk to
+the attacker's infrastructure while appearing to show the real client's
+results, delete it outright, or trigger a live connection test against it
+— regardless of which client they were authorized for. The routes were
+already `Admin.Access`-gated, so today's real exploitability is bounded to
+staff — but RBAC alone never protects against this class of bug, and that
+boundary is a coincidence of today's role configuration, not an enforced
+guarantee.
+
+1. **Fixed at the service layer**, not just RBAC: a new
+   `DatabaseConnectionOwnershipError` thrown whenever a real ownership
+   mismatch is found, caught by the routes and turned into the same `404`
+   as "doesn't exist" (never distinguishing the two). The 3 routes now
+   require a real `clientId` — body for PATCH, `?clientId=` query for
+   DELETE/test, matching the existing `/oc/connectors/:id?clientId=`
+   convention — and `database-connections-manager.tsx` updated to send it.
+2. **Proven two ways**: 9 new automated tests
+   (`connector-test-1.test.ts`) with real 2-client Postgres fixtures, AND
+   a real, live attack attempt executed via `fetch()` from inside an
+   authenticated Browser-pane page against a real connection — a deliberate
+   wrong `clientId` + real connection id, attempting to repoint `host` to
+   `attacker-controlled.example.com`. Result: `404`, and the real
+   connection's `host` was re-fetched and confirmed genuinely still
+   `localhost` afterward — not just that the write failed, but that the
+   real target data was untouched.
+3. **Mechanical audit for the same class** (per the addendum's mandate)
+   found and fixed 3 more real RBAC gaps in `connector-service.ts`
+   (`POST /oc/connectors/test`/`save`, `DELETE /oc/connectors/:id` — no
+   rule at all, confirmed staff-only by reading real call sites), and
+   applied `maskSecrets()` hardening to that service's persisted/returned
+   error text (no live exploit path found — defensive, not a confirmed
+   leak). Everything else audited (integration-allowlist, connection
+   -security list routes) came back clean, confirmed by reading the real
+   service queries, not assumed.
+4. **A real, fabricated UI claim found and corrected**: the live
+   "Connector Configuration" lifecycle stage displayed *"All connections
+   use encrypted channels. Credentials stored using AES-256-GCM."* —
+   unconditional and false as configured (the real connector hardcodes
+   `ssl: false`; the active `SecretProvider` here is DEV plaintext, not
+   AES-256-GCM). A direct "never fabricate security guarantees" violation,
+   corrected to an honest statement.
+5. **2 more real findings honestly disclosed, deliberately NOT fixed this
+   pass**: (a) the real PostgreSQL connector hardcodes `ssl: false`
+   unconditionally — no TLS is ever negotiated with a client's real
+   database, a materially higher-severity gap than the CORS/MIME findings
+   disclosed in `security_test_1`, not attempted here because a proper fix
+   needs a schema migration and careful UI/back-compat work under time
+   pressure; (b) no SSRF-style host/IP denylist on the real outbound
+   connections these routes make (mitigated today only by staff-only
+   gating).
+
+Live-verified the fix breaks nothing for real staff use: the full
+Connector Configuration stage walked end-to-end with a real QA client —
+create (`201`), test (`200`, real "Connected" status, real 6-step protocol
+result, correct `ConnectionSecurityPanel` integration), edit (`200`,
+`clientId` now correctly sent, status correctly preserved on a
+non-connection-value change). `apps/api/tests/client-database-
+connections.test.ts` (the pre-existing suite) and one call site in
+`lifecycle-connector-configuration-readiness.test.ts` updated to pass the
+now-required `clientId` — all still passing. Full API regression:
+**640/640 passing** (631 + 9 new). `tsc --noEmit` clean both apps. Full
+FK-ordered + entity_id-ordered cleanup (62 rows across 9 tables), zero
+orphans verified; both protected clients confirmed unchanged; the real
+uploaded document file also manually removed from `apps/api/uploads/`.
+**Playwright marked `BLOCKED_EXTERNAL_AUTH`** (re-checked, still absent).
+Full write-up: `docs/evidence/connector/connector_test_1/
+connector_test_1.md`. `docs/eoc-feature-coverage-matrix.md` row #80
+corrected in place (PASS → PASS_WITH_RISKS, honestly reflecting the real
+gap found and the 2 real gaps still disclosed-not-fixed); summary counts
+re-run mechanically and now read **19 PASS / 20 PASS_WITH_RISKS / 24
+IMPLEMENTED / 15 NOT_STARTED / 2 BLOCKED_EXTERNAL_DEPENDENCY** (80 rows
+total, reconciled).
 
 ## Failed Tests
 

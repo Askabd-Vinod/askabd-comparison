@@ -134,7 +134,20 @@ export const serviceRequirements: ServiceRequirement[] = [
     successCriteria: 'All required connectors validated with successful health checks',
     expectedOutput: ['Connection validation report', 'Connector health status', 'Permission audit'],
     blockingConditions: ['Environments not registered', 'Connection test failed', 'Insufficient permissions'],
-    securityNote: 'All connections use encrypted channels. Credentials stored using AES-256-GCM.',
+    // HONESTY FIX (connector_test_1, 2026-08-24): this previously made an
+    // unconditional, unverified claim ("All connections use encrypted
+    // channels. Credentials stored using AES-256-GCM.") shown on the real
+    // Connector Configuration stage — a genuine "NEVER FABRICATE... security
+    // guarantees" violation. Neither half was actually true as configured:
+    // the real PostgreSQL connector (client-database-connection-service.ts)
+    // hardcodes `ssl: false` (no TLS negotiated at all, a real, disclosed,
+    // not-yet-fixed platform gap — see connector_test_1's evidence), and the
+    // active SecretProvider in this environment is the DEV plaintext
+    // provider, not AES-256-GCM (see security-report-service.ts's own
+    // honest disclosure of the same fact). Replaced with an accurate
+    // statement that doesn't promise a specific cipher or claim TLS is
+    // universally enforced.
+    securityNote: 'Credentials are stored via a pluggable secret-management abstraction (see the client Security Report for the currently active provider). Network encryption (TLS) is not yet enforced for every connector type — see AskABD staff for the current status on this connection.',
     estimatedDuration: '1-5 days',
   },
   {

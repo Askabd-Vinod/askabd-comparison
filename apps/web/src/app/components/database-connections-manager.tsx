@@ -73,6 +73,7 @@ function ConnectionCard({ conn, onTest, onRemove, onSaved, testingId }: {
         tags: form.tagsInput.split(',').map(t => t.trim()).filter(Boolean),
       };
       if (form.password) body.password = form.password;
+      body.clientId = conn.clientId;
       const res = await fetch(`${API}/api/v1/oc/database-connections/${conn.id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       });
@@ -258,7 +259,7 @@ export function DatabaseConnectionsManager({ clientId, onReadinessChange }: { cl
   async function testConnection(id: string) {
     setTestingId(id);
     try {
-      const res = await fetch(`${API}/api/v1/oc/database-connections/${id}/test`, { method: 'POST' });
+      const res = await fetch(`${API}/api/v1/oc/database-connections/${id}/test?clientId=${encodeURIComponent(clientId)}`, { method: 'POST' });
       if (res.ok) await load();
     } finally { setTestingId(null); }
   }
@@ -266,7 +267,7 @@ export function DatabaseConnectionsManager({ clientId, onReadinessChange }: { cl
   async function removeConnection(id: string) {
     if (!confirm('Remove this database connection? This cannot be undone.')) return;
     try {
-      await fetch(`${API}/api/v1/oc/database-connections/${id}`, { method: 'DELETE' });
+      await fetch(`${API}/api/v1/oc/database-connections/${id}?clientId=${encodeURIComponent(clientId)}`, { method: 'DELETE' });
       await load();
     } catch { /* surfaced via list not updating */ }
   }

@@ -5,6 +5,7 @@ import { sharedPool } from '../services/db-pool.js';
 import { OperationsCenterService } from '../services/operations-center-service.js';
 import { NotificationService } from '../services/notification-service.js';
 import { ConnectorService } from '../services/connector-service.js';
+import { maskSecrets } from '../services/secret-masking.js';
 import { DiscoveryService } from '../services/discovery-service.js';
 import { AssessmentService, type AssessmentDomain } from '../services/assessment-service.js';
 import { RecommendationService } from '../services/recommendation-service.js';
@@ -710,6 +711,14 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     }
 
     const result = await connectorService.testConnection({ provider, clientId, fields: fields || {}, name });
+    // SECURITY FIX (connector_test_1): defense-in-depth secret masking on
+    // both the audit evidence AND the API response itself — a driver/
+    // network error message is not expected to embed a raw credential in
+    // normal operation, but this is real staff-visible/network-visible
+    // output, matching the same maskSecrets() discipline already applied
+    // to the Universal Comparison Engine's error messages.
+    const maskedError = result.error ? maskSecrets(result.error) : result.error;
+    const maskedResult = { ...result, error: maskedError, steps: result.steps.map(s => ({ ...s, error: s.error ? maskSecrets(s.error) : s.error })) };
 
     // Audit the connection test
     ocService.createAuditEntry({
@@ -721,11 +730,11 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
         `${result.name || provider} (${provider}) connection test: ${result.status} (${result.mode} mode)`,
         `Steps: ${result.steps.filter(s => s.pass).length}/${result.steps.length} passed`,
         `Duration: ${result.totalDurationMs}ms`,
-        result.error ? `Error: ${result.error}` : 'No errors',
+        maskedError ? `Error: ${maskedError}` : 'No errors',
       ],
     }).catch(() => { /* non-blocking */ });
 
-    reply.send(result);
+    reply.send(maskedResult);
   });
 
   server.get('/oc/connectors/:clientId', async (req) => {

@@ -113,7 +113,7 @@ describe('Client database connections — real multi-record support', () => {
     });
     const id = created.json().connection.id;
 
-    const tested = await app.inject({ method: 'POST', url: `/api/v1/oc/database-connections/${id}/test` });
+    const tested = await app.inject({ method: 'POST', url: `/api/v1/oc/database-connections/${id}/test?clientId=${client.id}` });
     expect(tested.statusCode).toBe(200);
     const { connection } = tested.json();
     expect(connection.status).toBe('failed'); // must never be 'connected'
@@ -132,7 +132,7 @@ describe('Client database connections — real multi-record support', () => {
     });
     const id = created.json().connection.id;
 
-    const tested = await app.inject({ method: 'POST', url: `/api/v1/oc/database-connections/${id}/test` });
+    const tested = await app.inject({ method: 'POST', url: `/api/v1/oc/database-connections/${id}/test?clientId=${client.id}` });
     expect(tested.json().connection.status).toBe('connected'); // real local Postgres — genuinely reachable
 
     // Rename only — the frontend edit form always resends host/port/db/username too, so
@@ -140,13 +140,13 @@ describe('Client database connections — real multi-record support', () => {
     // compares actual values rather than field presence.
     const renamed = await app.inject({
       method: 'PATCH', url: `/api/v1/oc/database-connections/${id}`,
-      payload: { name: 'Local DB (renamed)', connectorType: 'postgresql', host: 'localhost', port: 5442, databaseName: 'comparison', username: 'comp_user' },
+      payload: { clientId: client.id, name: 'Local DB (renamed)', connectorType: 'postgresql', host: 'localhost', port: 5442, databaseName: 'comparison', username: 'comp_user' },
     });
     expect(renamed.json().connection.name).toBe('Local DB (renamed)');
     expect(renamed.json().connection.status).toBe('connected'); // must NOT have reset to not_tested
 
     // Now actually change the host — this MUST invalidate the stale result.
-    const rehosted = await app.inject({ method: 'PATCH', url: `/api/v1/oc/database-connections/${id}`, payload: { host: 'a-different-host.example.com' } });
+    const rehosted = await app.inject({ method: 'PATCH', url: `/api/v1/oc/database-connections/${id}`, payload: { clientId: client.id, host: 'a-different-host.example.com' } });
     expect(rehosted.json().connection.status).toBe('not_tested');
   });
 
@@ -171,7 +171,7 @@ describe('Client database connections — real multi-record support', () => {
     expect(created.statusCode).toBe(201);
     const id = created.json().connection.id;
 
-    const tested = await app.inject({ method: 'POST', url: `/api/v1/oc/database-connections/${id}/test` });
+    const tested = await app.inject({ method: 'POST', url: `/api/v1/oc/database-connections/${id}/test?clientId=${client.id}` });
     expect(tested.statusCode).toBe(200);
     const { connection } = tested.json();
     expect(connection.status).toBe('connected');
@@ -201,7 +201,7 @@ describe('Client database connections — real multi-record support', () => {
       },
     });
     const wrongId = wrongCreated.json().connection.id;
-    const wrongTested = await app.inject({ method: 'POST', url: `/api/v1/oc/database-connections/${wrongId}/test` });
+    const wrongTested = await app.inject({ method: 'POST', url: `/api/v1/oc/database-connections/${wrongId}/test?clientId=${wrongPassClient.id}` });
     expect(wrongTested.json().connection.status).toBe('failed');
     const authStep = wrongTested.json().connection.lastTestSteps.find((s: any) => s.step === 'Authentication');
     expect(authStep.pass).toBe(false);
@@ -218,11 +218,11 @@ describe('Client database connections — real multi-record support', () => {
     });
     const id = created.json().connection.id;
 
-    const updated = await app.inject({ method: 'PATCH', url: `/api/v1/oc/database-connections/${id}`, payload: { name: 'Renamed Connection' } });
+    const updated = await app.inject({ method: 'PATCH', url: `/api/v1/oc/database-connections/${id}`, payload: { clientId: client.id, name: 'Renamed Connection' } });
     expect(updated.statusCode).toBe(200);
     expect(updated.json().connection.name).toBe('Renamed Connection');
 
-    const removed = await app.inject({ method: 'DELETE', url: `/api/v1/oc/database-connections/${id}` });
+    const removed = await app.inject({ method: 'DELETE', url: `/api/v1/oc/database-connections/${id}?clientId=${client.id}` });
     expect(removed.statusCode).toBe(200);
 
     const list = await app.inject({ method: 'GET', url: `/api/v1/oc/clients/${client.id}/database-connections` });

@@ -100,7 +100,7 @@ describe('Lifecycle transition — connector-configuration readiness (real datab
       createdBy: 'test-actor',
     });
     if (!created.ok) throw new Error('setup failed');
-    const tested = await dbConnService.test(created.value.id);
+    const tested = await dbConnService.test(created.value.id, client.id);
     if (!tested.ok) throw new Error('test setup failed');
     expect(tested.value.status).toBe('connected'); // real local Postgres — genuinely reachable
 

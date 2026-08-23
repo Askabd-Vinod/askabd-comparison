@@ -41,7 +41,17 @@ describe('Tenant access now covers body-carried clientId (previously a bypass)',
       payload: { provider: 'postgresql', clientId: 'client-a', fields: {} },
     });
     expect(res.statusCode).toBe(403);
-    expect(res.json().error.reasonCode).toBe('tenant_not_resolved');
+    // connector_test_1 (2026-08-24): this route now ALSO has a real
+    // Admin.Access RBAC rule (a real gap found and fixed that pass — it
+    // previously had none), so the RBAC layer denies a customer token
+    // before tenant-access.ts's own body-clientId check is ever reached —
+    // a strictly stronger guarantee (two independent layers now agree on
+    // denial), proven here by the RBAC layer's own reasonCode. Tenant
+    // -access's body-clientId inspection remains real and independently
+    // exercised by the OperationsCenterService-level tests elsewhere
+    // (e.g. security-test-1.test.ts, connector-test-1.test.ts) for routes
+    // that carry a real clientId but no RBAC rule of their own.
+    expect(res.json().error.reasonCode).toBe('forbidden');
     await app.close();
   });
 

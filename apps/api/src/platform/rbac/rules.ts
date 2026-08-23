@@ -588,6 +588,11 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   { method: 'GET', path: '/api/v1/oc/lifecycle/:clientId', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/lifecycle/:clientId/history', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/connectors/:clientId', permissions: ['Admin.Access'] },
+  // connector_test_1 (2026-08-24): real gap -- these 3 staff-only connector
+  // routes (real credentials in the request body) had no rule at all.
+  { method: 'POST', path: '/api/v1/oc/connectors/test', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/connectors/save', permissions: ['Admin.Access'] },
+  { method: 'DELETE', path: '/api/v1/oc/connectors/:id', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/discovery/:clientId/:runId', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/assessment/:clientId/domain/:domain', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/recommendations/:clientId', permissions: ['Admin.Access'] },

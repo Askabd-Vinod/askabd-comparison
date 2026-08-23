@@ -10,6 +10,7 @@ import * as net from 'net';
 import * as dns from 'dns';
 import { promisify } from 'util';
 import { sharedPool } from './db-pool.js';
+import { maskSecrets } from './secret-masking.js';
 
 const dnsResolve = promisify(dns.resolve);
 
@@ -154,8 +155,18 @@ export class ConnectorService {
   }
 
   private async persistResult(result: ConnectionTestResult, _fields: Record<string, string>): Promise<void> {
-    const { provider, clientId, status, steps, totalDurationMs, error, mode } = result;
+    const { provider, clientId, status, steps, totalDurationMs, mode } = result;
     const name = result.name?.trim() || provider;
+    // SECURITY FIX (connector_test_1): defense-in-depth secret masking,
+    // matching the same maskSecrets() pattern already applied to the
+    // Universal Comparison Engine's persisted error messages. A driver or
+    // fetch() error message is not expected to embed a raw password/token
+    // in normal operation, but this table's error_message and steps are
+    // both real, staff-visible audit data (surfaced via GET /oc/connectors/
+    // :clientId and GET /oc/clients/:clientId/connection-tests) — masked
+    // here rather than assumed safe.
+    const error = maskSecrets(result.error) || '';
+    const maskedSteps = steps.map(s => ({ ...s, error: s.error ? maskSecrets(s.error) : s.error }));
 
     // Update connector status
     await dbPool.query(`
@@ -163,13 +174,13 @@ export class ConnectorService {
       VALUES ($1, $2, $3, $4, NOW(), $5, $6, $7, $8, NOW())
       ON CONFLICT (client_id, provider, name) DO UPDATE SET
         status = $4, last_tested_at = NOW(), last_test_duration_ms = $5, last_test_mode = $6, validation_steps = $7, error_message = $8, updated_at = NOW()
-    `, [clientId, provider, name, status, totalDurationMs, mode, JSON.stringify(steps), error || '']);
+    `, [clientId, provider, name, status, totalDurationMs, mode, JSON.stringify(maskedSteps), error]);
 
     // Insert test history
     await dbPool.query(`
       INSERT INTO oc_connection_tests (client_id, provider, status, mode, duration_ms, steps, error_message, correlation_id)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-    `, [clientId, provider, status, mode, totalDurationMs, JSON.stringify(steps), error || '', `ctest-${Date.now()}`]);
+    `, [clientId, provider, status, mode, totalDurationMs, JSON.stringify(maskedSteps), error, `ctest-${Date.now()}`]);
   }
 
   // ─── POSTGRESQL ─────────────────────────────────────────────────────────────
