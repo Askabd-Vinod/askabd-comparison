@@ -310,16 +310,82 @@ merged rows #52/#53 into one coherent next-feature scope, since both are
 the same real gap (`test_suites.category` already includes
 `'post_deployment'`, unused, matching the `'uat'`/`'release'` precedent).
 
-**Next up, per the standing "continue automatically" authorization**: a
-real **Deployment + Post-Deployment Validation Engine** (rows #52-53
-together, `deployment_validation_test_1`) — this needs a genuinely NEW
-table (none exists, confirmed), unlike `uat_test_1`/
-`release_readiness_test_1` which reused existing schema; natural design
-already sketched in row #52's own remarks column (gate real deployment
-creation on `ReleaseReadinessService`'s go/no-go, back the approval step
-with `ApprovalWorkflowEngine`, use `test_suites` category='post_deployment'
-for post-deploy validation checks) — then onward down the named list in
-`docs/eoc-feature-coverage-matrix.md`'s own execution order, ending in
+**Update (2026-08-24, `deployment_validation_test_1` + `post_delivery_test_1`,
+explicit detailed user directive)**: built the real **Deployment +
+Post-Deployment Validation Engine** the prior entry identified as next.
+10-point investigation performed first (LifecycleService,
+ReleaseReadinessService, ApprovalWorkflowEngine, Testing Engine, Audit
+convention, Notification Engine, Environment/Connector engines, existing
+deployment migrations — confirmed none) before writing any code. New
+migration 057 (`oc_deployments`) + `deployment-service.ts`: a real,
+explicit 13-status state machine
+(draft→planned→readiness_pending→approval_pending→approved→in_progress→
+deployed→validation_pending→validated/failed→rollback_pending→
+rolled_back/cancelled) enforced via an `ALLOWED_TRANSITIONS` table.
+`ReleaseReadinessService` reused unmodified as a real gate re-checked
+FRESH at both the approval AND execution checkpoints (proven live: a
+real lifecycle regression after approval correctly re-blocked
+execution). `ApprovalWorkflowEngine` reused unmodified for the approval
+decision, plus a genuinely new real self-approval-prevention control
+added at this layer. Deployment-safety boundary honored exactly as
+directed: `startExecution`/`recordDeploymentOutcome` (and rollback
+equivalents) record the REAL reported outcome of an external attempt,
+evidence-enforced, never simulate success — real external execution
+tracked honestly as `BLOCKED_EXTERNAL_DEPENDENCY` (RISK-011), never
+fabricated. Post-deployment validation reuses `test_suites`
+(`category='post_deployment'`, migration 049, previously unused — same
+pattern as `uat_test_1`) and `TestExecutionService.recordExecution`
+unmodified; one real automatic check provided (live DB connectivity via
+`ClientDatabaseConnectionService.test()`, proven against real local
+Postgres), the rest real evidence-required manual checks — never
+auto-passed. `finalizeValidation` never fabricates success: refuses
+until every check is real-terminal, then honestly moves to `validated`
+or `failed`. Comparison reuses `UniversalComparisonEngine
+.runConfigurationComparison` unmodified for optional before/after
+snapshot comparison.
+
+**The fabricated UI was fully replaced, not left as API-only** (per this
+directive's explicit "do not preserve fabricated deployment claims"):
+`deployments/page.tsx` and `deployments/[deploymentId]/page.tsx`
+rewritten from scratch against the real API — zero `mockClients` import
+remains in either file (confirmed by direct grep), real create-deployment
+form, real contextual per-status action buttons, real readiness/approval
+/post-deployment-check/rollback/audit-trail display, "Not available from
+current evidence" for any missing field, matching the canonical
+Connector-Configuration UI standard's `EvidenceBadge`/`Action` component
+usage. `tsc --noEmit` and `next build` both clean for the whole web app.
+
+Real bug found and fixed during this pass's own testing: `requestApproval`
+collided with `ApprovalWorkflowEngine`'s own real
+one-open-workflow-per-entity DB constraint when re-submitting after a
+"request changes" decision — root-caused via the actual Postgres
+constraint-violation error, fixed by calling the engine's own real
+`resubmit()` instead of opening a duplicate workflow.
+
+36 new tests (24 deployment-validation, 12 post-delivery), all real,
+zero stubbed. Full API regression: **722/722 passing** (was 686; +36
+new, zero regressions on this run — see RISK-010 for the standing,
+disclosed caveat that the full suite is intermittently flaky in this
+environment, unrelated to this feature's own code). Zero DB orphans
+verified (7 pre-existing real database-connection rows found during the
+sweep all belong to legitimate real/QA clients from 2026-08-21, not
+fixture leaks). Both protected real clients confirmed unchanged.
+
+Also fixed, same pass, per the directive's explicit "do not preserve
+fabricated deployment claims" instruction: coverage matrix rows #52-53
+corrected from a false `IMPLEMENTED`/`NOT_STARTED` to `IMPLEMENTED` with
+the full real evidence inline;
+`docs/enterprise-feature-gap-register.md` updated to mark "Deployments"
+as the first of its named fabricated-page list to be fully resolved
+(not just given an honest placeholder). See
+`docs/evidence/deployment_validation/deployment_validation_test_1/
+deployment_validation_test_1.md` and
+`docs/evidence/post_delivery/post_delivery_test_1/post_delivery_test_1.md`.
+
+**Next up, per the standing "continue automatically" authorization**:
+read the coverage matrix again and identify the next genuine
+`NOT_STARTED` capability (per the directive's own explicit continuation
+instruction) — the named list continues toward
 `FULL_END_TO_END_CLIENT_TEST_1`. Read
 `docs/eoc-feature-coverage-matrix.md` alongside this file — it is the
 authoritative, row-by-row honest status tracker; this file is the
@@ -331,6 +397,12 @@ Next.js dev first-compile timing quirk, not a defect, see Last Health
 Check below). Also re-check RISK-010 (full-suite flakiness) if it
 recurs — consider whether a dedicated fix pass is now warranted before
 trusting any future "full regression: N/N passing" claim at face value.
+`(app)/clients/[clientId]/` still has ~26 remaining ancillary nav-tab
+pages reading from `mockClients` (Infrastructure, Applications, Reports,
+Environments, Alerts, and others) — real, disclosed, individually
+-scoped fast-follow candidates, each needing its own genuine data-source
+decision per `docs/enterprise-feature-gap-register.md`'s own P1 finding,
+not a mechanical batch fix.
 
 ### Original phase-based task description (superseded by the above, kept for history)
 

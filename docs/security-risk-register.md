@@ -394,6 +394,43 @@ completion" principle.
   future pass's ability to trust a "full regression: N/N passing" claim
   and deserves a dedicated, real fix pass of its own.
 
+## RISK-011 — Real external deployment/rollback execution infrastructure does not exist
+
+- **Status**: `BLOCKED_EXTERNAL_DEPENDENCY` (by design — not a defect, a
+  real, disclosed platform boundary)
+- **Severity**: N/A (this is the deployment-safety boundary working as
+  intended, not a gap)
+- **Found in**: `deployment_validation_test_1` / `post_delivery_test_1`
+  (2026-08-24) — the directive's own explicit "Deployment Safety" section
+- **Real situation**: this platform has no real CI/CD trigger, deployment
+  -orchestration, or rollback-execution integration to any actual target
+  system. `DeploymentService.startExecution`/`recordDeploymentOutcome`
+  (and their rollback equivalents `initiateRollback`/
+  `recordRollbackOutcome`) model and audit the REAL decision to deploy and
+  its REAL reported outcome — evidence-enforced, same discipline as
+  `TestExecutionService.recordExecution`'s `MissingEvidenceError` — but
+  they never simulate, assume, or fabricate that an external deployment or
+  rollback actually happened. A deployment can only reach `deployed`/
+  `rolled_back` when a real caller (human operator, or a future real CI/CD
+  webhook) reports it with real evidence; nothing in this codebase
+  auto-transitions either state.
+- **Why this is `BLOCKED_EXTERNAL_DEPENDENCY`, not `OPEN`**: closing this
+  gap requires real infrastructure this sandbox cannot provide (a real
+  CI/CD system, real target servers/containers to deploy to, real
+  credentials to trigger deployments) — not a code fix. Per this session's
+  own standing rule, never simulated as if such infrastructure existed.
+- **What IS real and tested**: the full state machine, the readiness gate
+  (re-checked fresh at both the approval AND execution checkpoints), the
+  approval workflow (including real self-approval prevention), the
+  evidence-enforcement on outcome recording, the rollback-availability
+  check (`RollbackNotAvailableError` when no real rollback plan was
+  recorded), and the full audit trail — all real, all tested, all live in
+  `deployment-service.ts`.
+- **Suggested fix (future, real infrastructure required)**: a real CI/CD
+  webhook/adapter that calls `recordDeploymentOutcome`/
+  `recordRollbackOutcome` with genuine evidence from an actual pipeline
+  run, once such a pipeline exists for a real client engagement.
+
 ---
 
 ## Mechanical cross-reference

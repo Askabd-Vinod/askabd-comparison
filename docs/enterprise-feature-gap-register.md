@@ -63,6 +63,35 @@ no new design decision (the honest answer is simply "not yet available"); these 
 only affect the ~20 static demo clients, a much smaller and lower-priority blast radius, and each
 needs its own real decision, not a mechanical honesty pass.
 
+**Update (2026-08-24, `deployment_validation_test_1` / `post_delivery_test_1`)**:
+**Deployments** is the first of the pages named above (alongside "Readiness",
+fixed earlier) to be fully resolved, not just deferred — both `deployments/page.tsx`
+and `deployments/[deploymentId]/page.tsx` were rewritten against a genuinely new,
+real `oc_deployments` backend (`deployment-service.ts`, migration 057) rather than
+`mockClients`; zero `mockClients` import remains in either file, confirmed by direct
+grep. This was a materially larger fix than the `CapabilityPlaceholder` honesty pass
+above — it required a real state machine, a real `ReleaseReadinessService` gate, real
+`ApprovalWorkflowEngine` reuse, and a real post-deployment validation workflow, not
+just an honest "not yet available" message. See `docs/eoc-feature-coverage-matrix.md`
+rows #52-53 and `docs/evidence/deployment_validation/deployment_validation_test_1/`.
+The remaining pages in the list above (Infrastructure, Applications, Reports,
+Environments, Alerts, and the other 20+ ancillary tabs) are unchanged — still real
+candidates for the same treatment, each needing its own genuine data-source decision.
+
+**Mechanical follow-up search performed same pass**: `grep -rln "\.deployments\b"`
+across `apps/web/src` and `apps/api/src` (checking whether the same fabricated
+`client.deployments` field is read anywhere OTHER than the two pages just fixed)
+found 9 more real references, all pre-existing, all part of this same already
+-known gap, none touched this pass: `applications/[appId]/page.tsx`,
+`environments/[envName]/page.tsx`, `knowledge/page.tsx`, `reports/page.tsx` (both
+the per-client and platform-level versions), `timeline/page.tsx`,
+`governance/page.tsx`, `reports/[reportId]/page.tsx`, `search/page.tsx` — each
+reads `mockClients`' fabricated `deployments` array as incidental supporting data
+for its own primary (also-fabricated) content. Not fixed this pass — same
+"needs its own genuine decision, not a mechanical batch fix" reasoning as above;
+listed here precisely (rather than left as a vague "~26 remaining pages" note) so
+a future pass can act on it directly.
+
 ## P1 finding, re-confirmed not newly discovered: `mock-clients.ts` itself
 
 Already documented in `docs/real-data-integrity-register.md` (an earlier milestone this session)

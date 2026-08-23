@@ -477,6 +477,32 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/release-readiness/signoff', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/clients/:clientId/release-readiness/signoff/request', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/clients/:clientId/release-readiness/signoff/:workflowId/:decision', permissions: ['Admin.Access'] },
+
+  // ─── deployment_validation_test_1 / post_delivery_test_1 (2026-08-24) ───
+  // Staff-only Deployment + Post-Deployment Validation Engine
+  // (deployment-routes.ts) — AskABD's own internal operational action, same
+  // Admin.Access precedent as migration/lifecycle/release-readiness routes.
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/deployments', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/deployments', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/deployments/:id', permissions: ['Admin.Access'] },
+  { method: 'PATCH', path: '/api/v1/oc/clients/:clientId/deployments/:id', permissions: ['Admin.Access'] },
+  { method: 'DELETE', path: '/api/v1/oc/clients/:clientId/deployments/:id', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/deployments/:id/plan', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/deployments/:id/check-readiness', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/deployments/:id/request-approval', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/deployments/:id/approval', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/deployments/:id/approval/:decision', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/deployments/:id/start-execution', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/deployments/:id/outcome', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/deployments/:id/post-deployment/suite', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/deployments/:id/post-deployment/status', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/deployments/:id/post-deployment/checks/:testCaseId', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/deployments/:id/post-deployment/checks/:testCaseId/auto-db-check', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/deployments/:id/post-deployment/finalize', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/deployments/:id/rollback/initiate', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/deployments/:id/rollback/outcome', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/deployments/:id/cancel', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/deployments/:id/compare', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/test-executions', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/test-runs/:runIdA/compare/:runIdB', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/test-defects', permissions: ['Admin.Access'] },
