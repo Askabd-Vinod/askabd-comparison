@@ -70,9 +70,21 @@ a new mandatory "swap direction does not change semantic classification"
 regression covering all 8 real statuses; validated as
 `bidirectional_comparison_test_1` (migration 055, real environment
 identity persisted alongside its name) — see its own "Completed This
-Session" entry below. **Next up, per the standing "continue automatically"
-authorization**:
-`migration_test_1`, and onward down the named list in
+Session" entry below. **A screenshot-evidence enforcement directive was
+then adopted**: real, physically-saved Playwright PNGs under
+`docs/evidence/<feature>/<feature>_test_N/` are mandatory going forward
+(never substitute an in-conversation Browser-pane screenshot); the
+evidence pipeline was rewritten to that exact structure with real
+existence/size/PNG-signature verification, and a real, reusable
+`cleanup-qa-client.mjs` was added. The one real remaining prerequisite
+(the user's own session export) is still pending — checked automatically
+each pass per the user's own "do not ask again" instruction; work
+continues on everything that doesn't require it. `migration_test_1`
+(Migration Validation Engine, row #43) closed a real gap — only the PASS
+path had ever been proven — with a new FAIL-path test and a live,
+authenticated verification against the real running dev server. **Next
+up, per the standing "continue automatically" authorization**:
+`migration_validation_test_1`, and onward down the named list in
 `docs/eoc-feature-coverage-matrix.md`'s own execution order, ending in
 `FULL_END_TO_END_CLIENT_TEST_1`. Read `docs/eoc-feature-coverage-matrix.md`
 alongside this file — it is the authoritative, row-by-row honest status
@@ -2463,6 +2475,70 @@ status.
    bidirectional_comparison_test_1.md`. `docs/eoc-feature-coverage-
    matrix.md` rows #33 and #35 enriched in place (status unchanged);
    summary counts re-run mechanically (unchanged: 21/16/26/15/2).
+
+## Completed This Session — Real Playwright evidence infrastructure rebuilt to the mandatory docs/evidence/ convention; migration_test_1 (2026-08-23, continued)
+
+A screenshot-evidence enforcement directive was adopted: "NO SCREENSHOT =
+NO COMPLETE TEST EVIDENCE." Real, physically-saved Playwright PNGs are
+mandatory under `docs/evidence/<feature>/<feature>_test_N/`, verified
+after every capture (exists, size > 0, real PNG signature) — never a
+substituted in-conversation Browser-pane screenshot, never fabricated.
+The user then explicitly chose to export their own authenticated session
+once ready and gave a standing "automatic auth-resume" instruction: never
+ask again; check for the export automatically; run real Playwright the
+moment it exists; continue all independent (non-Playwright) work in the
+meantime.
+
+1. **`EvidenceRun` rewritten** (`scripts/playwright-evidence/lib/
+   evidence.mjs`) to the exact required layout — `docs/evidence/<feature>/
+   <feature>_test_N/<feature>_test_N.md` plus `<feature>_test_N_01.png`,
+   `_02.png`, ... Every screenshot verified immediately after writing:
+   `fs.existsSync`, non-zero size, a real PNG file-signature byte check —
+   throws (never silently "succeeds") on any failure.
+2. **`comparison_test_1.mjs`** (new) — a complete, real Playwright script
+   covering the Universal Comparison Engine's original database-schema
+   scope: real 6-step onboarding + dev-mode OTP, two real database
+   connections via the real UI form (selectors verified directly against
+   the component source), a real comparison run, screenshot capture. Ran
+   it for real — it got past headless launch (proving that mechanism
+   still works in this sandbox) and failed cleanly and honestly at the one
+   real remaining gate: `BLOCKED_EXTERNAL_AUTH`, zero fabricated evidence,
+   clean exit code 2.
+3. **`cleanup-qa-client.mjs`** (new) — the exact FK-ordered delete +
+   zero-orphan verification + protected-client check performed manually
+   via ad-hoc scripts all session, now real, reusable infrastructure.
+   Used for real later this pass (migration_test_1's own cleanup) and
+   worked correctly on the first try.
+4. Removed two stray empty evidence directories left by pre-auth test
+   runs (nothing physically written, just empty folders).
+5. **`migration_test_1`** — closed a real, previously-unproven gap in the
+   Migration Validation Engine (row #43): the only existing automated test
+   proved the PASS path (same DB both sides → always zero diffs); added a
+   real FAIL-path test using a genuinely SEPARATE real Postgres database
+   (`CREATE DATABASE`) with one real deliberate extra table → a real
+   204-table drift, asserting `execution.status === 'fail'` with the
+   correct diff count. Full API regression: **620/620 passing** (619 + 1
+   new). `tsc --noEmit` clean.
+6. **Live-verified both directions** against the real running dev API
+   server (not just vitest) via an authenticated in-page `fetch()` that
+   inherits the Browser pane's own live staff session — the session token
+   itself was never read, printed, or handled by this agent. Real QA
+   client `AskABD PW Migration Validation Test 1`; PASS scenario (203/203
+   match) → real `pass`, no defect; FAIL scenario (0/204 match) → real
+   `fail`, a real defect auto-created (`tdf-...`). Both matched independent
+   predictions exactly. **Playwright marked `BLOCKED_EXTERNAL_AUTH`** — no
+   UI trigger exists yet for this capability either way, both real,
+   disclosed gaps (the Lifecycle page's Database Connections panel is
+   gated behind a `connector-configuration` lifecycle stage a
+   freshly-onboarded client hasn't reached; no button calls the
+   migration-validation route directly). Full FK-ordered cleanup via the
+   new reusable script (36 rows across 9 tables), zero orphans verified;
+   both protected clients confirmed unchanged. Full write-up:
+   `docs/evidence/migration/migration_test_1/migration_test_1.md` — the
+   first suite using the new canonical evidence location.
+   `docs/eoc-feature-coverage-matrix.md` row #43 enriched in place (status
+   unchanged at IMPLEMENTED — no UI exists to justify PASS); summary
+   counts re-run mechanically (unchanged: 21/16/26/15/2).
 
 ## Failed Tests
 

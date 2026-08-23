@@ -412,6 +412,51 @@ describe('Migration validation — real Universal Comparison Engine integration,
     expect(body.execution.evidence[0].reference).toBe(run.id);
     await app.close();
   });
+
+  /**
+   * The "Universal Validation Principle" only means something if it can
+   * genuinely fail — a real prior gap: the only existing test proved the
+   * PASS path (same DB both sides -> always zero diffs). A migration
+   * validation that has only ever been observed to pass is not proven
+   * real. This creates a genuinely SEPARATE real Postgres database (not
+   * just a second connection to the same one) with one real deliberate
+   * extra table, so the comparison has a real, non-zero diff to detect.
+   */
+  it('records a real FAIL when the source and target schemas genuinely differ — never a fabricated always-pass', async () => {
+    const app = await buildApp();
+    const clientId = await makeClient(`Testing Migration Fail ${randomUUID().slice(0, 8)}`);
+    const admin = await adminToken();
+    const dbName = `mig_val_diff_${randomUUID().slice(0, 8)}`;
+    await sharedPool.query(`CREATE DATABASE ${dbName}`);
+    try {
+      const { Pool } = await import('pg');
+      const targetPool = new Pool({ host: 'localhost', port: 5442, database: dbName, user: 'comp_user', password: 'comp_local_pass' });
+      await targetPool.query('CREATE TABLE mig_val_extra_table (id serial primary key)');
+      await targetPool.end();
+
+      const service = new ClientDatabaseConnectionService();
+      const leftRes = await service.create({ clientId, name: 'Source', connectorType: 'postgresql', host: 'localhost', port: 5442, databaseName: 'comparison', username: 'comp_user', password: 'comp_local_pass', environment: 'development', createdBy: 'test' });
+      const rightRes = await service.create({ clientId, name: 'Target', connectorType: 'postgresql', host: 'localhost', port: 5442, databaseName: dbName, username: 'comp_user', password: 'comp_local_pass', environment: 'development', createdBy: 'test' });
+      if (!leftRes.ok || !rightRes.ok) throw new Error('Failed to create real test connections');
+
+      const comparisonEngine = new UniversalComparisonEngine();
+      const run = await comparisonEngine.runDatabaseSchemaComparison(clientId, leftRes.value.id, rightRes.value.id, 'admin-1');
+      expect(run.status).toBe('completed');
+      expect(run.summary.extra).toBeGreaterThanOrEqual(1); // the real extra table, genuinely detected
+
+      const res = await app.inject({
+        method: 'POST', url: `/api/v1/oc/clients/${clientId}/test-report/migration-validation`,
+        headers: { authorization: `Bearer ${admin}` }, payload: { comparisonRunId: run.id },
+      });
+      expect(res.statusCode).toBe(201);
+      const body = res.json();
+      expect(body.execution.status).toBe('fail'); // real, genuine schema drift -> real fail, never silently passed
+      expect(body.execution.actualResult).toMatch(/1 extra/);
+    } finally {
+      await sharedPool.query(`DROP DATABASE IF EXISTS ${dbName}`).catch(() => {});
+      await app.close();
+    }
+  });
 });
 
 describe('RBAC and tenant isolation', () => {
