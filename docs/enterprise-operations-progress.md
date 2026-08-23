@@ -1648,6 +1648,29 @@ formal per-feature reporting format. Adopted immediately:
    `npm run health`: 11/11. The existing 581/581 API and 33/33 Web
    regression baselines are unaffected and were not re-run (no source
    files touched).
+5. **`requirements_test_1`** — real client `AskABD PW Requirements Test
+   001` created through the actual onboarding wizard, exercising the
+   Business Requirements Engine's real, rule-based quality classifier
+   live for the first time this session with all 4 real classification
+   outcomes proven in the same run: the spec's own worked example
+   ("System should be fast.", title only) → real **INCOMPLETE** with the
+   real `missing_required_fields` finding; a vague-but-mostly-filled
+   requirement ("Checkout page must load faster") → real **AMBIGUOUS**
+   via `vague_unmeasurable_language`; a genuinely complete, measurable
+   requirement (2-second/95th-percentile target with real Given/When/Then
+   acceptance criteria) → real **COMPLETE**; a second, identically-titled
+   requirement → real **DUPLICATE** via the tenant-scoped
+   `duplicate_title` rule. Persistence verified after reload; console
+   clean; full exact-ID cleanup verified (zero orphans across 7 tables,
+   both protected clients unchanged, Client Directory back to exactly 6).
+   **A real, honest product-scope gap identified, not a code defect**:
+   the classifier correctly names *which fields* are missing/vague but
+   does not yet generate the *specific clarifying questions* the spec's
+   own example describes ("What response time? Which transaction?...") —
+   recorded as a real Pending Tasks item, not implied as already
+   delivered. Full write-up:
+   `test-evidence/requirements/requirements_test_1/requirements_test_1.md`.
+   No code changed this pass either.
 
 ## Failed Tests
 
@@ -1941,6 +1964,15 @@ one. The one test failure above was correctly diagnosed as non-code.
     read-only connector, Universal Comparison Engine, but not yet
     actively checked against a live grant for every future connector
     type).
+11. **Real product-scope gap found via `requirements_test_1`**: the
+    Business Requirements Engine's quality classifier correctly detects
+    *that* a requirement is vague/incomplete and names *which fields*
+    fired the rule, but does not yet generate the *specific clarifying
+    questions* a human analyst would ask (e.g. "What response time?
+    Which transaction? Which user volume? Which environment? Which
+    percentile? Which SLA?" for a vague performance requirement). A real,
+    valuable, rule-based (never fabricated-AI) extension — e.g. a
+    per-requirement-type/per-rule question bank — not built this pass.
 
 ## Database Migrations
 
