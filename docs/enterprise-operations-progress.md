@@ -2440,13 +2440,14 @@ database and verified via direct query).
 ## Last Verified Commit
 
 **Update (2026-08-23, Master Autonomous Build directive +
-`environment_comparison_test_1` pass)**: commit hash to be recorded in a
-follow-up docs commit immediately after this one lands. This pass: real
+`environment_comparison_test_1` pass)**: `730b24e` on
+`feature/reliability-hardening`, pushed to origin — confirmed
+`d3f302b..730b24e`. `main` reconfirmed unchanged at `b63f797`. This pass: real
 Playwright + browsers installed (root devDependency); new
 `scripts/playwright-evidence/` infrastructure (auth bridging — two paths
 confirmed blocked, one in progress; evidence-capture helper);
 `environment_comparison_test_1`'s live Playwright pass (no application
-code changed). `main` to be reconfirmed unchanged at `b63f797`.
+code changed).
 
 ## Older: document_generation_test_1 / document_quality_test_1
 
