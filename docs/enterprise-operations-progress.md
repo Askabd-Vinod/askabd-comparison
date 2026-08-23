@@ -42,8 +42,20 @@ that primarily verifies an authenticated UI is capped at
 `PASS_WITH_RISKS`/`IMPLEMENTED` with `Playwright: BLOCKED_EXTERNAL_AUTH`
 until the export exists. `configuration_comparison_test_1` closed the
 `NOT_STARTED` Configuration Comparison Engine gap — a real, new second
-comparison type built on the existing engine, not a duplicate. **Next
-up, per the standing "continue automatically" authorization**:
+comparison type built on the existing engine, not a duplicate. **A new
+directive was then adopted** (Approved Baseline / Reusable Configuration,
+sections 33–48): its own core principle — *"not every difference between
+environments is a problem... never automatically classify every
+difference as non-compliant/defect/error/gap."* Built and validated this
+pass as `configuration_baseline_test_1` — see its own "Completed This
+Session" entry below for full detail: a real Configuration Baseline /
+Environment Override / Intentional Difference / Approved Exception
+classification layer (migration 053) on the SAME Configuration Comparison
+engine, matching the directive's own Section 42 decision tree and Section
+43's exact 9-status UI display literally. Row #35 of the coverage matrix
+was enriched in place (extend, don't duplicate — applies to documentation
+too), not given a new row. **Next up, per the standing "continue
+automatically" authorization**:
 `migration_test_1`, and onward down the named list in
 `docs/eoc-feature-coverage-matrix.md`'s own execution order, ending in
 `FULL_END_TO_END_CLIENT_TEST_1`. Read `docs/eoc-feature-coverage-matrix.md`
@@ -2209,6 +2221,93 @@ a new data source").
    configuration_comparison_test_1.md`. `docs/eoc-feature-coverage-
    matrix.md` row #35 updated (`NOT_STARTED` → `PASS_WITH_RISKS`,
    capped per the new rule); summary counts re-run.
+
+## Completed This Session — Approved Baseline / Environment Override / Intentional Difference / Approved Exception; configuration_baseline_test_1 (2026-08-23, continued)
+
+A new, large directive was adopted (sections 33–48): its own core
+principle is that **a real difference is not automatically a defect** —
+"NEVER automatically classify every difference as NON-COMPLIANT, DEFECT,
+ERROR, GAP." Built as a real classification layer ON TOP OF the existing
+Configuration Comparison engine (not a new engine, not a new comparison
+type) — extend, don't duplicate, applied again.
+
+1. **Migration 053** — `oc_configuration_baselines` (name/version/owner/
+   description/status draft-approved-deprecated/approved_by/approved_at/
+   effective+expiry dates/classification/environment+application scope/
+   `rules` JSONB) and `oc_configuration_exceptions` (scoped to a specific
+   `(comparison_run_id, config_key)` pair, per the directive's own "the
+   original finding must remain traceable" requirement — never a standing
+   rule that silently hides future findings). `comparison_runs` widened
+   with nullable `baseline_id`/`baseline_version` for real per-run
+   auditability (Section 45). Applied cleanly against the live dev DB.
+2. `configuration-baseline-service.ts` (new) — real baseline CRUD (create
+   as draft, explicit approve step) + real exception CRUD.
+3. `universal-comparison-engine.ts` extended with `classifyConfigFinding()`
+   — the directive's own Section 42 decision tree, implemented literally:
+   no rule for a key → original plain match/mismatch/missing/extra/unknown,
+   completely unchanged; `expectedToVaryByEnvironment` → expected
+   difference; both sides' value approved for their own real environment
+   (baseline default or a named override) → approved override; otherwise,
+   with a real baseline actually consulted → unapproved difference. New
+   `applyExceptionToRun()` — "Mark as Intentional" reclassifies the SAME
+   persisted run's own stored finding in place, never fabricates a new run,
+   never hides the original finding.
+4. Real routes + RBAC (`GET/POST configuration-baselines`,
+   `POST configuration-baselines/:id/approve`,
+   `POST comparisons/:runId/exceptions`).
+5. Real UI: the exact 9-status icon set from Section 43 (icon+label always
+   paired, never color alone); a Configuration Baselines management
+   section (create as draft with a JSON rules editor + inline
+   documentation, list, Approve action); an optional baseline selector on
+   the comparison form (only approved baselines selectable); dynamic
+   per-run summary tiles; a real "Mark as Intentional" exception form per
+   eligible finding that updates the run in place, no page refetch.
+6. 7 new real tests added to `universal-comparison-engine.test.ts` (now
+   23), each proving one real branch of the decision tree using the
+   directive's own worked examples verbatim (API_URL, CONN_TIMEOUT_MS
+   30s/60s "Higher production workload", JWT_ALGORITHM RS256, WORKER_COUNT
+   100/10 "cost control" exception flow). One pre-existing brittle summary
+   assertion fixed (`toEqual` → `objectContaining`, since the real summary
+   shape legitimately grew 5 fields). Full API regression: **607/607
+   passing**. `tsc --noEmit` clean on both apps.
+7. **`configuration_baseline_test_1`** — real client `AskABD PW
+   Configuration Baseline Test 1`. Built two real snapshots (Staging/
+   Production, 7 keys each) and a real approved baseline through the
+   actual UI, deliberately constructed to exercise all 8 relevant
+   classifications and predicted in full before running: the real result
+   matched the prediction exactly for every one of the 8 keys (expected
+   difference, approved override with its reason shown inline, unapproved
+   difference, plain mismatch with no rule, missing, extra, match). Ran a
+   full, real "Mark as Intentional" round trip on `WORKER_COUNT` — the run
+   updated live with no refetch, the original finding stayed visible (now
+   as an Approved Exception), and the real exception record was
+   independently confirmed via direct SQL against
+   `oc_configuration_exceptions` with every submitted field intact.
+   Independently re-confirmed secret masking still holds alongside the new
+   classification logic — neither real secret value appears anywhere in
+   the persisted `comparison_runs.results`. **Playwright marked
+   `BLOCKED_EXTERNAL_AUTH`** (export file still does not exist, re-checked
+   immediately before this pass); verified instead via the real
+   Browser-pane mechanism. Full exact-ID FK-ordered cleanup across 70
+   client-scoped tables inside one transaction, zero orphans verified by a
+   direct sweep; both protected clients confirmed unchanged. Full
+   write-up: `test-evidence/configuration-baseline/
+   configuration_baseline_test_1/configuration_baseline_test_1.md`.
+   `docs/eoc-feature-coverage-matrix.md` row #35 enriched in place (status
+   unchanged at `PASS_WITH_RISKS`, capped by the same rule; Backend/UI/
+   Automated Tests/Playwright/Evidence/Known Gaps cells all updated);
+   summary counts re-run mechanically (unchanged: 21/16/26/15/2).
+8. **Real, disclosed v1 scope boundaries, not fabricated as done**: only
+   value-differences on keys present on both sides are baseline-
+   reclassified (missing/extra are not, in v1); single-level baseline only
+   (no Section 40 Global→App→Env→Deployment inheritance chain); no
+   simultaneous multi-baseline comparison (Section 41); no baseline
+   change-impact detection (Section 46); not yet wired into Database
+   Schema comparison (Section 47's full cross-comparison-type reuse is a
+   real fast-follow); only "Mark as Intentional" is built on the UI so far
+   — `[Create Gap]`, `[Remediate]`, and the full `[Use Baseline]/
+   [Apply Approved Setting]/[Preview Change]/[Request Approval]` flow
+   (Section 44) are not yet built.
 
 ## Failed Tests
 

@@ -25,15 +25,33 @@ import { ConnectionSecurityService, ConnectivityBlockedError } from './connectio
 import { maskSecrets } from './secret-masking.js';
 import { TechnologyAdapterRegistry } from './technology-adapter-registry.js';
 import { ConfigurationSnapshotService } from './configuration-snapshot-service.js';
+import { ConfigurationBaselineService, type BaselineRule } from './configuration-baseline-service.js';
 
-export type ComparisonObjectStatus = 'match' | 'mismatch' | 'missing' | 'extra' | 'unknown';
+/**
+ * Real, reusable classification model — the "Approved Baseline / Reusable
+ * Configuration / Environment Override / Intentional Difference /
+ * Approved Exception" capability (migration 053). Core product
+ * principle: a difference is not automatically a defect. "DIFFERENT" and
+ * "WRONG" are not the same. The 5 new statuses below are only ever
+ * produced when a real baseline was actually consulted for a key (see
+ * `classifyConfigFinding()`); without a baseline, findings keep using the
+ * original, still-real, baseline-agnostic 5 (`match`/`mismatch`/
+ * `missing`/`extra`/`unknown`) from migration 048/052 — never silently
+ * upgraded or downgraded without a real rule behind the change.
+ */
+export type ComparisonObjectStatus =
+  | 'match' | 'mismatch' | 'missing' | 'extra' | 'unknown'
+  | 'expected_difference' | 'approved_override' | 'approved_exception' | 'unapproved_difference' | 'not_assessed';
 
 export interface ComparisonObjectResult {
-  objectType: string; // 'table' | 'column' | 'index'
+  objectType: string; // 'table' | 'column' | 'index' | 'config_key'
   name: string;
   status: ComparisonObjectStatus;
   leftDetail: string;
   rightDetail: string;
+  /** Populated only when a real baseline rule was consulted for this key. */
+  baselineValue?: string;
+  overrideReason?: string;
 }
 
 export interface ComparisonSummary {
@@ -43,6 +61,77 @@ export interface ComparisonSummary {
   missing: number;
   extra: number;
   unknown: number;
+  expectedDifference: number;
+  approvedOverride: number;
+  approvedException: number;
+  unapprovedDifference: number;
+  notAssessed: number;
+}
+
+const EMPTY_SUMMARY: ComparisonSummary = {
+  total: 0, match: 0, mismatch: 0, missing: 0, extra: 0, unknown: 0,
+  expectedDifference: 0, approvedOverride: 0, approvedException: 0, unapprovedDifference: 0, notAssessed: 0,
+};
+
+function buildSummary(results: ComparisonObjectResult[]): ComparisonSummary {
+  return {
+    total: results.length,
+    match: results.filter(r => r.status === 'match').length,
+    mismatch: results.filter(r => r.status === 'mismatch').length,
+    missing: results.filter(r => r.status === 'missing').length,
+    extra: results.filter(r => r.status === 'extra').length,
+    unknown: results.filter(r => r.status === 'unknown').length,
+    expectedDifference: results.filter(r => r.status === 'expected_difference').length,
+    approvedOverride: results.filter(r => r.status === 'approved_override').length,
+    approvedException: results.filter(r => r.status === 'approved_exception').length,
+    unapprovedDifference: results.filter(r => r.status === 'unapproved_difference').length,
+    notAssessed: results.filter(r => r.status === 'not_assessed').length,
+  };
+}
+
+/**
+ * The real, reusable decision tree (directive Section 42), implemented
+ * literally:
+ * 1. Real difference? No -> match. (missing/extra handled as their own
+ *    structural cases, not reclassified by a baseline in v1 — a real,
+ *    disclosed scope boundary: overrides/exceptions apply to VALUE
+ *    differences on keys present on both sides, the directive's own
+ *    worked examples throughout — API_URL, timeout, JWT algorithm, worker
+ *    count — are all "both sides have it, values differ" cases.)
+ * 2. Expected difference by design (`expectedToVaryByEnvironment`)? ->
+ *    expected_difference — never flagged, per Section 33's own
+ *    instruction to never auto-classify environment-appropriate
+ *    variation as non-compliant.
+ * 3/4. Does each side's real value match ITS OWN approved value (the
+ *    baseline default, or a real environment-specific override)? Both
+ *    sides individually approved -> approved_override (an intentional,
+ *    pre-approved per-environment variation).
+ * 5. (Exceptions are applied as a real post-processing pass — see
+ *    `applyExceptions()` — since an exception references a SPECIFIC
+ *    finding in an ALREADY-PERSISTED run, not a standing baseline rule.)
+ * 6. Otherwise, with a real baseline consulted and no approval covering
+ *    it -> unapproved_difference (distinct from plain `mismatch`, which
+ *    means no baseline was consulted for this key at all).
+ */
+function classifyConfigFinding(
+  leftValue: string, rightValue: string, leftEnv: string, rightEnv: string, rule: BaselineRule | undefined
+): { status: ComparisonObjectStatus; baselineValue?: string; overrideReason?: string } {
+  if (leftValue === rightValue) return { status: 'match' };
+  if (!rule) return { status: 'mismatch' }; // no baseline rule for this key — the original, real, baseline-agnostic finding
+  if (rule.expectedToVaryByEnvironment) return { status: 'expected_difference', baselineValue: rule.approvedValue };
+
+  const approvedFor = (env: string, actual: string): { approved: boolean; reason?: string } => {
+    const override = rule.overrides?.[env];
+    if (override) return { approved: override.value === actual, reason: override.reason };
+    if (rule.approvedValue !== undefined) return { approved: rule.approvedValue === actual };
+    return { approved: false };
+  };
+  const left = approvedFor(leftEnv, leftValue);
+  const right = approvedFor(rightEnv, rightValue);
+  if (left.approved && right.approved) {
+    return { status: 'approved_override', baselineValue: rule.approvedValue, overrideReason: right.reason || left.reason };
+  }
+  return { status: 'unapproved_difference', baselineValue: rule.approvedValue };
 }
 
 export interface ComparisonRun {
@@ -55,6 +144,8 @@ export interface ComparisonRun {
   rightConnectionId: string | null;
   leftSnapshotId: string | null;
   rightSnapshotId: string | null;
+  baselineId: string | null;
+  baselineVersion: string | null;
   status: 'running' | 'completed' | 'failed';
   results: ComparisonObjectResult[];
   summary: ComparisonSummary;
@@ -67,7 +158,8 @@ export interface ComparisonRun {
 type RunRow = {
   id: string; client_id: string; comparison_type: 'database_schema' | 'configuration'; left_label: string; right_label: string;
   left_connection_id: string | null; right_connection_id: string | null;
-  left_snapshot_id: string | null; right_snapshot_id: string | null; status: 'running' | 'completed' | 'failed';
+  left_snapshot_id: string | null; right_snapshot_id: string | null;
+  baseline_id: string | null; baseline_version: string | null; status: 'running' | 'completed' | 'failed';
   results: ComparisonObjectResult[]; summary: ComparisonSummary; error_message: string | null;
   created_by: string | null; created_at: Date; completed_at: Date | null;
 };
@@ -76,8 +168,9 @@ function toRun(r: RunRow): ComparisonRun {
   return {
     id: r.id, clientId: r.client_id, comparisonType: r.comparison_type, leftLabel: r.left_label, rightLabel: r.right_label,
     leftConnectionId: r.left_connection_id, rightConnectionId: r.right_connection_id,
-    leftSnapshotId: r.left_snapshot_id, rightSnapshotId: r.right_snapshot_id, status: r.status,
-    results: r.results || [], summary: r.summary || { total: 0, match: 0, mismatch: 0, missing: 0, extra: 0, unknown: 0 },
+    leftSnapshotId: r.left_snapshot_id, rightSnapshotId: r.right_snapshot_id,
+    baselineId: r.baseline_id, baselineVersion: r.baseline_version, status: r.status,
+    results: r.results || [], summary: r.summary || EMPTY_SUMMARY,
     errorMessage: r.error_message, createdBy: r.created_by, createdAt: r.created_at.toISOString(),
     completedAt: r.completed_at?.toISOString() ?? null,
   };
@@ -92,7 +185,10 @@ function toRun(r: RunRow): ComparisonRun {
  * so a genuine credential rotation is still honestly reported as
  * "changed" without ever showing the real values.
  */
-function diffConfigs(left: Record<string, string>, right: Record<string, string>): ComparisonObjectResult[] {
+function diffConfigs(
+  left: Record<string, string>, right: Record<string, string>,
+  leftEnv: string, rightEnv: string, rules: Record<string, BaselineRule> | undefined
+): ComparisonObjectResult[] {
   const looksSecret = (key: string) => /password|secret|token|api[_-]?key|credential/i.test(key);
   const allKeys = new Set([...Object.keys(left), ...Object.keys(right)]);
   const results: ComparisonObjectResult[] = [];
@@ -100,15 +196,19 @@ function diffConfigs(left: Record<string, string>, right: Record<string, string>
     const inLeft = Object.prototype.hasOwnProperty.call(left, key);
     const inRight = Object.prototype.hasOwnProperty.call(right, key);
     const display = (v: string) => (looksSecret(key) ? '••••••••' : v);
-    let status: ComparisonObjectStatus;
-    if (inLeft && !inRight) status = 'missing';
-    else if (!inLeft && inRight) status = 'extra';
-    else if (left[key] === right[key]) status = 'match';
-    else status = 'mismatch';
+
+    if (inLeft && !inRight) { results.push({ objectType: 'config_key', name: key, status: 'missing', leftDetail: display(left[key]!), rightDetail: 'not present' }); continue; }
+    if (!inLeft && inRight) { results.push({ objectType: 'config_key', name: key, status: 'extra', leftDetail: 'not present', rightDetail: display(right[key]!) }); continue; }
+
+    // Both present — the real decision tree (Section 42), only exercised
+    // when a real baseline rule exists for this key; otherwise falls back
+    // to the original, real, baseline-agnostic match/mismatch.
+    const classification = classifyConfigFinding(left[key]!, right[key]!, leftEnv, rightEnv, rules?.[key]);
     results.push({
-      objectType: 'config_key', name: key, status,
-      leftDetail: inLeft ? display(left[key]!) : 'not present',
-      rightDetail: inRight ? display(right[key]!) : 'not present',
+      objectType: 'config_key', name: key, status: classification.status,
+      leftDetail: display(left[key]!), rightDetail: display(right[key]!),
+      baselineValue: classification.baselineValue !== undefined ? display(classification.baselineValue) : undefined,
+      overrideReason: classification.overrideReason,
     });
   }
   return results;
@@ -277,14 +377,7 @@ export class UniversalComparisonEngine {
       });
     }
 
-    const summary: ComparisonSummary = {
-      total: results.length,
-      match: results.filter(r => r.status === 'match').length,
-      mismatch: results.filter(r => r.status === 'mismatch').length,
-      missing: results.filter(r => r.status === 'missing').length,
-      extra: results.filter(r => r.status === 'extra').length,
-      unknown: results.filter(r => r.status === 'unknown').length,
-    };
+    const summary = buildSummary(results);
 
     const completed = await sharedPool.query<RunRow>(
       `UPDATE comparison_runs SET status = 'completed', results = $1, summary = $2, completed_at = NOW() WHERE id = $3 RETURNING *`,
@@ -300,8 +393,16 @@ export class UniversalComparisonEngine {
    * type (migration 052 widened both, extending — not duplicating —
    * this engine), so the existing UI's RunCard/ObjectBadge components
    * work unmodified for this type too.
+   *
+   * `baselineId` is optional (migration 053) — when provided, a real,
+   * approved baseline's rules are consulted for every key present on
+   * both sides, producing the richer expected_difference/
+   * approved_override/unapproved_difference classification (see
+   * `classifyConfigFinding()`); without one, findings keep using the
+   * original, real, baseline-agnostic match/mismatch — never fabricated
+   * approval where none was actually configured.
    */
-  async runConfigurationComparison(clientId: string, leftSnapshotId: string, rightSnapshotId: string, actor: string | null): Promise<ComparisonRun> {
+  async runConfigurationComparison(clientId: string, leftSnapshotId: string, rightSnapshotId: string, actor: string | null, baselineId?: string | null): Promise<ComparisonRun> {
     if (leftSnapshotId === rightSnapshotId) {
       throw new Error('Cannot compare a configuration snapshot against itself — choose two different snapshots.');
     }
@@ -312,24 +413,54 @@ export class UniversalComparisonEngine {
       throw new Error('Both must be real, existing configuration snapshots belonging to this client.');
     }
 
-    const results = diffConfigs(left.config, right.config);
-    const summary: ComparisonSummary = {
-      total: results.length,
-      match: results.filter(r => r.status === 'match').length,
-      mismatch: results.filter(r => r.status === 'mismatch').length,
-      missing: results.filter(r => r.status === 'missing').length,
-      extra: results.filter(r => r.status === 'extra').length,
-      unknown: results.filter(r => r.status === 'unknown').length,
-    };
+    let baselineVersion: string | null = null;
+    let rules: Record<string, BaselineRule> | undefined;
+    if (baselineId) {
+      const baseline = await new ConfigurationBaselineService().get(baselineId, clientId);
+      if (!baseline) throw new Error('That baseline does not belong to this client.');
+      baselineVersion = baseline.version;
+      rules = baseline.rules;
+    }
+
+    const results = diffConfigs(left.config, right.config, left.environment, right.environment, rules);
+    const summary = buildSummary(results);
 
     const inserted = await sharedPool.query<RunRow>(
-      `INSERT INTO comparison_runs (client_id, comparison_type, left_label, right_label, left_snapshot_id, right_snapshot_id, status, results, summary, created_by, completed_at)
-       VALUES ($1, 'configuration', $2, $3, $4, $5, 'completed', $6, $7, $8, NOW()) RETURNING *`,
-      [clientId, `${left.name} (${left.environment})`, `${right.name} (${right.environment})`, leftSnapshotId, rightSnapshotId, JSON.stringify(results), JSON.stringify(summary), actor]
+      `INSERT INTO comparison_runs (client_id, comparison_type, left_label, right_label, left_snapshot_id, right_snapshot_id, baseline_id, baseline_version, status, results, summary, created_by, completed_at)
+       VALUES ($1, 'configuration', $2, $3, $4, $5, $6, $7, 'completed', $8, $9, $10, NOW()) RETURNING *`,
+      [clientId, `${left.name} (${left.environment})`, `${right.name} (${right.environment})`, leftSnapshotId, rightSnapshotId, baselineId || null, baselineVersion, JSON.stringify(results), JSON.stringify(summary), actor]
     );
     const runRow = inserted.rows[0];
     if (!runRow) throw new Error('comparison_runs insert returned no row');
     return toRun(runRow);
+  }
+
+  /**
+   * Real "Mark as Intentional" reclassification — after a real exception
+   * is granted for one specific finding in an ALREADY-PERSISTED run (see
+   * `ConfigurationBaselineService.createException`), this updates that
+   * SAME run's own stored result in place (never a new fabricated run)
+   * so the real, existing finding visibly reflects the real, live
+   * approval — directly satisfying the directive's own worked example
+   * ("AskABD should then show: Approved Difference rather than:
+   * Mismatch"). Only ever upgrades a genuinely unapproved finding
+   * (`mismatch`/`unapproved_difference`) — never silently reclassifies a
+   * finding that was never actually a problem.
+   */
+  async applyExceptionToRun(runId: string, clientId: string, configKey: string): Promise<ComparisonRun> {
+    const run = await this.getRun(runId);
+    if (!run || run.clientId !== clientId) throw new Error('Comparison run not found for this client.');
+    const results = run.results.map(r => {
+      if (r.name !== configKey) return r;
+      if (r.status !== 'mismatch' && r.status !== 'unapproved_difference') return r;
+      return { ...r, status: 'approved_exception' as ComparisonObjectStatus };
+    });
+    const summary = buildSummary(results);
+    const updated = await sharedPool.query<RunRow>(
+      `UPDATE comparison_runs SET results = $1, summary = $2 WHERE id = $3 RETURNING *`,
+      [JSON.stringify(results), JSON.stringify(summary), runId]
+    );
+    return toRun(updated.rows[0]!);
   }
 
   async getRun(id: string): Promise<ComparisonRun | null> {

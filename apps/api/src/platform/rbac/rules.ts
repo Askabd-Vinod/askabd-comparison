@@ -405,6 +405,10 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   { method: 'POST', path: '/api/v1/oc/clients/:clientId/comparisons/configuration', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/configuration-snapshots', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/clients/:clientId/configuration-snapshots', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/configuration-baselines', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/configuration-baselines', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/configuration-baselines/:id/approve', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/comparisons/:runId/exceptions', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/comparisons/:id', permissions: ['Admin.Access'] },
 
   // ─── Technology Adapter Registry (migration 051, technology-adapter-routes.ts)

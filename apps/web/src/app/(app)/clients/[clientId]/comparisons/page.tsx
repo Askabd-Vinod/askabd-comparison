@@ -1,5 +1,5 @@
 import { apiSafe } from '../../../../lib/api';
-import { ComparisonsManager, type ComparisonRun, type ConfigurationSnapshot } from './comparisons-manager';
+import { ComparisonsManager, type ComparisonRun, type ConfigurationSnapshot, type ConfigurationBaseline } from './comparisons-manager';
 import type { DatabaseConnection } from '../../../../components/database-connections-manager';
 
 interface PageProps { params: Promise<{ clientId: string }> }
@@ -23,6 +23,11 @@ export default async function ClientComparisonsPage({ params }: PageProps) {
   // technology as unsupported, never silently offering it.
   const { adapters } = await apiSafe<{ adapters: Array<{ technology: string; status: string }> }>(`/api/v1/oc/technology-adapters?category=database`, { adapters: [] });
   const { snapshots } = await apiSafe<{ snapshots: ConfigurationSnapshot[] }>(`/api/v1/oc/clients/${clientId}/configuration-snapshots`, { snapshots: [] });
+  // Real, staff-approved Configuration Baselines (migration 053) — the
+  // reference rules a comparison can optionally be checked against so a
+  // real difference is classified (expected/approved override/approved
+  // exception/unapproved) rather than automatically flagged as a defect.
+  const { baselines } = await apiSafe<{ baselines: ConfigurationBaseline[] }>(`/api/v1/oc/clients/${clientId}/configuration-baselines`, { baselines: [] });
 
   return (
     <div>
@@ -31,9 +36,11 @@ export default async function ClientComparisonsPage({ params }: PageProps) {
         Real, read-only comparisons between two of this client's own database connections (schema/table level) or
         configuration snapshots (key-value level) — never a fabricated diff. v1 compares PostgreSQL table
         inventories and manually-entered configuration only; other database technologies show an honest "Adapter
-        Required" status rather than being silently hidden or attempted blind.
+        Required" status rather than being silently hidden or attempted blind. Configuration comparisons can
+        optionally be checked against an approved baseline so differences are classified rather than automatically
+        treated as defects.
       </p>
-      <ComparisonsManager clientId={clientId} initialRuns={runs} connections={connections} adapters={adapters} initialSnapshots={snapshots} />
+      <ComparisonsManager clientId={clientId} initialRuns={runs} connections={connections} adapters={adapters} initialSnapshots={snapshots} initialBaselines={baselines} />
     </div>
   );
 }

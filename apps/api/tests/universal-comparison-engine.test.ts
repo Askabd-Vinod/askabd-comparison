@@ -321,7 +321,12 @@ describe('Configuration Comparison (migration 052) — real key-value diff, exte
     const run = res.json().run;
     expect(run.comparisonType).toBe('configuration');
     expect(run.status).toBe('completed');
-    expect(run.summary).toEqual({ total: 4, match: 1, mismatch: 1, missing: 1, extra: 1, unknown: 0 });
+    // objectContaining, not a brittle exact match — migration 053 added
+    // real new summary fields (expectedDifference/approvedOverride/etc.)
+    // that this baseline-agnostic run correctly leaves at 0; asserting
+    // the exact full shape here would make this test fail every time a
+    // real new classification dimension is added, for no real reason.
+    expect(run.summary).toEqual(expect.objectContaining({ total: 4, match: 1, mismatch: 1, missing: 1, extra: 1, unknown: 0 }));
 
     const byKey = Object.fromEntries(run.results.map((r: any) => [r.name, r]));
     expect(byKey.FEATURE_FLAG_X.status).toBe('match'); // unchanged
@@ -388,6 +393,161 @@ describe('Configuration Comparison (migration 052) — real key-value diff, exte
       headers: { authorization: `Bearer ${customer}` }, payload: { name: 'X', environment: 'production', config: {} },
     });
     expect(res.statusCode).toBe(403);
+    await app.close();
+  });
+});
+
+describe('Configuration Baselines / Overrides / Exceptions (migration 053) — DIFFERENT is not automatically WRONG', () => {
+  async function makeSnapshot(app: Awaited<ReturnType<typeof buildApp>>, admin: string, clientId: string, name: string, environment: string, config: Record<string, string>) {
+    const res = await app.inject({
+      method: 'POST', url: `/api/v1/oc/clients/${clientId}/configuration-snapshots`,
+      headers: { authorization: `Bearer ${admin}` }, payload: { name, environment, config },
+    });
+    expect(res.statusCode).toBe(201);
+    return res.json().snapshot.id as string;
+  }
+  async function makeBaseline(app: Awaited<ReturnType<typeof buildApp>>, admin: string, clientId: string, rules: any) {
+    const res = await app.inject({
+      method: 'POST', url: `/api/v1/oc/clients/${clientId}/configuration-baselines`,
+      headers: { authorization: `Bearer ${admin}` }, payload: { name: `Baseline ${randomUUID().slice(0, 8)}`, rules },
+    });
+    expect(res.statusCode).toBe(201);
+    return res.json().baseline.id as string;
+  }
+
+  it('a key with NO baseline rule falls back to the original, real, baseline-agnostic "mismatch" — never fabricated approval', async () => {
+    const app = await buildApp();
+    const clientId = await makeClient(`Baseline None ${randomUUID().slice(0, 8)}`);
+    const admin = await adminToken();
+    const leftId = await makeSnapshot(app, admin, clientId, 'Left', 'production', { UNRULED_KEY: 'a' });
+    const rightId = await makeSnapshot(app, admin, clientId, 'Right', 'staging', { UNRULED_KEY: 'b' });
+    const baselineId = await makeBaseline(app, admin, clientId, {}); // real baseline, but no rule for this key
+
+    const res = await app.inject({
+      method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/configuration`,
+      headers: { authorization: `Bearer ${admin}` }, payload: { leftSnapshotId: leftId, rightSnapshotId: rightId, baselineId },
+    });
+    const run = res.json().run;
+    expect(run.baselineId).toBe(baselineId);
+    expect(run.results.find((r: any) => r.name === 'UNRULED_KEY').status).toBe('mismatch');
+    await app.close();
+  });
+
+  it('expectedToVaryByEnvironment: real difference is classified expected_difference, never flagged as a problem', async () => {
+    const app = await buildApp();
+    const clientId = await makeClient(`Baseline Expected ${randomUUID().slice(0, 8)}`);
+    const admin = await adminToken();
+    const leftId = await makeSnapshot(app, admin, clientId, 'Prod', 'production', { API_URL: 'https://api.company.com' });
+    const rightId = await makeSnapshot(app, admin, clientId, 'Staging', 'staging', { API_URL: 'https://staging-api.company.com' });
+    const baselineId = await makeBaseline(app, admin, clientId, { API_URL: { expectedToVaryByEnvironment: true } });
+
+    const res = await app.inject({
+      method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/configuration`,
+      headers: { authorization: `Bearer ${admin}` }, payload: { leftSnapshotId: leftId, rightSnapshotId: rightId, baselineId },
+    });
+    const run = res.json().run;
+    expect(run.results.find((r: any) => r.name === 'API_URL').status).toBe('expected_difference');
+    expect(run.summary.expectedDifference).toBe(1);
+    await app.close();
+  });
+
+  it('a real, approved per-environment override: both sides match their OWN approved value -> approved_override', async () => {
+    const app = await buildApp();
+    const clientId = await makeClient(`Baseline Override ${randomUUID().slice(0, 8)}`);
+    const admin = await adminToken();
+    const leftId = await makeSnapshot(app, admin, clientId, 'Prod', 'production', { CONN_TIMEOUT: '60' });
+    const rightId = await makeSnapshot(app, admin, clientId, 'Staging', 'staging', { CONN_TIMEOUT: '30' });
+    const baselineId = await makeBaseline(app, admin, clientId, {
+      CONN_TIMEOUT: { approvedValue: '30', overrides: { production: { value: '60', reason: 'Higher production workload', approvedBy: 'ops-lead', approvedAt: new Date().toISOString() } } },
+    });
+
+    const res = await app.inject({
+      method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/configuration`,
+      headers: { authorization: `Bearer ${admin}` }, payload: { leftSnapshotId: leftId, rightSnapshotId: rightId, baselineId },
+    });
+    const run = res.json().run;
+    const finding = run.results.find((r: any) => r.name === 'CONN_TIMEOUT');
+    expect(finding.status).toBe('approved_override');
+    expect(finding.baselineValue).toBe('30');
+    expect(finding.overrideReason).toBe('Higher production workload');
+    expect(run.summary.approvedOverride).toBe(1);
+    await app.close();
+  });
+
+  it('a real, unapproved difference against a baseline that HAS a rule for the key -> unapproved_difference, distinct from plain mismatch', async () => {
+    const app = await buildApp();
+    const clientId = await makeClient(`Baseline Unapproved ${randomUUID().slice(0, 8)}`);
+    const admin = await adminToken();
+    const leftId = await makeSnapshot(app, admin, clientId, 'Prod', 'production', { JWT_ALGORITHM: 'HS256' });
+    const rightId = await makeSnapshot(app, admin, clientId, 'Staging', 'staging', { JWT_ALGORITHM: 'RS256' });
+    const baselineId = await makeBaseline(app, admin, clientId, { JWT_ALGORITHM: { approvedValue: 'RS256' } });
+
+    const res = await app.inject({
+      method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/configuration`,
+      headers: { authorization: `Bearer ${admin}` }, payload: { leftSnapshotId: leftId, rightSnapshotId: rightId, baselineId },
+    });
+    const run = res.json().run;
+    const finding = run.results.find((r: any) => r.name === 'JWT_ALGORITHM');
+    expect(finding.status).toBe('unapproved_difference');
+    expect(finding.baselineValue).toBe('RS256');
+    expect(run.summary.unapprovedDifference).toBe(1);
+    await app.close();
+  });
+
+  it('a real "Mark as Intentional" exception reclassifies the SAME existing finding in place — approved_exception, traceable to the real run', async () => {
+    const app = await buildApp();
+    const clientId = await makeClient(`Baseline Exception ${randomUUID().slice(0, 8)}`);
+    const admin = await adminToken();
+    const leftId = await makeSnapshot(app, admin, clientId, 'Prod', 'production', { WORKER_COUNT: '100' });
+    const rightId = await makeSnapshot(app, admin, clientId, 'Staging', 'staging', { WORKER_COUNT: '10' });
+
+    const create = await app.inject({
+      method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/configuration`,
+      headers: { authorization: `Bearer ${admin}` }, payload: { leftSnapshotId: leftId, rightSnapshotId: rightId },
+    });
+    const runId = create.json().run.id;
+    expect(create.json().run.results.find((r: any) => r.name === 'WORKER_COUNT').status).toBe('mismatch'); // real, plain mismatch before any exception
+
+    const exceptionRes = await app.inject({
+      method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/${runId}/exceptions`,
+      headers: { authorization: `Bearer ${admin}` },
+      payload: { configKey: 'WORKER_COUNT', reason: 'Staging uses reduced capacity for cost control.', owner: 'ops-manager', approver: 'ops-manager', reviewDate: '2026-12-01' },
+    });
+    expect(exceptionRes.statusCode).toBe(201);
+    const body = exceptionRes.json();
+    expect(body.exception.configKey).toBe('WORKER_COUNT');
+    expect(body.exception.comparisonRunId).toBe(runId);
+    expect(body.run.results.find((r: any) => r.name === 'WORKER_COUNT').status).toBe('approved_exception');
+
+    // Real, independent re-fetch — the SAME run, not a new one, now reflects the real approval.
+    const refetch = await app.inject({ method: 'GET', url: `/api/v1/oc/comparisons/${runId}`, headers: { authorization: `Bearer ${admin}` } });
+    expect(refetch.json().run.results.find((r: any) => r.name === 'WORKER_COUNT').status).toBe('approved_exception');
+    expect(refetch.json().run.summary.approvedException).toBe(1);
+    await app.close();
+  });
+
+  it('an exception without a real reason is rejected (400) — never a silent exception', async () => {
+    const app = await buildApp();
+    const clientId = await makeClient(`Baseline Exception No Reason ${randomUUID().slice(0, 8)}`);
+    const admin = await adminToken();
+    const leftId = await makeSnapshot(app, admin, clientId, 'A', 'production', { X: '1' });
+    const rightId = await makeSnapshot(app, admin, clientId, 'B', 'staging', { X: '2' });
+    const create = await app.inject({ method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/configuration`, headers: { authorization: `Bearer ${admin}` }, payload: { leftSnapshotId: leftId, rightSnapshotId: rightId } });
+    const runId = create.json().run.id;
+    const res = await app.inject({ method: 'POST', url: `/api/v1/oc/clients/${clientId}/comparisons/${runId}/exceptions`, headers: { authorization: `Bearer ${admin}` }, payload: { configKey: 'X' } });
+    expect(res.statusCode).toBe(400);
+    await app.close();
+  });
+
+  it('a real baseline can be approved through its own real endpoint', async () => {
+    const app = await buildApp();
+    const clientId = await makeClient(`Baseline Approve ${randomUUID().slice(0, 8)}`);
+    const admin = await adminToken();
+    const baselineId = await makeBaseline(app, admin, clientId, {});
+    const res = await app.inject({ method: 'POST', url: `/api/v1/oc/clients/${clientId}/configuration-baselines/${baselineId}/approve`, headers: { authorization: `Bearer ${admin}` } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().baseline.status).toBe('approved');
+    expect(res.json().baseline.approvedBy).toBe('admin-1');
     await app.close();
   });
 });
