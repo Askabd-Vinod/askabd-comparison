@@ -27,7 +27,16 @@ export default function DiscoveryProgressPage() {
   const [runs, setRuns] = useState<DiscoveryRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Real bug found and fixed via live Playwright verification (not assumed): this used
+  // to be one shared `error` state. The 5-second auto-refresh poller's own success path
+  // unconditionally called `setError(null)` — which silently wiped a real, still-true
+  // "prerequisites not met" error from startDiscovery() within one interval tick, since
+  // fetching the (still-empty) discovery status always succeeds regardless of whether the
+  // real blocker was resolved. Reproduced live: the error was genuinely unobservable in
+  // practice, not just theoretically racy. Fixed by splitting into two independent error
+  // states, each cleared only by the function that owns it.
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [startError, setStartError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<string>('');
 
   const fetchDiscovery = useCallback(async () => {
@@ -36,10 +45,10 @@ export default function DiscoveryProgressPage() {
       if (res.ok) {
         const data = await res.json();
         setRuns(data.runs || []);
-        setError(null);
+        setLoadError(null);
       }
     } catch {
-      setError('Unable to load discovery data. Retrying...');
+      setLoadError('Unable to load discovery data. Retrying...');
     }
     setLoading(false);
     setLastRefresh(new Date().toLocaleTimeString());
@@ -54,7 +63,7 @@ export default function DiscoveryProgressPage() {
 
   async function startDiscovery() {
     setStarting(true);
-    setError(null);
+    setStartError(null);
     try {
       const res = await fetch(`${API}/api/v1/oc/discovery/start`, {
         method: 'POST',
@@ -66,13 +75,13 @@ export default function DiscoveryProgressPage() {
       } else {
         const d = await res.json().catch(() => null);
         if (d?.missing) {
-          setError(`Prerequisites not met: ${d.missing.join(', ')}`);
+          setStartError(`Prerequisites not met: ${d.missing.join(', ')}`);
         } else {
-          setError(d?.error || 'Failed to start discovery');
+          setStartError(d?.error || 'Failed to start discovery');
         }
       }
     } catch {
-      setError('Service unavailable. Please try again.');
+      setStartError('Service unavailable. Please try again.');
     }
     setStarting(false);
   }
@@ -206,10 +215,10 @@ export default function DiscoveryProgressPage() {
           </div>
           <p className="text-sm font-semibold text-gray-800">No Discovery Run Yet</p>
           <p className="text-xs text-gray-500 mt-1">Start discovery to scan the client's environment.</p>
-          {error && (
+          {startError && (
             <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3 text-left">
               <p className="text-xs font-semibold text-amber-700 mb-1">⚠ Cannot start discovery</p>
-              <p className="text-[10px] text-amber-600">{error}</p>
+              <p className="text-[10px] text-amber-600">{startError}</p>
               <p className="text-[10px] text-gray-500 mt-2">Go back to the lifecycle page and complete the Connector Configuration step first.</p>
             </div>
           )}
@@ -220,9 +229,9 @@ export default function DiscoveryProgressPage() {
       )}
 
       {/* Error (when discovery already exists but refresh fails) */}
-      {error && latestRun && (
+      {loadError && latestRun && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-          <p className="text-xs text-red-700">{error}</p>
+          <p className="text-xs text-red-700">{loadError}</p>
         </div>
       )}
 

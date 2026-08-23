@@ -64,7 +64,7 @@ Allowed statuses (unchanged from the directive): `NOT_STARTED`,
 | 6 | Security Engine | Real, Secure Connectivity Engine | Security profile panel (Lifecycle) | Enforced | `secure-connectivity-engine.test.ts` 19 | NOT reached live yet (gated behind Lifecycle stage 6) | N/A | — | IMPLEMENTED | Real security panel not yet Playwright-verified — candidate for `security_test_1` |
 | 7 | Tenant Isolation Engine | Real, `tenant-access.ts` | N/A | Core of this column | `tenant-access.test.ts` + cross-client denial in every suite | Not directly re-tested this pass | N/A | — | **PASS** | None found |
 | 8 | Client Lifecycle Engine | Real, `oc_lifecycle`, 20-stage journey | Real Lifecycle page | Enforced | Not independently suite-tested | Reached stage 6 live (3x) — stages 1-2, 5-6 real; stages 3-4 (Security Validation, Environment Registration) bypassed via disclosed fixture shortcut in `comparison_test_1`/`gap_analysis_test_1` | N/A | 3x live passes (partial) | PASS_WITH_RISKS | Stages 3-4's own real forms (Authentication Config, Compliance Cert, etc.) never walked live — real candidate for a dedicated `lifecycle_test_1` |
-| 9 | Discovery Engine | Real, `discovery-service.ts`, connector-based | Real Discovery tab | Enforced | Not re-verified this session | Not reached live this session | Requires real client connector credentials | — | IMPLEMENTED | Pre-dates this session; not independently re-verified |
+| 9 | Discovery Engine | Real, `discovery-service.ts`, connector-based | Real Discovery tab | Enforced | Not re-verified this session | **Live — validation path proven, real defect found+fixed** | Real PostgreSQL connector in catalog; happy-path provisioning deferred | `discovery_test_1` | PASS_WITH_RISKS | Real happy path (successful discovery run) not yet completed — deferred to `discovery_test_2`/`connector_test_1`. Real UI bug found+fixed: auto-refresh poller was silently clearing the real "prerequisites not met" error within 5s |
 | 10 | Discovery Document Ingestion Engine | Real, migration 045 | Real (mode toggle on Discovery Intake page) | Enforced | `discovery-document-ingestion.test.ts` 6 | Not reached live this session | N/A | — | IMPLEMENTED | Built this session (earlier pass), never live-Playwright-tested |
 | 11 | Discovery Extraction Engine | Real, evidence-quote-verified | Real Discovery Intake page | Enforced | `discovery-intake.test.ts` 11 | Not reached live this session | N/A | — | IMPLEMENTED | — |
 | 12 | Business Requirements Engine | Real | Real | Enforced | `business-requirements.test.ts` 15 | **Live, 4 real scenarios** | N/A | `requirements_test_1` | **PASS** | Clarification-question generation not built (see #14) |
@@ -142,8 +142,8 @@ Allowed statuses (unchanged from the directive): `NOT_STARTED`,
 ## Summary counts (honest, as of this update)
 
 - **PASS**: 17 engines
-- **PASS_WITH_RISKS**: 11 engines
-- **IMPLEMENTED** (real, not yet live-Playwright-verified): 26 engines
+- **PASS_WITH_RISKS**: 12 engines (was 11 — Discovery Engine moved from IMPLEMENTED after `discovery_test_1`: real validation path proven live, one real UI defect found and fixed, happy path deferred)
+- **IMPLEMENTED** (real, not yet live-Playwright-verified): 25 engines
 - **NOT_STARTED**: 20 engines
 - **BLOCKED_EXTERNAL_DEPENDENCY**: 3 engines (VPS Connectivity, Bastion/Private Network, and VPN Connectivity's live-tunnel portion) — all genuinely require real client infrastructure this sandbox cannot provide, not fabricated as done and not silently skipped
 - Engines pre-dating this session and not independently re-verified: 9 (marked `IMPLEMENTED` with an explicit note, never assumed working)

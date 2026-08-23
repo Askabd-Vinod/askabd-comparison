@@ -1693,6 +1693,36 @@ formal per-feature reporting format. Adopted immediately:
    `traceability_links` scoped to the real gap/problem IDs). Full
    write-up: `test-evidence/gap-analysis/gap_analysis_test_1/
    gap_analysis_test_1.md`. No code changed this pass.
+7. **Adopted the "100% Coverage / No Feature Left Behind" directive** —
+   created `docs/eoc-feature-coverage-matrix.md`, a live tracking file
+   covering all 80 named engines, seeded honestly from everything
+   actually verified this entire session (17 PASS, 12 PASS_WITH_RISKS,
+   25 IMPLEMENTED-not-yet-live-tested, 20 NOT_STARTED, 3
+   BLOCKED_EXTERNAL_DEPENDENCY for real client-infrastructure needs this
+   sandbox cannot provide). The platform is explicitly NOT marked
+   complete, per the directive's own Final Program Gate.
+8. **`discovery_test_1`** — real client `AskABD PW Discovery Test 001`.
+   Real validation path proven: starting Discovery with no connector
+   configured correctly returned a real, honest `422` with a structured
+   `prerequisites_not_met` body — never fabricated as succeeding. **A
+   real, live-found-and-fixed UI defect**: the frontend's own error
+   banner for this exact real failure was silently wiped within 5
+   seconds by the page's own auto-refresh poller, which unconditionally
+   cleared a single shared `error` state on every successful (but
+   irrelevant) background poll. Root-caused precisely (one shared state
+   used for two unrelated failure modes), fixed by splitting into
+   `startError`/`loadError`, and re-verified live across an 8+ second
+   window — the real error now genuinely persists. **A real
+   infrastructure incident during verification, correctly ruled out as a
+   tooling artifact, not a second bug**: a stale-HMR `ReferenceError`
+   appeared on the same tab right after the fix; a full source grep
+   confirmed zero remaining references to the removed variable before
+   concluding anything, then the now-standard dev-server restart + fresh
+   tab (requiring one real re-authentication by the account owner)
+   confirmed the fix genuinely clean. The real happy path (an actual
+   successful discovery run against a provisioned connector) was
+   deliberately deferred to a follow-up pass, not silently skipped — see
+   `test-evidence/discovery/discovery_test_1/discovery_test_1.md`.
 
 ## Failed Tests
 
