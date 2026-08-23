@@ -30,9 +30,10 @@ slice done this pass on the Universal Comparison Engine). Validated so
 far under directive (3)'s execution order: `comparison_test_1`,
 `requirements_test_1`, `gap_analysis_test_1`, `discovery_test_1`,
 `assessment_test_1`, `compliance_test_1`, `solution_test_1`,
-`traceability_test_1`, `document_generation_test_1`. **Next up, per the
-standing "continue automatically" authorization**:
-`document_quality_test_1`, and onward down the named list in
+`traceability_test_1`, `document_generation_test_1`,
+`document_quality_test_1`. **Next up, per the standing "continue
+automatically" authorization**:
+`environment_comparison_test_1`, and onward down the named list in
 `docs/eoc-feature-coverage-matrix.md`'s own execution order, ending in
 `FULL_END_TO_END_CLIENT_TEST_1`. Read `docs/eoc-feature-coverage-matrix.md`
 alongside this file — it is the authoritative, row-by-row honest status
@@ -1998,6 +1999,19 @@ formal per-feature reporting format. Adopted immediately:
     counts switched to a direct, mechanical re-count of the Status column
     (PASS 21, PASS_WITH_RISKS 15, IMPLEMENTED 26, NOT_STARTED 16,
     BLOCKED_EXTERNAL_DEPENDENCY 2) to stop compounding manual-delta drift.
+15. **`document_quality_test_1`** — a deliberate, disclosed cross-
+    reference, not a duplicate QA-client cycle: the Document Quality
+    Engine has no separate UI surface or service — `getQualityCheck` is
+    one method inside `document-generation-engine.ts`, reachable only via
+    the same "Run Quality Check" button `document_generation_test_1`
+    already exercised live, twice, on two different real documents,
+    finding and fixing the one real defect in how its result was
+    displayed (not in the check itself, confirmed correct via source
+    review). Spinning up a second QA client to click the same button a
+    third time would exercise no new real code path. Full write-up:
+    `test-evidence/document-quality/document_quality_test_1/
+    document_quality_test_1.md`. `docs/eoc-feature-coverage-matrix.md`
+    row #32's Evidence column updated to cite both suites.
 
 ## Failed Tests
 
