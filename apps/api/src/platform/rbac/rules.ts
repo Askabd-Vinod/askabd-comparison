@@ -258,6 +258,20 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   { method: 'POST', path: '/api/v1/oc/scheduler/jobs/:jobId/run', permissions: ['Admin.Access'] },
   { method: 'PATCH', path: '/api/v1/oc/scheduler/jobs/:jobId/toggle', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/scheduler/run-all', permissions: ['Admin.Access'] },
+  // Found during transformation_test_1 (real gap, same class as the
+  // 2026-08-22 SDLC-completion audit and the production-readiness/
+  // migration-plan gap fixed in migration_validation_test_1): every OTHER
+  // sibling '/oc/clients/:clientId/<capability>' route in this file has an
+  // explicit Admin.Access rule, but these three transformation routes had
+  // none — meaning any authenticated customer token (not just staff) could
+  // create/list transformation plans for their own client via
+  // defaultPolicy:'authenticated', even though the real staff-only UI at
+  // /clients/:id/transformations is the only caller (confirmed by search —
+  // the customer portal uses the separate, already-scoped
+  // GET /oc/portal/:clientId/transformations read endpoint instead).
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/transformations', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/transformations', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/transformations/summary', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/transformations/:id/status', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/capabilities', permissions: ['Admin.Access'] },
   { method: 'PATCH', path: '/api/v1/oc/capabilities/:id', permissions: ['Admin.Access'] },
@@ -480,4 +494,77 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
 
   // ─── Customer Activity (Phase 2, 2026-08-20) ─────────────────────────────
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/activity', permissions: ['Admin.Access'] },
+
+  // ─── transformation_test_1 systemic sweep (2026-08-23) ───────────────────
+  // While closing the 3 transformation-route gaps above, ran a full mechanical
+  // diff of every `server.<method>('/oc/clients/:clientId/...', ...)`
+  // registration in operations-center-routes.ts against this file — the same
+  // audit technique the file's own pre-existing comments describe doing by
+  // hand for narrower slices ("the 2026-08-22 SDLC-completion audit", the
+  // opaque-ID sweep above). Found 52 more client-scoped routes with NO
+  // explicit rule across Problems, Gap Analysis, Continuous Optimization
+  // (incl. Transformation Outcomes), Portfolio Health, Notification
+  // Preferences, Escalations, Compliance, Onboarding, Service Bundles,
+  // Payment Methods, Transactions, Reconciliation, and Health Score/Snapshot
+  // — every one of them fell through to defaultPolicy:'authenticated', so any
+  // authenticated identity tenant-mapped to a client (any role, not just
+  // staff) could read or write these staff-only engines for that client.
+  // Cross-referenced against the real customer-portal source
+  // (apps/web/src/app/(portal)/**) call-by-call, not just by path: 4 of the
+  // 52 (GET .../services, GET .../services/recommendations,
+  // GET .../services/coverage, GET .../engagements) are genuinely called by
+  // the portal with a plain GET and are deliberately left OFF this list —
+  // same established pattern as /oc/clients/:clientId/requests and
+  // /oc/portal/:clientId/* above. POST .../engagements looked like a portal
+  // route by a naive path-only grep but the portal only ever GETs that URL
+  // (confirmed by reading both real call sites) — creating a commercial
+  // engagement is staff-only, so it IS included below.
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/connection-tests', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/problems', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/problems/summary', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/problems', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/problems/import-assessment', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/gaps', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/gaps/summary', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/gaps', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/gaps/generate', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/gaps/recommend', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/gaps/aging', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/optimization/metrics', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/optimization/metrics', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/optimization/baselines', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/optimization/baselines', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/optimization/measurements', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/optimization/measurements', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/optimization/findings', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/optimization/outcomes', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/optimization/outcomes', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/optimization/summary', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/optimization/monitoring', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/portfolio/clients/:clientId/health', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/known-information', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/notification-preferences', permissions: ['Admin.Access'] },
+  { method: 'PUT', path: '/api/v1/oc/clients/:clientId/notification-preferences', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/escalations', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/compliance', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/compliance/summary', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/compliance/initialize', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/compliance/auto-map', permissions: ['Admin.Access'] },
+  { method: 'PATCH', path: '/api/v1/oc/clients/:clientId/compliance/:controlId', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/compliance/:controlId/remediate', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/compliance/exceptions', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/compliance/exceptions', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/onboarding/requirements', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/service-bundles/recommended', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/payment-methods', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/payment-methods', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/transactions', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/transactions', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/reconciliation', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/reconciliation/run', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/reconciliation/summary', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/reconciliation/exceptions', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/health-score', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/health-snapshot', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/engagements', permissions: ['Admin.Access'] },
 ] as const;

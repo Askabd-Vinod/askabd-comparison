@@ -527,4 +527,113 @@ describe('RBAC and tenant isolation', () => {
       await app.close();
     });
   });
+
+  /**
+   * transformation_test_1 (2026-08-23): investigating the Transformation
+   * Engine's own 3 client-scoped routes for RBAC coverage led to a full
+   * mechanical diff of EVERY '/oc/clients/:clientId/...' route registration
+   * against rules.ts — the same technique the migration block above used for
+   * one route family, run here across the whole file. Found 51 real gaps
+   * (3 transformation + 48 more spanning Problems, Gap Analysis, Continuous
+   * Optimization, Portfolio Health, Notification Preferences, Escalations,
+   * Compliance, Onboarding, Service Bundles, Payment Methods, Transactions,
+   * Reconciliation, Health Score/Snapshot) — every one previously reachable
+   * by ANY authenticated identity tenant-mapped to a client, any role, not
+   * just staff. None of these 51 had ANY prior regression coverage. See
+   * rules.ts's own "transformation_test_1 systemic sweep" comment for the
+   * full methodology, including how the 4 genuinely portal-facing GETs were
+   * told apart from staff-only routes (by reading real portal call sites,
+   * not just path text).
+   */
+  describe('transformation_test_1 — systemic client-scoped RBAC sweep, 51 real gaps found and fixed', () => {
+    it('denies a customer token (403) for every newly-gated client-scoped route', async () => {
+      const app = await buildApp();
+      const customer = await customerToken();
+      const routes: Array<{ method: 'GET' | 'POST' | 'PUT' | 'PATCH'; url: string }> = [
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/connection-tests' },
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/problems' },
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/problems/summary' },
+        { method: 'POST', url: '/api/v1/oc/clients/client-not-mine/problems' },
+        { method: 'POST', url: '/api/v1/oc/clients/client-not-mine/problems/import-assessment' },
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/gaps' },
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/gaps/summary' },
+        { method: 'POST', url: '/api/v1/oc/clients/client-not-mine/gaps' },
+        { method: 'POST', url: '/api/v1/oc/clients/client-not-mine/gaps/generate' },
+        { method: 'POST', url: '/api/v1/oc/clients/client-not-mine/gaps/recommend' },
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/gaps/aging' },
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/optimization/metrics' },
+        { method: 'POST', url: '/api/v1/oc/clients/client-not-mine/optimization/metrics' },
+        { method: 'POST', url: '/api/v1/oc/clients/client-not-mine/optimization/baselines' },
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/optimization/baselines' },
+        { method: 'POST', url: '/api/v1/oc/clients/client-not-mine/optimization/measurements' },
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/optimization/measurements' },
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/optimization/findings' },
+        { method: 'POST', url: '/api/v1/oc/clients/client-not-mine/optimization/outcomes' },
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/optimization/outcomes' },
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/optimization/summary' },
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/optimization/monitoring' },
+        { method: 'GET', url: '/api/v1/oc/portfolio/clients/client-not-mine/health' },
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/known-information' },
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/notification-preferences' },
+        { method: 'PUT', url: '/api/v1/oc/clients/client-not-mine/notification-preferences' },
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/escalations' },
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/compliance' },
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/compliance/summary' },
+        { method: 'POST', url: '/api/v1/oc/clients/client-not-mine/compliance/initialize' },
+        { method: 'POST', url: '/api/v1/oc/clients/client-not-mine/compliance/auto-map' },
+        { method: 'PATCH', url: '/api/v1/oc/clients/client-not-mine/compliance/control-not-mine' },
+        { method: 'POST', url: '/api/v1/oc/clients/client-not-mine/compliance/control-not-mine/remediate' },
+        { method: 'POST', url: '/api/v1/oc/clients/client-not-mine/compliance/exceptions' },
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/compliance/exceptions' },
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/onboarding/requirements' },
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/service-bundles/recommended' },
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/payment-methods' },
+        { method: 'POST', url: '/api/v1/oc/clients/client-not-mine/payment-methods' },
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/transactions' },
+        { method: 'POST', url: '/api/v1/oc/clients/client-not-mine/transactions' },
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/reconciliation' },
+        { method: 'POST', url: '/api/v1/oc/clients/client-not-mine/reconciliation/run' },
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/reconciliation/summary' },
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/reconciliation/exceptions' },
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/health-score' },
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/health-snapshot' },
+        { method: 'POST', url: '/api/v1/oc/clients/client-not-mine/engagements' },
+        { method: 'POST', url: '/api/v1/oc/clients/client-not-mine/transformations' },
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/transformations' },
+        { method: 'GET', url: '/api/v1/oc/clients/client-not-mine/transformations/summary' },
+      ];
+      for (const route of routes) {
+        const res = await app.inject({
+          method: route.method, url: route.url,
+          headers: { authorization: `Bearer ${customer}` },
+          payload: route.method === 'GET' ? undefined : {},
+        });
+        expect(res.statusCode, `${route.method} ${route.url} should deny a customer token`).toBe(403);
+      }
+      await app.close();
+    });
+
+    it('an admin token can genuinely reach representative routes from every newly-gated engine for a real client (not 403)', async () => {
+      const app = await buildApp();
+      const admin = await adminToken();
+      const ocService = new OperationsCenterService();
+      const client = await ocService.createClient(minimalClient(`RBAC Sweep ${randomUUID().slice(0, 8)}`));
+      cleanupClientIds.push(client.id);
+
+      const checks: Array<{ method: 'GET' | 'POST'; url: string; payload?: any }> = [
+        { method: 'GET', url: `/api/v1/oc/clients/${client.id}/problems` },
+        { method: 'GET', url: `/api/v1/oc/clients/${client.id}/gaps` },
+        { method: 'GET', url: `/api/v1/oc/clients/${client.id}/compliance` },
+        { method: 'GET', url: `/api/v1/oc/clients/${client.id}/health-score` },
+        { method: 'GET', url: `/api/v1/oc/clients/${client.id}/optimization/summary` },
+        { method: 'POST', url: `/api/v1/oc/clients/${client.id}/transformations`, payload: { title: 'RBAC sweep check' } },
+        { method: 'GET', url: `/api/v1/oc/clients/${client.id}/transformations` },
+      ];
+      for (const check of checks) {
+        const res = await app.inject({ method: check.method, url: check.url, headers: { authorization: `Bearer ${admin}` }, payload: check.payload });
+        expect(res.statusCode, `${check.method} ${check.url} should NOT deny an admin token (got ${res.statusCode}: ${res.body})`).not.toBe(403);
+      }
+      await app.close();
+    });
+  });
 });

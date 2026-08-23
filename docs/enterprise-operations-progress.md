@@ -94,9 +94,30 @@ mismatch — every real PASS check rendered in red), and a real cleanup gap
 `cleanup-qa-client.mjs` never swept them, silently leaking real orphaned
 rows after every QA client deletion this session; fixed and retroactively
 applied to 3 affected QA clients). See its own "Completed This Session"
-entry below. **Next up, per the standing "continue automatically"
+entry below. `transformation_test_1` (Transformation Engine, row #25)
+investigated RBAC on the 3 transformation routes, found a real gap (same
+class as the migration one), and — rather than fix 3 routes and stop — ran
+a full mechanical diff of every `/oc/clients/:clientId/...` route
+registration against the RBAC rules file. That found **48 more** real gaps,
+none previously tested, spanning Problems (row #17), Gap Analysis (row
+#18), Compliance (row #19), Continuous Optimization/Transformation
+Outcomes, Portfolio Health, Notification Preferences, Escalations,
+Onboarding, Service Bundles, Payment Methods, Transactions, Reconciliation,
+and Health Score/Snapshot — every one previously reachable by ANY
+authenticated identity tenant-mapped to a client, any role, not just staff.
+All 51 fixed with `Admin.Access`, cross-referenced call-by-call against the
+real customer portal source (not just path text) to correctly leave the 4
+genuinely portal-facing GETs open, and covered by 2 new regression tests (a
+403 sweep + an admin-success spot check). Live-verified the fix breaks
+nothing for real staff use (Transformation full lifecycle + 3 of the newly
+-gated pages all 200 OK) and found no NEW bugs in the Transformation UI
+itself (the earlier session's `$2`-param fix held). Rows #17, #18, #19, and
+#25 of the coverage matrix were corrected in place — #18 was honestly
+downgraded from PASS to PASS_WITH_RISKS since its RBAC claim of "Enforced"
+had been factually wrong until this pass. See its own "Completed This
+Session" entry below. **Next up, per the standing "continue automatically"
 authorization**:
-`transformation_test_1`, and onward down the named list in
+`testing_engine_test_1`, and onward down the named list in
 `docs/eoc-feature-coverage-matrix.md`'s own execution order, ending in
 `FULL_END_TO_END_CLIENT_TEST_1`. Read `docs/eoc-feature-coverage-matrix.md`
 alongside this file — it is the authoritative, row-by-row honest status
@@ -2622,6 +2643,69 @@ of the following.
    rows #39 and #42 enriched in place (status unchanged — PASS_WITH_RISKS
    and IMPLEMENTED respectively); summary counts re-run mechanically
    (unchanged: 21/16/26/15/2).
+
+## Completed This Session — transformation_test_1: 3 real RBAC gaps became a 51-route systemic sweep (2026-08-23, continued)
+
+Started as a standard investigate-before-build pass on the Transformation
+Engine (row #25, real service + real UI from an earlier session pass).
+Found the exact same class of RBAC gap the last two passes had each found
+once — and this time, rather than fix it and move on, generalized the
+methodology into a full mechanical audit of the whole route surface.
+
+1. **The 3 Transformation routes**: `POST/GET /oc/clients/:clientId/
+   transformations` and `GET .../transformations/summary` had no RBAC rule
+   — every other sibling `/oc/clients/:clientId/<capability>` route in
+   `rules.ts` has an explicit `Admin.Access` rule, these three didn't.
+   Confirmed by search the customer portal never calls this route family.
+2. **The systemic sweep**: wrote a small Node script that parses every
+   `server.<method>(...)` registration in `operations-center-routes.ts`
+   and diffs it against every rule in `rules.ts` (250 routes, 227 rules at
+   the start). Found **48 more** real gaps — none previously tested —
+   across Problems (row #17), Gap Analysis (row #18), Continuous
+   Optimization (incl. Transformation Outcomes), Portfolio Health,
+   Notification Preferences, Escalations, Compliance (row #19), Onboarding,
+   Service Bundles, Payment Methods, Transactions, Reconciliation, and
+   Health Score/Snapshot. Every one was reachable by ANY authenticated
+   identity tenant-mapped to a client, any role — not just staff.
+3. **Correctly told apart from genuinely portal-facing routes** — not by
+   path text alone. A naive grep flagged `POST .../engagements` as
+   portal-facing because the portal calls the same URL; reading the actual
+   2 real call sites in `apps/web/src/app/(portal)/**` confirmed both are
+   plain GETs, so POST (creating a commercial engagement) is correctly
+   staff-only and included in the fix, while the 3 genuinely GET-only
+   portal routes (`.../services`, `.../services/recommendations`,
+   `.../services/coverage`) and `GET .../engagements` were correctly left
+   open.
+4. **Fixed**: all 51 routes added to `rules.ts` with `Admin.Access`, each
+   with an explanatory comment. Re-ran the sweep script afterward — 0
+   unexpected gaps remain. 2 new regression tests added to
+   `testing-engine.test.ts` (now 19/19 in that file, 624/624 full API
+   regression): a customer-403 sweep across all 51 routes, and an
+   admin-success spot check across a representative route from each major
+   engine, proving the fix breaks nothing for real staff access.
+5. **Live-verified** with a real, freshly-onboarded QA client
+   (`AskABD PW Transformation Test 1`, all 35 services enabled): the full
+   Transformation lifecycle (Planned → In Progress → Completed) exercised
+   through the real UI, every real API call returning the expected status
+   (`201`/`200`, never `403`); 3 of the newly-gated pages (Gap Analysis,
+   Compliance) spot-checked as the real `super_admin` session and
+   confirmed still rendering correctly with `200 OK` throughout. No new
+   bugs found in the Transformation UI itself — the earlier session's `$2`
+   untyped-parameter fix on `updateTransformationStatus` held.
+   **Playwright marked `BLOCKED_EXTERNAL_AUTH`** (re-checked immediately
+   before this pass, still absent). Full FK-ordered + entity_id-ordered
+   cleanup, zero orphans verified; both protected clients confirmed
+   unchanged. Full write-up:
+   `docs/evidence/transformation/transformation_test_1/
+   transformation_test_1.md`. `docs/eoc-feature-coverage-matrix.md` rows
+   #17, #18, #19, and #25 corrected in place — row #18 (Gap Analysis) was
+   honestly downgraded from **PASS** to **PASS_WITH_RISKS** since its
+   "Enforced" security claim had been factually wrong until this pass;
+   summary counts re-run mechanically and now read **20 PASS / 18
+   PASS_WITH_RISKS / 25 IMPLEMENTED / 15 NOT_STARTED / 2
+   BLOCKED_EXTERNAL_DEPENDENCY** (80 rows total, reconciled) — the honest
+   result of correcting 2 rows' prior over-claimed security status, not a
+   regression.
 
 ## Failed Tests
 
