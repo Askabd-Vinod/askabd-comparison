@@ -451,6 +451,22 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   { method: 'POST', path: '/api/v1/oc/clients/:clientId/test-cases/generate/:sourceKind/:sourceId', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/test-cases/:id/executions', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/clients/:clientId/test-cases/:id/executions', permissions: ['Admin.Access'] },
+
+  // ─── uat_test_1 (2026-08-24) ────────────────────────────────────────────
+  // Staff-management side of the UAT Engine (uat-routes.ts). Same
+  // Admin.Access precedent as testing-engine-routes.ts above. The customer
+  // portal counterparts ('/oc/portal/:clientId/uat/*') are deliberately NOT
+  // listed here, matching every other /oc/portal/:clientId/* route — they
+  // fall through to defaultPolicy:'authenticated' + tenant-access.ts's real
+  // membership check, since the client is the one who executes UAT test
+  // cases and requests sign-off.
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/uat/cycles', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/uat/cycles', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/uat/cycles/:cycleId', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/uat/cycles/:cycleId/status', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/uat/cycles/:cycleId/signoff/:workflowId/approve', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/uat/cycles/:cycleId/signoff/:workflowId/reject', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/uat/cycles/:cycleId/signoff/:workflowId/request-changes', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/test-executions', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/test-runs/:runIdA/compare/:runIdB', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/test-defects', permissions: ['Admin.Access'] },

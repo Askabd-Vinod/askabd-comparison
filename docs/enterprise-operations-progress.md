@@ -193,18 +193,50 @@ the new SSL-mode/CA-cert controls is honestly `BLOCKED_EXTERNAL_AUTH` this
 pass — the staff Browser-pane session genuinely expired mid-session; not
 worked around, not faked; the backend fix itself is proven with 19 new
 automated tests against real, live infrastructure instead. See its own
-"Completed This Session" entry below. **Next up, per the standing "continue
-automatically" authorization**:
-`testing_engine_test_1`, and onward down the named list in
-`docs/eoc-feature-coverage-matrix.md`'s own execution order, ending in
-`FULL_END_TO_END_CLIENT_TEST_1`. Read `docs/eoc-feature-coverage-matrix.md`
-alongside this file — it is the authoritative, row-by-row honest status
-tracker; this file is the narrative log. Re-read this file first and
-confirm `npm run health` is still green (services may need
-`npm run dev:all` again if the machine was restarted between sessions; the
-Web dev-server health check specifically needs `/staff/login` pre-warmed
-first with a longer-timeout curl — a known Next.js dev first-compile timing
-quirk, not a defect, see Last Health Check below).
+"Completed This Session" entry below.
+
+**Update (2026-08-24)**: the "ASKABD ENTERPRISE OPERATIONS CENTRE MASTER
+AUTONOMOUS BUILD + SECURITY + VALIDATION + UAT + EVIDENCE DIRECTIVE"
+arrived, reaffirming every governing rule above and instructing
+continuation from the current roadmap position without redoing completed
+work. Verified first (per its own Section 48): git clean, branch
+`feature/reliability-hardening`, `main` unchanged, HEAD `7392486`. Testing
+Engine (rows #45-47) already `PASS` with real prior evidence — NOT
+re-run; instead re-ran `secure-connectivity-engine.test.ts` (19/19, no
+regression) and used the directive's own "re-evaluate every risk when
+related infrastructure changes" clause to find and document one small,
+real, disclosed gap (RISK-008: the VPN guard doesn't cross-check the new
+TLS `ssl_mode`), committed standalone (`7392486`). Then built the **UAT
+Engine** — the only remaining `NOT_STARTED` row in the Testing family
+(row #50) — as the next genuinely valuable feature: new `UatService` +
+`uat-routes.ts`, reusing `test_suites` (category='uat', schema already
+anticipated this, zero prior consumer), `TestExecutionService
+.recordExecution` (unmodified), and the generic `ApprovalWorkflowEngine`
+(unmodified) for the sign-off decision — no test-case/execution/evidence
+/approval-state-machine logic duplicated. Real, enforced business rule:
+sign-off cannot be requested until every case in the cycle reaches a
+terminal execution status. Full RBAC + tenant-isolation + object-level
+-ownership coverage (16 new tests, all real, covering the Security
+Testing Addendum's minimum 7 scenarios) — found and fixed one real bug
+during this pass's own testing (a cycle-not-found error returned 400
+while a cross-client cycle returned 404, two different shapes for what
+should be indistinguishable to an attacker; both now return the same 404).
+Full API regression: 675/675 passing (was 659; +16 new). Zero DB orphans
+verified post-run. Live UI still `BLOCKED_EXTERNAL_AUTH` (staff session
+still expired) and no dedicated UAT UI exists yet regardless — capped at
+`IMPLEMENTED`, not `PASS`, matching the `migration_test_1` precedent. See
+`docs/evidence/uat/uat_test_1/uat_test_1.md`. **Next up, per the standing
+"continue automatically" authorization**: `release_readiness_test_1`, and
+onward down the named list in `docs/eoc-feature-coverage-matrix.md`'s own
+execution order, ending in `FULL_END_TO_END_CLIENT_TEST_1`. Read
+`docs/eoc-feature-coverage-matrix.md` alongside this file — it is the
+authoritative, row-by-row honest status tracker; this file is the
+narrative log. Re-read this file first and confirm `npm run health` is
+still green (services may need `npm run dev:all` again if the machine was
+restarted between sessions; the Web dev-server health check specifically
+needs `/staff/login` pre-warmed first with a longer-timeout curl — a known
+Next.js dev first-compile timing quirk, not a defect, see Last Health
+Check below).
 
 ### Original phase-based task description (superseded by the above, kept for history)
 
@@ -3633,6 +3665,78 @@ on.
   the prior session's sixth and eighth passes both confirmed clean, and
   this session's schema changes are all new, additive columns/tables with
   no way to have introduced orphans elsewhere
+
+## Completed This Session — uat_test_1: UAT Engine built as the first real consumer of `test_suites`(category='uat') + the generic Approval Workflow Engine (2026-08-24, continued)
+
+- Per the 2026-08-24 master directive's own Section 48: verified state
+  first (git clean, branch `feature/reliability-hardening`, `main`
+  unchanged at `b63f797`, HEAD `7392486`), confirmed Testing Engine
+  (rows #45-47) already `PASS` with real prior evidence and correctly did
+  NOT re-run it; re-ran `secure-connectivity-engine.test.ts` (19/19, no
+  regression) and used the directive's "re-evaluate every risk when
+  related infrastructure changes" clause to find and document RISK-008
+  (VPN guard doesn't cross-check the new TLS `ssl_mode`), committed
+  standalone (`7392486`)
+- Searched before building: confirmed no UAT/sign-off concept existed
+  anywhere in the repo; found `test_suites.category`'s CHECK constraint
+  already includes `'uat'` (migration 049) with zero prior
+  service/route consumer, and that both `TestExecutionService
+  .recordExecution` and the generic `ApprovalWorkflowEngine` (migration
+  040) were already fully suitable for direct reuse with no changes
+- New `apps/api/src/services/uat-service.ts`: a "UAT Cycle" IS a
+  `test_suites` row (`category='uat'`) — no new table for the cycle
+  concept. Reuses `TestExecutionService.recordExecution` unmodified for
+  the client's own real execution recording (evidence-enforced, secret
+  -masked, auto-creates a real defect on FAIL) and `ApprovalWorkflowEngine`
+  unmodified (`entityType: 'uat_signoff'`) for the sign-off decision.
+  Real, enforced business rule: `requestSignoff` is refused
+  (`SignoffNotReadyError`) until every test case in the cycle has reached
+  a terminal execution status — verified against real `test_executions`
+  rows, never a client-supplied flag. Every method re-verifies real
+  object-level ownership of the cycle (and, for decisions, the
+  workflow's parent cycle) before doing anything, including revealing
+  whether an id even exists — "doesn't exist" and "exists but isn't
+  yours" return the identical `UatCycleOwnershipError` -> 404 shape
+- New `apps/api/src/routes/uat-routes.ts`: same staff-vs-portal split as
+  `client-requests-routes.ts` — staff management under
+  `/oc/clients/:clientId/uat/*` (Admin.Access-gated, added to
+  `rules.ts`), customer-portal execution + sign-off-request under
+  `/oc/portal/:clientId/uat/*` (unlisted, relies on tenant-access.ts's
+  real membership check, matching every other portal route family)
+- **Real bug found and fixed during this pass's own testing** (caught
+  before merge, not a pre-existing production bug): the route error
+  handler mapped a nonexistent cycle id to `400` (bare `Error`) but a
+  cross-client cycle id to `404` (`UatCycleOwnershipError`) — two
+  different shapes for what should be indistinguishable to an attacker.
+  Fixed by having the ownership-check methods throw
+  `UatCycleOwnershipError` in both cases; regression test added
+- Security Testing Addendum's minimum 7 scenarios, all executed as real
+  HTTP requests through the full middleware stack (auth + RBAC +
+  tenant-access): unauthenticated->401, staff->200, Client A's own
+  cycle->200, Client A mapped customer->Client B's cycles->403 (tenant
+  isolation), no-mapping customer->staff route->403 (insufficient role),
+  Client B's mapped customer->Client A's real cycle id via Client B's
+  own portal URL->404 (cross-client **resource id**, object-level
+  ownership catches what the tenant boundary alone would not),
+  malformed/SQL-injection-shaped cycle id->404 safe failure, no crash,
+  no leaked SQL error text. Plus: the business rule enforced at the HTTP
+  layer (409, not a fabricated success) and evidence-enforcement on the
+  real portal execution endpoint (400 missing_evidence -> 201 once real
+  evidence supplied)
+- `apps/api/tests/uat-test-1.test.ts`: 16 new tests (7 service-layer,
+  9 HTTP/RBAC/tenant-isolation/ownership), all real, none stubbed —
+  16/16 passing. Full API regression: **675/675 passing** (was 659; +16
+  new, zero regressions). `tsc --noEmit` clean; `npm run build` clean
+- Zero DB orphans post-run (`test_cases`/`test_suites`/`test_executions`
+  all FK-cascade-cleaned via `afterAll`, verified via direct query);
+  zero leftover fixture clients
+- Playwright/live UI: `BLOCKED_EXTERNAL_AUTH` (staff Browser-pane
+  session still expired from earlier this session; never worked around).
+  No dedicated UAT UI exists yet regardless (API-only this pass) — real,
+  disclosed fast-follow. Coverage matrix row #50 moved `NOT_STARTED` ->
+  `IMPLEMENTED` (capped below `PASS` for the same reason as
+  `migration_test_1`, row #43 — nothing to click through yet)
+- See `docs/evidence/uat/uat_test_1/uat_test_1.md` for the full report
 
 ## Real client data on the system (protected, never modify without an
 explicit, scoped test)
