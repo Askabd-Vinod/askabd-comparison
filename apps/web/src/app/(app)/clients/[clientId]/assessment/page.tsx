@@ -109,7 +109,20 @@ export default function AssessmentProgressPage() {
   const [discoveryRuns, setDiscoveryRuns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Real defect found (and fixed here) via technology_adapter_test_1's
+  // follow-on static review: the exact same bug class already found and
+  // fixed live in clients/[clientId]/discovery/page.tsx during
+  // discovery_test_1 — a single shared `error` state was written by two
+  // unrelated things: (1) startAssessment()'s real "no discovery run" /
+  // "failed to start" failures, and (2) fetchData()'s own network-failure
+  // path, polled automatically every 5 seconds. fetchData()'s SUCCESS path
+  // unconditionally called setError(null), which would silently wipe a
+  // real, still-true startAssessment() error within one 5s tick, since the
+  // GET calls it makes succeed regardless of whether the real blocker
+  // (missing discovery run) was resolved. Fixed by splitting into two
+  // independently-owned states, exactly matching the discovery page's fix.
+  const [startError, setStartError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState('');
 
   const fetchData = useCallback(async () => {
@@ -126,9 +139,9 @@ export default function AssessmentProgressPage() {
         const data = await discRes.json();
         setDiscoveryRuns(data.runs || []);
       }
-      setError(null);
+      setLoadError(null);
     } catch {
-      setError('Unable to load assessment data. Retrying...');
+      setLoadError('Unable to load assessment data. Retrying...');
     }
     setLoading(false);
     setLastRefresh(new Date().toLocaleTimeString());
@@ -143,11 +156,11 @@ export default function AssessmentProgressPage() {
   async function startAssessment() {
     const latestDiscovery = discoveryRuns[0];
     if (!latestDiscovery) {
-      setError('No discovery run found. Complete discovery first.');
+      setStartError('No discovery run found. Complete discovery first.');
       return;
     }
     setStarting(true);
-    setError(null);
+    setStartError(null);
     try {
       const res = await fetch(`${API}/api/v1/oc/assessment/start`, {
         method: 'POST',
@@ -158,15 +171,33 @@ export default function AssessmentProgressPage() {
         await fetchData();
       } else {
         const d = await res.json().catch(() => null);
-        setError(d?.error || 'Failed to start assessment');
+        setStartError(d?.error || 'Failed to start assessment');
       }
     } catch {
-      setError('Service unavailable. Please try again.');
+      setStartError('Service unavailable. Please try again.');
     }
     setStarting(false);
   }
 
-  const latest = assessments[0];
+  // Real defect found and fixed live during technology_adapter_test_1's
+  // follow-on assessment_test_1: `assessments` from GET /assessment/:clientId
+  // contains BOTH the top-level "Infrastructure" pipeline assessment
+  // (assessment-service.ts always stores it as `domain: 'infrastructure'`)
+  // AND the six separate per-domain "Current State Assessment" cards below
+  // (business/application/data/security/quality/operations), all in the
+  // same oc_assessments table, ordered by recency with no filter. Taking
+  // `assessments[0]` unconditionally meant running ANY domain card after
+  // the top pipeline silently swapped the top "Assessment Progress"/
+  // "Assessment Results" summary to show that domain's own narrower
+  // numbers (e.g. Operations' "Risk Score: 8, Monitoring gaps") under a
+  // heading that visually claims to track the full 6-step Infrastructure
+  // pipeline (Load Discovery Data/Security/Performance/Compatibility/Risk/
+  // Report) — real, correct data, wrong section. Fixed by scoping the top
+  // summary to the real `domain: 'infrastructure'` assessment only; each
+  // domain card already independently fetches and displays its own latest
+  // assessment via its own `domain`-scoped endpoint, unaffected by this fix.
+  const infrastructureAssessments = assessments.filter(a => a.domain === 'infrastructure');
+  const latest = infrastructureAssessments[0];
   const isRunning = latest?.status === 'running' || latest?.status === 'in_progress';
   const isComplete = latest?.status === 'completed';
   const isFailed = latest?.status === 'failed';
@@ -303,9 +334,9 @@ export default function AssessmentProgressPage() {
           {discoveryRuns.length > 0 && (
             <p className="text-[10px] text-green-600 mt-2">✓ Discovery completed — {discoveryRuns[0].resources_found} resources available for assessment</p>
           )}
-          {error && (
+          {startError && (
             <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3 text-left">
-              <p className="text-xs font-semibold text-amber-700">⚠ {error}</p>
+              <p className="text-xs font-semibold text-amber-700">⚠ {startError}</p>
             </div>
           )}
           <button onClick={startAssessment} disabled={starting || discoveryRuns.length === 0} className="mt-4 text-sm font-semibold bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white px-5 py-2.5 rounded-lg transition">
@@ -314,10 +345,10 @@ export default function AssessmentProgressPage() {
         </div>
       )}
 
-      {/* Error when assessment exists */}
-      {error && latest && (
+      {/* Error loading assessment data (fetchData's own failure — independent of startAssessment's) */}
+      {loadError && latest && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-          <p className="text-xs text-red-700">{error}</p>
+          <p className="text-xs text-red-700">{loadError}</p>
         </div>
       )}
 

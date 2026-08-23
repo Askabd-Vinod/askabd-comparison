@@ -28,9 +28,10 @@ matrix.md`, an explicit named execution order of ~27 test suites), and
 Registry, real capability negotiation — just adopted, first vertical
 slice done this pass on the Universal Comparison Engine). Validated so
 far under directive (3)'s execution order: `comparison_test_1`,
-`requirements_test_1`, `gap_analysis_test_1`, `discovery_test_1`. **Next
-up, per the standing "continue automatically" authorization**:
-`assessment_test_1`, then `compliance_test_1`, `solution_test_1`,
+`requirements_test_1`, `gap_analysis_test_1`, `discovery_test_1`,
+`assessment_test_1`. **Next up, per the standing "continue automatically"
+authorization**:
+`compliance_test_1`, then `solution_test_1`,
 `traceability_test_1`, and onward down the named list in
 `docs/eoc-feature-coverage-matrix.md`'s own execution order, ending in
 `FULL_END_TO_END_CLIENT_TEST_1`. Read `docs/eoc-feature-coverage-matrix.md`
@@ -1817,6 +1818,49 @@ formal per-feature reporting format. Adopted immediately:
      evidence; a new cross-cutting "Technology Adapter Registry" section
      added, deliberately NOT as a numbered engine row, per the directive's
      own "extend the adapter, not a new engine" principle.
+10. **`assessment_test_1`** — per the standing "continue automatically"
+    authorization, the next item in Directive 3's named execution order.
+    Real client `AskABD PW Assessment Test 1` created through the actual
+    onboarding wizard. **A real defect found via static review and fixed
+    BEFORE the live pass**: `assessment/page.tsx` had the exact same
+    shared-`error`-state race bug class already found and fixed in
+    `discovery/page.tsx` during `discovery_test_1` — fixed proactively by
+    splitting into `startError`/`loadError`, same pattern. **A second,
+    real, live-found-and-fixed defect, found DURING the pass**: after
+    running the top-level Infrastructure pipeline (real 6-step run) and
+    then all six Current State Assessment domain cards (Business/
+    Application/Data/Security/Quality/Operations — same `oc_assessments`
+    table, migration 043's `domain` column), the top "Assessment
+    Progress"/"Assessment Results" summary — visually scoped to the
+    6-step Infrastructure pipeline — silently started showing the most
+    recently run DOMAIN assessment's own separate, narrower numbers
+    instead (real data, wrong section: `GET /assessment/:clientId`
+    returns every domain unfiltered, ordered only by recency, and the
+    frontend took `assessments[0]` unconditionally). Fixed by scoping the
+    top summary to `domain === 'infrastructure'` specifically; re-verified
+    live that running all six domain cards no longer disturbs the
+    Infrastructure summary, and that each domain card's own independent
+    numbers were unaffected throughout. One real, minimal `oc_discovery_
+    runs` row was seeded directly via SQL as a legitimate prerequisite
+    fixture (same established precedent as `gap_analysis_test_1`'s seeded
+    Problem row) — the real feature under test (Assessment) was then
+    exercised entirely through the real UI/API. **Honest, non-fabricated
+    behavior confirmed**: with the seeded fixture's `results` JSONB
+    deliberately left empty, the Infrastructure pipeline correctly
+    reported zero analyzed resources and zero findings rather than
+    inventing any. All six domain cards produced real, evidence-based
+    findings sourced from this client's own real onboarding record (e.g.
+    Security: "No connectors configured yet", evidence "oc_connectors has
+    0 rows for this client"; Operations: "Monitoring gaps — cloud, network
+    not enabled", matching this exact client's own real Monitoring-step
+    submission). Console/network verified clean across 3+ poll cycles
+    after the fix. Full API regression re-confirmed: 591/591 passing (no
+    API code changed this pass). Full exact-ID cleanup performed: 7
+    `oc_assessments` rows + 1 seeded `oc_discovery_runs` row deleted, zero
+    orphans verified, both protected clients confirmed unchanged. Full
+    write-up: `test-evidence/assessment/assessment_test_1/
+    assessment_test_1.md`. `docs/eoc-feature-coverage-matrix.md` row #16
+    updated (IMPLEMENTED → PASS_WITH_RISKS).
 
 ## Failed Tests
 
@@ -2146,6 +2190,15 @@ for the full list through 037; `038_business_requirements.sql` through
 database and verified via direct query).
 
 ## Last Verified Commit
+
+**Update (2026-08-23, `assessment_test_1` pass)**: commit hash to be
+recorded in a follow-up docs commit immediately after this one lands (same
+two-commit pattern used for every prior pass). This pass: two real
+`assessment/page.tsx` fixes (a proactive discovery-page-style error-race
+fix, and a live-found Infrastructure/domain-assessment conflation fix —
+see the dedicated "Completed This Session" entry above) plus
+`assessment_test_1`'s live Playwright pass. No API code changed; full API
+regression re-confirmed 591/591 passing.
 
 **Update (2026-08-23, Technology Adapter Registry pass)**: `34b2103` on
 `feature/reliability-hardening`, pushed to origin — confirmed
