@@ -2299,9 +2299,9 @@ database and verified via direct query).
 
 ## Last Verified Commit
 
-**Update (2026-08-23, `traceability_test_1` pass)**: commit hash to be
-recorded in a follow-up docs commit immediately after this one lands
-(same two-commit pattern used for every prior pass). This pass: a real
+**Update (2026-08-23, `traceability_test_1` pass)**: `aaa8cc9` on
+`feature/reliability-hardening`, pushed to origin — confirmed
+`d4a6418..aaa8cc9`. `main` reconfirmed unchanged at `b63f797`. This pass: a real
 backend fix (`traceability-engine.ts`'s new alias-aware chain queries,
 `entity-label-resolver.ts` refactored to share the same alias table) plus
 two small, real frontend fixes (`traceability-manager.tsx`'s chip-label
