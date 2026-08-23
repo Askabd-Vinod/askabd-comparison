@@ -209,7 +209,18 @@ export default function RecommendationsPage() {
         <Link href={`/clients/${clientId}/assessment`} className="text-xs font-medium text-gray-600 hover:text-gray-900 border rounded-lg px-4 py-2 hover:bg-gray-50 transition">
           View Assessment
         </Link>
-        {approved.length === recommendations.length && recommendations.length > 0 && (
+        {/* Real defect found and fixed live during solution_test_1: this
+            used to require approved.length === recommendations.length —
+            literally EVERY set approved, with no exceptions. A `rejected`
+            set is a valid, deliberate, fully-resolved outcome (real reason
+            captured, real terminal status) — treating it the same as an
+            unresolved `pending` set meant rejecting even ONE set out of
+            many permanently hid this button forever, blocking the real
+            workflow even after every set had been properly reviewed. Real
+            reproduction: 2 sets, 1 approved + 1 rejected — button never
+            appeared. Fixed to the real intent: every set resolved (none
+            still pending) AND at least one real approval exists. */}
+        {pending.length === 0 && approved.length > 0 && (
           <button onClick={async () => {
             try {
               await fetch(`${API}/api/v1/oc/lifecycle/transition`, {

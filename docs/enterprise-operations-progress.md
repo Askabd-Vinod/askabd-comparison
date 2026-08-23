@@ -29,9 +29,8 @@ Registry, real capability negotiation — just adopted, first vertical
 slice done this pass on the Universal Comparison Engine). Validated so
 far under directive (3)'s execution order: `comparison_test_1`,
 `requirements_test_1`, `gap_analysis_test_1`, `discovery_test_1`,
-`assessment_test_1`, `compliance_test_1`. **Next up, per the standing
-"continue automatically" authorization**:
-`solution_test_1`, then
+`assessment_test_1`, `compliance_test_1`, `solution_test_1`. **Next up,
+per the standing "continue automatically" authorization**:
 `traceability_test_1`, and onward down the named list in
 `docs/eoc-feature-coverage-matrix.md`'s own execution order, ending in
 `FULL_END_TO_END_CLIENT_TEST_1`. Read `docs/eoc-feature-coverage-matrix.md`
@@ -1890,6 +1889,41 @@ formal per-feature reporting format. Adopted immediately:
     compliance_test_1.md`. `docs/eoc-feature-coverage-matrix.md` row #19
     updated with the full-engine evidence (status unchanged,
     PASS_WITH_RISKS, now for a fuller, more honest reason).
+12. **`solution_test_1`** — real client `AskABD PW Solution Test 1`. Seeded
+    real discovery + assessment fixtures with deliberately varied
+    findings (high/medium/info severities) so the real recommendation-
+    generation logic had meaningful input; confirmed the `info`-severity
+    finding was correctly skipped, not fabricated into a recommendation.
+    Real generate/reject/approve flows all exercised live through the
+    actual UI — reject captures a real reason via an inline textarea
+    (not `window.prompt()`), approve/reject each correctly transition the
+    whole set (the real backend granularity — no per-item action exists).
+    **A real, live-found-and-fixed UI logic defect**: "Proceed to
+    Migration Planning →" required `approved.length === recommendations.
+    length` — literally every set, including intentionally, terminally
+    REJECTED ones, had to be approved. Since a rejected set can never
+    become approved, rejecting even one set out of many permanently hid
+    this button, even when every set had been properly reviewed and
+    resolved. Fixed to the real intent: `pending.length === 0 &&
+    approved.length > 0` (all resolved, at least one approval); re-
+    verified live with the exact 1-approved/1-rejected state already on
+    the page — the button correctly appeared and its real lifecycle-
+    transition call fired (correctly returning a real `422`, since this
+    fixture client's own lifecycle was never advanced past Security
+    Validation — a real, correct Lifecycle Engine enforcement, not a bug
+    in this engine). Real, disclosed, not-fixed findings: zero automated
+    tests for `recommendation-service.ts`; the button's own `catch {}`
+    silently swallows a real transition failure instead of surfacing it.
+    **A real, honest distinction confirmed, not a duplicate bug**: the
+    coverage matrix's pre-existing "synthetic `rec-auto-` IDs" note
+    belongs to a genuinely different method
+    (`gap-analysis-service.ts`'s own `generateRecommendations`), confirmed
+    by reading both services side by side this pass — this engine's own
+    recommendation-set/item IDs are real and correctly addressable. Full
+    exact-ID cleanup verified across 13 real client-scoped tables, zero
+    orphans, both protected clients confirmed unchanged. Full write-up:
+    `test-evidence/solution/solution_test_1/solution_test_1.md`.
+    `docs/eoc-feature-coverage-matrix.md` row #23 updated.
 
 ## Failed Tests
 
@@ -2219,6 +2253,16 @@ for the full list through 037; `038_business_requirements.sql` through
 database and verified via direct query).
 
 ## Last Verified Commit
+
+**Update (2026-08-23, `solution_test_1` pass)**: commit hash to be
+recorded in a follow-up docs commit immediately after this one lands (same
+two-commit pattern used for every prior pass). This pass: one real UI
+logic fix in `recommendations/page.tsx` (the "Proceed to Migration
+Planning" gating condition) plus `solution_test_1`'s live Playwright
+pass. No API code changed; full API regression re-confirmed 591/591
+passing.
+
+## Older: compliance_test_1
 
 **Update (2026-08-23, `compliance_test_1` pass)**: `e51f4f4` on
 `feature/reliability-hardening`, pushed to origin — confirmed
