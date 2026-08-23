@@ -29,9 +29,9 @@ Registry, real capability negotiation — just adopted, first vertical
 slice done this pass on the Universal Comparison Engine). Validated so
 far under directive (3)'s execution order: `comparison_test_1`,
 `requirements_test_1`, `gap_analysis_test_1`, `discovery_test_1`,
-`assessment_test_1`. **Next up, per the standing "continue automatically"
-authorization**:
-`compliance_test_1`, then `solution_test_1`,
+`assessment_test_1`, `compliance_test_1`. **Next up, per the standing
+"continue automatically" authorization**:
+`solution_test_1`, then
 `traceability_test_1`, and onward down the named list in
 `docs/eoc-feature-coverage-matrix.md`'s own execution order, ending in
 `FULL_END_TO_END_CLIENT_TEST_1`. Read `docs/eoc-feature-coverage-matrix.md`
@@ -1861,6 +1861,35 @@ formal per-feature reporting format. Adopted immediately:
     write-up: `test-evidence/assessment/assessment_test_1/
     assessment_test_1.md`. `docs/eoc-feature-coverage-matrix.md` row #16
     updated (IMPLEMENTED → PASS_WITH_RISKS).
+11. **`compliance_test_1`** — real client `AskABD PW Compliance Test 1`.
+    No code changes this pass — a pure, real validation run of the
+    Compliance Automation Engine (`compliance-service.ts`). Initialized
+    the real ISO/IEC 27001:2022 framework through the actual UI button:
+    14 real controls created, real evidence auto-mapping ran immediately
+    against this specific client's own real data (audit log/discovery/
+    lifecycle/security-requirements/documents), producing 3 real
+    `partially_met` controls and an 11% compliance score — hand-verified
+    the score/maturity math against the real per-control numbers rather
+    than trusting the displayed figure. **Exercised the real cross-engine
+    remediation chain (Compliance → Problem Universe → Gap Analysis)** via
+    direct API (no UI button exists for it today — a real, honest,
+    disclosed gap, not a defect): a real Problem and a real, correctly-
+    linked Gap were created, both independently confirmed visible on the
+    real Gap Analysis page afterward. Real idempotency verified (calling
+    remediate twice created no duplicate). Real, honest side effect
+    discovered, not a bug: triggering remediation correctly transitions
+    the control from `partially_met` to `not_met` (a sensible business
+    rule, not an error). Real, disclosed gaps found and documented, not
+    fixed this pass (out of live-validation scope): zero automated test
+    coverage for `compliance-service.ts`; no UI at all for the
+    remediation chain, the exceptions workflow, or manual control-status
+    editing, despite all three being real, working backend capabilities.
+    Full exact-ID cleanup verified across 12 real client-scoped tables,
+    zero orphans, both protected clients confirmed unchanged. Full
+    write-up: `test-evidence/compliance/compliance_test_1/
+    compliance_test_1.md`. `docs/eoc-feature-coverage-matrix.md` row #19
+    updated with the full-engine evidence (status unchanged,
+    PASS_WITH_RISKS, now for a fuller, more honest reason).
 
 ## Failed Tests
 
@@ -2190,6 +2219,14 @@ for the full list through 037; `038_business_requirements.sql` through
 database and verified via direct query).
 
 ## Last Verified Commit
+
+**Update (2026-08-23, `compliance_test_1` pass)**: commit hash to be
+recorded in a follow-up docs commit immediately after this one lands (same
+two-commit pattern used for every prior pass). This pass: pure, real
+validation of the Compliance Automation Engine — no application code
+changed, only `docs/` and `test-evidence/`.
+
+## Older: assessment_test_1
 
 **Update (2026-08-23, `assessment_test_1` pass)**: `762a2ae` on
 `feature/reliability-hardening`, pushed to origin — confirmed
