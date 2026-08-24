@@ -541,6 +541,21 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/reconciliation-runs', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/clients/:clientId/reconciliation-runs', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/reconciliation-runs/:id', permissions: ['Admin.Access'] },
+
+  // ─── requirements_clarification_test_1 (2026-08-24) ──────────────────────
+  // Staff-management side of the Requirements Clarification Engine
+  // (requirements-clarification-routes.ts) — same Admin.Access precedent as
+  // every other staff-only route above. The customer-portal counterparts
+  // ('/oc/portal/:clientId/clarifications*') are deliberately NOT listed
+  // here, matching every other /oc/portal/:clientId/* route — they fall
+  // through to defaultPolicy:'authenticated' + tenant-access.ts's real
+  // membership check, since the CLIENT is the one who answers.
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/requirements/:requirementId/clarifications/generate', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/requirements/:requirementId/clarifications', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/clarifications', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/clarifications/:id', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/clarifications/:id/resolve', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/clarifications/:id/wont-fix', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/test-executions', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/test-runs/:runIdA/compare/:runIdB', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/test-defects', permissions: ['Admin.Access'] },
