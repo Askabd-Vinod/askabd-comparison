@@ -581,6 +581,18 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   { method: 'POST', path: '/api/v1/oc/clients/:clientId/executive-reports', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/executive-reports/:id', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/executive-reports/:id/export/markdown', permissions: ['Admin.Access'] },
+
+  // ─── api_discovery_test_1 (2026-08-24) ───────────────────────────────────
+  // Staff-only API Discovery/Validation Engine (api-discovery-routes.ts) —
+  // live validation can trigger a real outbound request, same Admin.Access
+  // precedent as every other connector-touching route this session.
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/api-specs', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/api-specs', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/api-specs/:id', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/api-specs/:id/endpoints', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/api-specs/:id/gap-report', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/api-specs/:id/authorize-live-validation', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/api-endpoints/:endpointId/validate', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/test-executions', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/test-runs/:runIdA/compare/:runIdB', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/test-defects', permissions: ['Admin.Access'] },
