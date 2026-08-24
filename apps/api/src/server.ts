@@ -25,6 +25,7 @@ import { riskRoutes } from './routes/risk-routes.js';
 import { dataMappingRoutes } from './routes/data-mapping-routes.js';
 import { dataReconciliationRoutes } from './routes/data-reconciliation-routes.js';
 import { requirementsClarificationRoutes } from './routes/requirements-clarification-routes.js';
+import { changeManagementRoutes } from './routes/change-management-routes.js';
 import { connectionSecurityRoutes } from './routes/connection-security-routes.js';
 import { registerAuthMiddleware } from './middleware/auth.js';
 import { registerRateLimitMiddleware } from './middleware/rate-limit.js';
@@ -224,6 +225,7 @@ export async function createServer(): Promise<FastifyInstance> {
   await server.register(dataMappingRoutes, { prefix: '/api/v1' });
   await server.register(dataReconciliationRoutes, { prefix: '/api/v1' });
   await server.register(requirementsClarificationRoutes, { prefix: '/api/v1' });
+  await server.register(changeManagementRoutes, { prefix: '/api/v1' });
   await server.register(connectionSecurityRoutes, { prefix: '/api/v1' });
   await server.register(platformServicesRoutes);
   return server;
