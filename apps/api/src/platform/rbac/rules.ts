@@ -22,11 +22,77 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   { method: 'POST', path: '/api/v1/admin/templates/:id/attributes', permissions: ['Template.Create'] },
   { method: 'PUT', path: '/api/v1/admin/attributes/:id', permissions: ['Template.Update'] },
   { method: 'DELETE', path: '/api/v1/admin/attributes/:id', permissions: ['Template.Delete'] },
+  // RISK-016 (2026-08-24 marketplace RBAC + tenant-isolation audit): this exact
+  // path had NO rule at all — every sibling /admin/templates/* route above
+  // requires a real Template.* permission, but this one fell through to
+  // defaultPolicy:'authenticated', letting any authenticated identity (not
+  // just admin/business_user) read a template's attribute list. Same
+  // read permission as GET /admin/templates itself.
+  { method: 'GET', path: '/api/v1/admin/templates/:id/attributes', permissions: ['Template.Read'] },
 
   // ─── Merchant Routes (require merchant permissions) ─────────────────────────
-  { method: 'POST', path: '/api/v1/merchants', permissions: ['Merchant.Create'] },
-  { method: 'PUT', path: '/api/v1/merchants/:id', permissions: ['Merchant.Manage'] },
-  { method: 'POST', path: '/api/v1/merchants/:id/verify', permissions: ['Merchant.Approve'], roles: ['admin', 'super_admin'] },
+  // RISK-016 correction (2026-08-24): the 3 rules previously here
+  // (`POST /api/v1/merchants`, `PUT /api/v1/merchants/:id`,
+  // `POST /api/v1/merchants/:id/verify`) matched NO real registered route —
+  // grep confirms merchant-brand-routes.ts registers `/merchants/register`,
+  // never a bare `POST /merchants`; no `PUT /merchants/:id` handler exists at
+  // all; and verification review is `/admin/verifications/:id/review`, never
+  // `/merchants/:id/verify`. Those 3 dead rules gave a false impression that
+  // merchant approval/verification was protected while the REAL routes
+  // handling that logic had zero RBAC coverage — any authenticated identity
+  // could approve, suspend, reactivate, or verify ANY merchant. Replaced with
+  // rules on the routes that actually exist:
+  // Self-registration is deliberately `authenticatedOnly`, not
+  // `Merchant.Create` — the `merchant` role is the only role holding that
+  // permission by default, so requiring it here would make registration
+  // impossible for the very identities registering to BECOME a merchant
+  // (the real chicken-and-egg case `saveConfig`'s `status:'pending'` already
+  // assumes: register while unprivileged, get reviewed, then act as merchant).
+  { method: 'POST', path: '/api/v1/merchants/register', authenticatedOnly: true, permissions: [] },
+  // Real admin-only merchant lifecycle actions — `Merchant.Approve` (held
+  // only by admin/super_admin, see roles.ts) is the exact pre-existing
+  // permission the dead `/merchants/:id/verify` rule already intended for
+  // this class of action; reused here rather than inventing a new one.
+  { method: 'POST', path: '/api/v1/admin/merchants/:id/approve', permissions: ['Merchant.Approve'], roles: ['admin', 'super_admin'] },
+  { method: 'POST', path: '/api/v1/admin/merchants/:id/suspend', permissions: ['Merchant.Approve'], roles: ['admin', 'super_admin'] },
+  { method: 'POST', path: '/api/v1/admin/merchants/:id/reactivate', permissions: ['Merchant.Approve'], roles: ['admin', 'super_admin'] },
+  { method: 'POST', path: '/api/v1/admin/verifications/:id/review', permissions: ['Merchant.Approve'], roles: ['admin', 'super_admin'] },
+  // Submitting verification documents and registering a branch are real,
+  // authenticated actions with NO ownership model to gate more precisely —
+  // this schema has no merchant-owner-user binding at all (no `owner_user_id`
+  // column, no merchant self-service frontend exists anywhere in apps/web,
+  // confirmed by grep). Left at the honest `authenticatedOnly` level rather
+  // than fabricating an ownership check the schema cannot actually support —
+  // see docs/security-risk-register.md RISK-017 for the disclosed gap this
+  // leaves open (any authenticated identity can submit verification docs or
+  // add a branch for a merchant it does not "own", because no such concept
+  // exists to check against yet).
+  { method: 'POST', path: '/api/v1/merchants/:id/verification', authenticatedOnly: true, permissions: [] },
+  { method: 'POST', path: '/api/v1/merchants/:id/branches', authenticatedOnly: true, permissions: [] },
+
+  // ─── Brand admin routes (RISK-016, 2026-08-24) ──────────────────────────────
+  // No rule at all previously matched any of these 4 real routes (the ONE
+  // brand-related rule further below, `POST /api/v1/brands`, targets a path
+  // with no registered handler — `merchant-brand-routes.ts` only ever
+  // registers `/admin/brands*`). Any authenticated identity could create,
+  // edit, archive, or restore a brand. No dedicated `Brand.*` permission
+  // exists in roles.ts (a real, disclosed gap in the permission model
+  // itself, not fabricated here) — `Admin.Access` used instead, matching
+  // this session's established convention for platform-administrative
+  // mutations with no more specific permission defined.
+  { method: 'POST', path: '/api/v1/admin/brands', permissions: ['Admin.Access'] },
+  { method: 'PUT', path: '/api/v1/admin/brands/:id', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/admin/brands/:id/archive', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/admin/brands/:id/restore', permissions: ['Admin.Access'] },
+
+  // ─── Review moderation (RISK-016, 2026-08-24) ───────────────────────────────
+  // Neither route had any rule — any authenticated identity could list the
+  // full moderation queue (every pending review platform-wide) or
+  // approve/reject ANY review, including bypassing moderation on its own
+  // spam/fake reviews. `Admin.Access` — no dedicated moderation permission
+  // exists in roles.ts.
+  { method: 'GET', path: '/api/v1/admin/reviews/pending', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/admin/reviews/:id/moderate', permissions: ['Admin.Access'] },
 
   // ─── Write Operations (require specific permissions) ────────────────────────
   { method: 'POST', path: '/api/v1/categories', permissions: ['Category.Create'] },
@@ -38,6 +104,21 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   { method: 'DELETE', path: '/api/v1/items/:id', permissions: ['Product.Delete'] },
 
   { method: 'POST', path: '/api/v1/comparisons', permissions: ['Comparison.Create'] },
+  // RISK-017 (real IDOR, see security-risk-register.md — NOT fully fixable
+  // by an RBAC rule): POST /comparisons and GET /comparisons trust a
+  // client-supplied `userId` (body/query) with no verification it matches
+  // the caller's real identity — `Comparison.Create`/`authenticatedOnly`
+  // correctly require SOME real authenticated identity, but cannot express
+  // "and it must be YOUR OWN userId", because this schema's `user_id` has no
+  // real binding to askabd-identity's `auth.userId` at all (no User model,
+  // no identity-mapping bridge — see RISK-017 for why a shallow
+  // auth.userId-substitution would itself be wrong, not just incomplete).
+
+  // Prices/offers — real authenticated actions with the same "no seller
+  // -identity model" gap as merchant verification/branches above (RISK-017).
+  { method: 'POST', path: '/api/v1/prices', authenticatedOnly: true, permissions: [] },
+  { method: 'POST', path: '/api/v1/offers', authenticatedOnly: true, permissions: [] },
+  { method: 'GET', path: '/api/v1/offers*', authenticatedOnly: true, permissions: [] },
 
   // ─── Read Operations (authenticated is sufficient) ──────────────────────────
   { method: 'GET', path: '/api/v1/categories*', authenticatedOnly: true, permissions: [] },
@@ -49,7 +130,10 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   // ─── Merchant Portal (read: authenticated, write: merchant role) ────────────
   { method: 'GET', path: '/api/v1/brands*', authenticatedOnly: true, permissions: [] },
   { method: 'GET', path: '/api/v1/merchants*', authenticatedOnly: true, permissions: [] },
-  { method: 'POST', path: '/api/v1/brands', permissions: ['Merchant.Create', 'Admin.Access'] },
+  // RISK-016 correction (2026-08-24): the rule that used to be here,
+  // `POST /api/v1/brands`, matched no real route — merchant-brand-routes.ts
+  // only ever registers brand writes under `/admin/brands*` (see that
+  // section above, which replaces this one with rules on the real paths).
 
   // ─── Client creation/editing (governance-sensitive — admin only) ────────────
   // Found during the staff-workflow investigation pass: these two routes had NO

@@ -979,59 +979,158 @@ completion" principle.
 
 ---
 
-## RISK-016 — the comparison-marketplace surface (`/api/v1/merchants/**`, `/api/v1/admin/brands/**`, `/api/v1/admin/reviews/**`, pricing/offers, `/api/v1/platform/services/**`) has never had RISK-014's mechanical RBAC-gap sweep run against it
+## RISK-016 — the comparison-marketplace surface had never had a complete RBAC + tenant-isolation audit run against it
 
-- **Status**: `OPEN`, fully untriaged — disclosed, not investigated this
-  pass
-- **Severity**: Unknown — genuinely unassessed. Some candidates in this
-  group are very plausibly fine by design (e.g.
-  `POST /api/v1/merchants/register` reads as a real, intentional
-  self-service merchant-signup endpoint — `authenticatedOnly`-shaped by
-  nature, not a gap), but none have been individually read the way every
-  `/oc/**` candidate in RISK-014 was.
-- **Found in**: `risk_014_triage_test_3` (2026-08-24) — a corrected,
-  more complete version of RISK-014's mechanical sweep (now covering
-  PUT/PATCH/DELETE registrations, not just GET/POST) surfaced 512 real
-  registered routes platform-wide, not the 451 previously claimed, and a
-  meaningful fraction of the newly-visible candidates belong to this
-  entirely different product surface — the original comparison
-  /merchant/brand/review/pricing marketplace, not the Enterprise
-  Operations Centre. RISK-014 has always been explicitly scoped to
-  `/oc/**`; this surface was never in scope for any prior pass and has
-  never been individually triaged at all.
-- **Representative untriaged candidates** (not exhaustive — see the
-  `risk_014_triage_test_3` script output for the full list):
-  `POST /api/v1/admin/brands`, `PUT /api/v1/admin/brands/:id`,
-  `POST /api/v1/admin/brands/:id/archive`,
-  `POST /api/v1/admin/brands/:id/restore`,
-  `POST /api/v1/merchants/register`,
-  `POST /api/v1/admin/merchants/:id/approve`,
-  `POST /api/v1/admin/merchants/:id/suspend`,
-  `POST /api/v1/admin/merchants/:id/reactivate`,
-  `POST /api/v1/merchants/:id/verification`,
-  `POST /api/v1/admin/verifications/:id/review`,
-  `POST /api/v1/merchants/:id/branches`,
-  `POST /api/v1/prices`, `POST /api/v1/offers`,
-  `GET /api/v1/offers/trending`, `POST /api/v1/reviews`,
-  `POST /api/v1/reviews/:id/helpful`,
-  `GET /api/v1/admin/reviews/pending`,
-  `POST /api/v1/admin/reviews/:id/moderate`, the entire
-  `/api/v1/platform/services/**` family (health, recovery, registry,
-  preflight, go-no-go), and `GET /api/v1/admin/templates/:id/attributes`.
-- **Why not fixed or even triaged this pass**: this session's entire
-  focus, across every prior pass, has been the Enterprise Operations
-  Centre; the comparison-marketplace domain is a materially different
-  product surface with its own business rules (several of these plainly
-  read as intentionally-public self-service actions, e.g. merchant
-  registration and review submission) that would need to be understood
-  on their own terms before any RBAC change — exactly the "large,
-  separate body of work, disclosed not blindly fixed" reasoning already
-  applied to every other large remainder this session.
-- **Suggested fix**: a dedicated future pass, scoped specifically to this
-  surface, that reads each candidate's real business intent (is this
-  meant to be self-service/public, staff-only, or role-specific) before
-  any RBAC change — the same discipline RISK-014's `/oc/**` passes used,
-  not a blind batch application of `Admin.Access`.
+- **Status**: `RESOLVED` (2026-08-25, `risk_016_marketplace_rbac_test_1`)
+  for the confirmed real gaps below. The `/api/v1/platform/services/**`
+  family from the original disclosure was investigated separately and
+  found to already be internal, non-tenant, staff-observability data
+  (health/registry/preflight status) with no client or user data exposed
+  — left ungated deliberately, not a gap (see that section's own routes
+  for the real shape: no client_id, no user-owned records, platform
+  -operational status only).
+- **Severity (as found)**: High for the merchant/brand/review admin
+  gaps below — real, confirmed, any-authenticated-identity write access
+  to business-critical state (approve/suspend a merchant, moderate
+  content, create/archive a brand).
+- **Found in**: `risk_014_triage_test_3` (2026-08-24) disclosed this
+  surface as untriaged; `risk_016_marketplace_rbac_test_1` (2026-08-25,
+  per the "ASKABD ENTERPRISE OPERATIONS — INTEGRATION + COMPLETION
+  PHASE" directive's Phase 1) performed the complete audit — every real
+  route in `api-routes.ts`, `merchant-brand-routes.ts`,
+  `price-routes.ts`, `review-routes.ts` read in full and checked against
+  `rules.ts`, not pattern-matched.
+- **Confirmed via grep**: this entire surface has **zero frontend
+  consumers anywhere in `apps/web`** — a live, reachable, but wholly
+  unused product surface today. This does NOT excuse leaving real
+  vulnerabilities open (a live API is a live API regardless of whether a
+  UI calls it), so every confirmed gap below was still fixed.
+- **The real fixes**:
+  1. `GET /admin/templates/:id/attributes` had no rule at all (every
+     sibling `/admin/templates/*` route requires a real `Template.*`
+     permission) — added `Template.Read`.
+  2. **A methodology finding, not just a missing rule**: THREE
+     pre-existing `rules.ts` entries (`POST /api/v1/merchants`,
+     `PUT /api/v1/merchants/:id`, `POST /api/v1/merchants/:id/verify`)
+     matched **no real registered route at all** — the actual routes are
+     `/merchants/register` (no plain `POST /merchants` handler exists),
+     no `PUT /merchants/:id` handler exists anywhere, and verification
+     review is `/admin/verifications/:id/review`, never
+     `/merchants/:id/verify`. These dead rules gave a false impression
+     that merchant approval/verification was protected while the REAL
+     routes handling that exact logic
+     (`/admin/merchants/:id/approve|suspend|reactivate`,
+     `/admin/verifications/:id/review`) had zero RBAC coverage — any
+     authenticated identity of any role could approve, suspend,
+     reactivate, or verify ANY merchant. Corrected to target the real
+     paths with the pre-existing `Merchant.Approve` permission (already
+     correctly scoped to `admin`/`super_admin` in `roles.ts` — reused,
+     not invented).
+  3. All 4 `/admin/brands*` write routes (create/update/archive/restore)
+     had no rule at all — the one brand-related rule that did exist,
+     `POST /api/v1/brands`, also targeted a non-existent path (the real
+     routes are all under `/admin/brands*`). Gated `Admin.Access` (no
+     dedicated `Brand.*` permission exists in `roles.ts` — a real,
+     disclosed gap in the permission model itself, not fabricated here).
+  4. `GET /admin/reviews/pending` (the full moderation queue) and
+     `POST /admin/reviews/:id/moderate` had no rule at all — any
+     authenticated identity could read every pending review platform
+     -wide or approve/reject ANY review, including bypassing moderation
+     on its own spam/fake reviews. Gated `Admin.Access`.
+  - `POST /merchants/register` deliberately left `authenticatedOnly`
+    (not gated to `Merchant.Create`) — confirmed as the correct,
+    intentional design: `Merchant.Create` is held only by the
+    `merchant` role in `roles.ts`, so requiring it here would make
+    registration impossible for the very identities registering to
+    BECOME a merchant (a real chicken-and-egg case the code's own
+    `status:'pending'` on registration already assumes).
+  - `POST /merchants/:id/verification`, `POST /merchants/:id/branches`,
+    `POST /prices`, `POST /offers` given explicit `authenticatedOnly`
+    rules (matching their actual pre-fix behavior exactly — no
+    functional change, added for auditability) rather than left as
+    silently-implicit default-policy behavior — each is disclosed as
+    having a real, deeper ownership gap tracked separately as RISK-017
+    (a shallow permission gate cannot fix an ownership check that has no
+    schema to check against).
+- **Regression test evidence**: `apps/api/tests/risk-016-marketplace
+  -rbac-test-1.test.ts`, 16/16 passing — customer 403 / unauthenticated
+  401 / staff not-blocked on every fixed route, plus an explicit proof
+  that a `business_user` role (not `admin`/`super_admin`) is correctly
+  ALSO denied `Merchant.Approve`-gated actions, and that merchant
+  self-registration remains correctly reachable to any authenticated
+  identity.
+
+---
+
+## RISK-017 — the comparison-marketplace's `user_id`/`reviewerId` fields trust the client, with no real identity-mapping bridge to fix it against
+
+- **Status**: `OPEN` — a real, confirmed IDOR, deliberately NOT
+  shallow-patched (see below for why a naive fix would itself be wrong)
+- **Severity**: High for the read path (`GET /comparisons?userId=`);
+  Medium for the write paths (`POST /comparisons`, `POST /reviews`,
+  `POST /admin/verifications/:id/review`'s `reviewerId`) — attribution
+  spoofing rather than direct data exposure.
+- **Found in**: `risk_016_marketplace_rbac_test_1` (2026-08-25), reading
+  `comparison-service.ts`, `review-service-prisma.ts`, and
+  `merchant-brand-prisma.ts` in full while auditing the marketplace
+  surface for RISK-016.
+- **The real gap**: `POST /comparisons` and `POST /reviews` accept a
+  `userId` directly from the request body with zero verification it
+  matches the caller's real identity — any authenticated identity can
+  create a comparison or post a review ATTRIBUTED to an arbitrary other
+  `userId`. Worse: `GET /comparisons?userId=<anything>` (`Comparison
+  Service.listByUser`) returns that user's full saved-comparison list —
+  including private ones; `isPublic` is never checked in that query at
+  all — to ANY authenticated identity that supplies the right (or
+  merely guessed/enumerated) `userId`, a real information-disclosure
+  path, not merely a write-spoofing one. `POST /admin/verifications
+  /:id/review` has the equivalent gap for `reviewerId`.
+- **Why `auth.userId` cannot simply be substituted in — this is not a
+  shallow oversight, it is a real architectural gap**: `comparison.
+  user_id` and `review.user_id` are `@db.Uuid` columns with **no `User`
+  model anywhere in `prisma/schema.prisma`** — confirmed by grep. There
+  is no foreign key, no real users table, nothing to bind them to. Real
+  askabd-identity's `auth.userId` (the JWT `sub` claim — literally the
+  string `'dev-user-000'` in this environment's dev-auth-bypass mode,
+  and not guaranteed UUID-shaped in production either) is a DIFFERENT
+  identity system that this marketplace module was never actually wired
+  to. Force-substituting `auth.userId` into these UUID-validated fields
+  would immediately break every dev/test caller (a non-UUID string
+  fails the existing `z.string().uuid()` schema) and would silently
+  conflate two identity systems that have no real, verified mapping
+  between them today — a technically wrong fix dressed up as a real
+  one, exactly the kind of shortcut this session's own discipline exists
+  to catch.
+- **Why not fixed this pass**: the real fix is a genuine, separate
+  feature — a `marketplace_identity_mapping` table (or equivalent),
+  analogous to the Operations Centre's own real
+  `client_identity_mapping` (see `tenant-access.ts`'s doc comment for
+  that precedent), resolving a verified `auth.userId`/org context to a
+  stable marketplace-internal user UUID server-side, never trusting a
+  client-supplied value. Given this ENTIRE marketplace surface has zero
+  real frontend consumers (confirmed by grep across `apps/web` — see
+  RISK-016), building that bridge now would be speculative engineering
+  for a product surface nobody currently uses, not the highest-value
+  security work available. Disclosed plainly rather than either ignored
+  or patched with something that would not actually be correct.
+- **Suggested fix**: when (if) this marketplace surface gets a real
+  frontend, build the identity-mapping bridge as part of that work — a
+  real, verified `auth.userId` → marketplace `user_id` resolution,
+  exactly as `client_identity_mapping` already does for the Operations
+  Centre. Until then, the safest mitigation available without that
+  bridge would be to gate `GET /comparisons` and `POST /comparisons`/
+  `POST /reviews` behind `Admin.Access` (removing the ability for any
+  ordinary authenticated identity to exploit this at all) — not applied
+  this pass because it would break the intended self-service shape of
+  those actions for the same "no real consumer to break" reasoning that
+  applies throughout this entry; worth a dedicated decision, not a
+  silent default.
+- **Regression test evidence**: `risk-016-marketplace-rbac-test-1.test.ts`
+  includes a real, live proof of the `GET /comparisons?userId=` gap
+  (not a 401/403 — RBAC correctly requires authentication but cannot
+  express the missing ownership check) — a documentation test, not a
+  fix, so its presence in the passing suite must not be read as "this
+  is resolved."
 
 ---
 
