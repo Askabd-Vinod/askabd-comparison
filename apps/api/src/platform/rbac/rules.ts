@@ -672,6 +672,23 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/optimization/summary', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/optimization/monitoring', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/portfolio/clients/:clientId/health', permissions: ['Admin.Access'] },
+  // ─── executive_reporting_test_1 continuation (2026-08-24): real, severe
+  // gap found via this pass's own mechanical audit of PortfolioIntelligenceService's
+  // real routes — 7 of its 8 routes carry NO `:clientId` at all (genuine
+  // cross-client platform business intelligence: real per-client financial
+  // investment/savings/ROI, real cross-client problem/gap/technology
+  // patterns, real resource allocation) and had ZERO RBAC rule, falling
+  // through to defaultPolicy:'authenticated' — meaning ANY authenticated
+  // identity, staff or customer, could read AskABD's own aggregate
+  // portfolio-wide financial and cross-client data. Fixed immediately,
+  // same Admin.Access precedent as the sibling row above.
+  { method: 'GET', path: '/api/v1/oc/portfolio/health', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/portfolio/clients', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/portfolio/financial', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/portfolio/transformations', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/portfolio/patterns', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/portfolio/resources', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/portfolio/intelligence', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/known-information', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/notification-preferences', permissions: ['Admin.Access'] },
   { method: 'PUT', path: '/api/v1/oc/clients/:clientId/notification-preferences', permissions: ['Admin.Access'] },

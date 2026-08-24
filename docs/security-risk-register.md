@@ -548,6 +548,101 @@ completion" principle.
   `execute`/`validate`/`dryRun`/`getRun` and their route call sites in a
   dedicated follow-up pass.
 
+## RISK-014 — `PortfolioIntelligenceService`'s real cross-client routes had no RBAC (fixed); 46 more candidate routes found by the same mechanical audit, not yet individually triaged
+
+- **Status**: `RESOLVED` for the 7 confirmed routes (real, cross-client
+  platform business intelligence, no legitimate reason to be open to a
+  customer token); `OPEN` for the 46 remaining candidate routes below
+  (each needs individual investigation — some are very likely legitimate,
+  see below — not blindly fixed)
+- **Severity**: High for the 7 resolved routes (real financial
+  investment/savings/ROI data, real cross-client problem/gap/technology
+  patterns, real resource allocation — genuine AskABD business
+  intelligence, not any single client's data, but still never meant for
+  a customer token); Unknown/mixed for the 46 untriaged candidates
+- **Found in**: `executive_reporting_test_1` continuation (2026-08-24) —
+  investigating coverage matrix row #68 ("Analytics Engine") led to
+  reading `portfolio-intelligence-service.ts` in full, which surfaced 8
+  real, wired, substantial routes (`operations-center-routes.ts`) with
+  only ONE (`/portfolio/clients/:clientId/health`) carrying an RBAC rule.
+- **Mechanical audit performed**: a real script (parsing every
+  `server.<method>('/oc/...')` registration in
+  `operations-center-routes.ts` and diffing against every rule in
+  `rules.ts`, filtered to routes with NO `:clientId` in their path —
+  the class most likely to be genuine platform-wide data with no
+  tenant-scoping backstop at all) found **47 total candidates**; **7 confirmed
+  and fixed this pass** (the `/oc/portfolio/*` family — real
+  Admin.Access rules added, proven live: customer/unauthenticated denied,
+  staff unaffected, `portfolio-intelligence-rbac-test-1.test.ts` 4/4).
+- **The other 46, NOT fixed this pass — real individual triage required,
+  not a blind mass-fix**:
+  `GET /oc/me`, `GET /oc/me/pending-invitations`,
+  `POST /oc/me/pending-invitations/:id/accept` — very likely legitimate
+  (resolve against the caller's OWN verified identity, not an arbitrary
+  target — same shape as every other "my own" endpoint already correctly
+  unlisted elsewhere in `rules.ts`), but not independently re-confirmed
+  this pass.
+  `POST /oc/otp/send`, `POST /oc/otp/verify`, `POST /oc/otp/resend` —
+  plausibly legitimate pre/early-session onboarding steps, but NOT
+  confirmed to be in `publicRoutes` (they are not — they require
+  `defaultPolicy:'authenticated'` at minimum) — a real, disclosed
+  uncertainty, not assumed safe.
+  `POST /oc/jira/webhook` — plausibly an external-system webhook with its
+  own auth mechanism (e.g. signature verification), not the standard
+  bearer-token flow — NOT independently confirmed this pass.
+  `GET /oc/clients`, `GET /oc/clients/:id`, `GET /oc/audit`,
+  `POST /oc/audit`, `GET /oc/operations`, `POST /oc/service-actions`,
+  `POST /oc/notifications`, `GET /oc/notifications`,
+  `GET /oc/clients/health-summary`, `POST /oc/defects`,
+  `POST /oc/incidents` — real, concerning candidates (client listing,
+  audit trail, cross-client operations/notifications/defects/incidents)
+  that look similar in shape to the `/oc/portfolio/*` gap just fixed —
+  the most likely place a genuine further finding exists, not yet
+  investigated.
+  `POST /oc/lifecycle/init`, `POST /oc/lifecycle/transition`,
+  `POST /oc/discovery/start`, `POST /oc/assessment/start`,
+  `POST /oc/assessment/domain/start`, `POST /oc/recommendations/generate`
+  — these take a real `clientId` in the request BODY (confirmed
+  elsewhere in this session's own work, e.g. `tenant-access.ts`'s own
+  body-clientId extraction) rather than the URL, so the audit script's
+  URL-only `:clientId` heuristic naturally missed them — likely already
+  covered by `tenant-access.ts`'s real body-clientId check, but not
+  independently re-confirmed this pass.
+  `GET /oc/client-services/definitions`, `GET /oc/capabilities`,
+  `GET /oc/capabilities/summary`, `GET /oc/capabilities/roadmap`,
+  `GET /oc/capabilities/dependencies`, `GET /oc/capabilities/maturity`,
+  `GET /oc/capabilities/:id`, `GET /oc/optimization/rules`,
+  `POST /oc/optimization/rules`, `GET /oc/workflow/rules`,
+  `GET /oc/workflow/executions`, `GET /oc/scheduler/jobs`,
+  `GET /oc/compliance/frameworks`,
+  `GET /oc/compliance/frameworks/:frameworkId/controls`,
+  `GET /oc/compliance/mappings`, `GET /oc/compliance/mappings/coverage`,
+  `GET /oc/compliance/controls/:controlId/related`,
+  `GET /oc/service-bundles`, `GET /oc/service-bundles/:id`,
+  `GET /oc/platform/commercial/summary`, `GET /oc/jira/config`,
+  `POST /oc/jira/issues` — plausibly public/reference CATALOG data
+  (framework/control/service/capability definitions are not any one
+  client's secret) rather than per-client sensitive data, but NOT
+  individually confirmed this pass — `platform/commercial/summary` and
+  `jira/config`/`jira/issues` specifically look more likely to carry real
+  sensitive data and deserve priority in a future triage.
+- **Why not fixed platform-wide this pass**: each of the 46 needs a real,
+  individual read of its handler to determine whether it's genuinely
+  public reference data, an already-covered body-clientId route, a
+  legitimate "my own identity" endpoint, or a real further gap — blindly
+  applying Admin.Access to all 46 risks breaking legitimate
+  customer-portal catalog/reference functionality without verification,
+  the same "large, separate body of work" reasoning already applied to
+  RISK-009 (100+ instances) and RISK-012 (39 instances) this session.
+- **Suggested fix**: a dedicated pass that reads each of the 46 handlers,
+  classifies it as (a) genuinely public/reference → deliberately
+  document as an intentional exception, (b) already covered via
+  body-clientId → verify and document, (c) a real further RBAC gap →
+  fix with the same Admin.Access pattern and a real regression test. The
+  mechanical script itself (parse `server.<method>` registrations, diff
+  against `rules.ts`, filter to no-`:clientId` paths) is reusable as-is
+  for that pass — no new tooling needed.
+
 ---
 
 ## Mechanical cross-reference
