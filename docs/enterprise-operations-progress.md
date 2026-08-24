@@ -639,20 +639,45 @@ but not-yet-started future pass) plus one opaque-`entityId` ownership
 question. RISK-017 (above) needs a genuine new identity-mapping
 feature.
 
+**Update — Phase 2 investigation performed same session**: before
+touching any of the ~26 `mockClients` pages, re-derived
+`docs/enterprise-feature-gap-register.md`'s own conclusions from
+scratch by reading real source files fresh. They hold exactly as
+documented, plus new confirmation from paths not previously traced:
+the real client directory shows ONLY database-backed clients (no
+`mockClients` entry ever appears); global search is the one live path
+that can surface a demo record, and every demo result carries an
+explicit, visible "Sample" badge; every individual client page checked
+routes a real client to either real API data (documents) or an honest
+`CapabilityPlaceholder` "not yet available" state, never fabricated
+content. **Net conclusion**: no real onboarded client, browsed through
+any real navigation path in this platform, is ever shown fabricated
+data — the P0 fix from an earlier milestone already closed the
+highest-severity version of this gap. What genuinely remains (the
+~20 mock-client-only pages' own internal fabrication, 15 pages missing
+the `DemoDataBanner` disclosure component, 9 files reading a fabricated
+`deployments` field as incidental data) is real but lower-severity than
+originally framed — see the gap register's own dated update for the
+full, precise accounting. This reframes Phase 2's real priority toward
+Phase 3 (below) as the higher-value next body of work, with Phase 2's
+remainder as a genuinely bounded, lower-urgency cleanup rather than an
+active user-facing risk.
+
 **Next up, per the standing "continue automatically" authorization**:
-Phase 1's explicit target list is complete. The master directive's own
-next phases are Phase 2 (remove ALL fabricated/mock data from every
-UI page — the ~26 `mockClients`-backed ancillary pages this session has
-tracked throughout, each needing its own genuine data-source decision,
-never a blind batch fix) and Phase 3 (integrate every existing engine
-into one cohesive staff Enterprise Operations Centre navigation
-structure — the 11+ engines built in the prior window remain API-only
-with no dedicated staff UI). Read `docs/eoc-feature-coverage-matrix.md`
-alongside this file for the row-by-row status. Re-confirm `npm run
-health` is still green before continuing (services may need `npm run
-dev:all` again if the machine was restarted; the Web dev-server health
-check needs `/staff/login` pre-warmed first with a longer-timeout curl
-— a known Next.js dev first-compile quirk, not a defect).
+Phase 1's explicit target list is complete; Phase 2's real severity is
+now accurately re-scoped (above). The master directive's own Phase 3
+— integrate every existing engine into one cohesive staff Enterprise
+Operations Centre navigation structure — is the highest-value next
+body of work: the 11+ engines built in the prior window (UAT, Release
+Readiness, Deployment, Risk, Data Mapping, Data Reconciliation,
+Requirements Clarification, Change Management, Executive Reporting,
+API Discovery, Dependency Analysis) remain API-only with no dedicated
+staff UI at all. Read `docs/eoc-feature-coverage-matrix.md` alongside
+this file for the row-by-row status. Re-confirm `npm run health` is
+still green before continuing (services may need `npm run dev:all`
+again if the machine was restarted; the Web dev-server health check
+needs `/staff/login` pre-warmed first with a longer-timeout curl — a
+known Next.js dev first-compile quirk, not a defect).
 
 ### Original phase-based task description (superseded by the above, kept for history)
 

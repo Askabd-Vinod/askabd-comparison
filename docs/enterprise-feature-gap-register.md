@@ -92,6 +92,55 @@ for its own primary (also-fabricated) content. Not fixed this pass — same
 listed here precisely (rather than left as a vague "~26 remaining pages" note) so
 a future pass can act on it directly.
 
+## Update (2026-08-25, "ASKABD ENTERPRISE OPERATIONS — INTEGRATION + COMPLETION PHASE" directive, Phase 2 investigation) — re-verified independently, findings confirmed accurate
+
+Before touching anything, re-derived this register's own conclusions
+from scratch (reading real source files fresh, not trusting the
+existing entries) — they hold exactly as documented above. Recorded
+here as an independent confirmation, plus new findings from checking
+paths this register hadn't explicitly traced before:
+
+- **The client directory (`clients/page.tsx`) shows ONLY real,
+  database-backed clients** — confirmed by reading it in full: `GET
+  /oc/clients`, with its own comment "Authoritative client data ...
+  not fabricated sample data." None of the ~20 static `mockClients`
+  entries appear here. A staff member browsing the real client list
+  can never click through to a `mockClients` page by accident.
+- **Global search (`search/page.tsx`) is the one real, live path that
+  CAN surface a `mockClients` entry to a real user** — but every demo
+  result carries an explicit, visible **"Sample"** badge
+  (`r.source === 'demo'`), merged with real `GET /oc/search` API
+  results which carry no such badge. Read the full file: this is a
+  real, deliberate, already-correct disclosure, not an oversight.
+- **Individual client detail pages consistently distinguish real vs.
+  demo correctly**: `documents/page.tsx` (checked fresh) routes real
+  clients to the actual Document Generation Engine
+  (`GET /oc/document-templates`, `GET /oc/clients/:id/documents`) with
+  the mock branch explicitly commented "untouched"; every other
+  ancillary tab checked (`applications`, `alerts`, `contracts`,
+  `timeline`, `knowledge`, `support`) routes real clients through
+  `CapabilityPlaceholder` exactly as the P0 fix above describes.
+- **Net effect, stated plainly**: a real onboarded client, browsed
+  through any real navigation path in this platform, is never shown
+  fabricated data. The remaining `mockClients` consumers are a
+  demo/showcase surface, reachable only by an explicitly
+  "Sample"-labeled search result or a directly-typed/bookmarked demo
+  -client URL — real, still-imperfect (the P1 findings above are
+  unchanged and still real), but materially lower severity than "an
+  active user of this platform can be misled," which is the standard
+  that matters most.
+- **What genuinely remains, precisely** (not a new list — the same one
+  above, re-confirmed current): the ~20 mock-client-only pages'
+  P1-documented internal fabrication (readiness dimension math,
+  hardcoded test suites, hardcoded roadmap phases) is unchanged; the 9
+  files reading the fabricated `deployments` field as incidental data
+  are unchanged; 15 of the 32 `CapabilityPlaceholder`-consuming pages
+  still lack the `DemoDataBanner` disclosure component on their own
+  mock-client branch (a real, bounded, low-risk consistency fix — not
+  done this pass, given the higher-value finding above that the
+  primary real-user-facing risk this register exists to track was
+  already closed by the P0 fix).
+
 ## P1 finding, re-confirmed not newly discovered: `mock-clients.ts` itself
 
 Already documented in `docs/real-data-integrity-register.md` (an earlier milestone this session)
