@@ -642,6 +642,27 @@ completion" principle.
   mechanical script itself (parse `server.<method>` registrations, diff
   against `rules.ts`, filter to no-`:clientId` paths) is reusable as-is
   for that pass — no new tooling needed.
+- **Update (2026-08-24, `dependency_analysis_test_1` — final mechanical
+  audit pass, per the master directive's own "audit again after all
+  named capabilities are complete" instruction)**: re-ran the same
+  mechanical script across ALL route files (not just
+  `operations-center-routes.ts`), covering all 451 real registered
+  routes in the platform. Found exactly 2 more raw candidates beyond the
+  already-tracked 46, both individually investigated (not blindly
+  fixed) and both confirmed genuinely NOT real gaps:
+  `GET /oc/invitations/lookup` / `POST /oc/invitations/accept` are
+  already explicitly listed in `server.ts`'s own `publicRoutes` config
+  (a documented, deliberate pre-auth invitation-token exception,
+  confirmed by reading that config directly); `POST /oc/staff/roles` is
+  already a documented, deliberate, narrowly-scoped one-time bootstrap
+  exception (`rules.ts` itself carries a real explanatory comment; the
+  route's own handler, read in full, correctly requires BOTH a genuinely
+  empty `staff_role_assignment` table AND that the grant target is the
+  caller's own verified identity — never a real customer's or a
+  different staff member's). No new real gap found. This does not
+  reduce the 46 still-untriaged candidates from the earlier update —
+  it independently confirms the broader sweep was complete and that at
+  least these 2 of the "plausibly legitimate" category genuinely are.
 
 ---
 

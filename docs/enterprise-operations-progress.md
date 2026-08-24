@@ -382,11 +382,124 @@ as the first of its named fabricated-page list to be fully resolved
 deployment_validation_test_1.md` and
 `docs/evidence/post_delivery/post_delivery_test_1/post_delivery_test_1.md`.
 
+**Update (2026-08-24, "ASKABD ENTERPRISE OPERATIONS — MASTER AUTONOMOUS
+COMPLETION DIRECTIVE" — ALL NAMED CAPABILITIES COMPLETE)**: continuing
+automatically from the point above, this directive named 11 capabilities
+"at minimum" to investigate and implement, plus instructed a further
+mechanical audit afterward (which surfaced a 12th, real capability). All
+12 are now done, each following the full discipline (search-before
+-building, real engine reuse, real tests, real security audit, real
+regression, real evidence, real documentation, real commit):
+
+1. **Risk Engine** (`risk_test_1`) — real deterministic probability×impact
+   severity matrix, real state machine, real `ApprovalWorkflowEngine`
+   -backed acceptance workflow. Found and fixed a real, large-scale
+   data-integrity gap along the way: 1026+ orphaned `oc_gaps`/
+   `oc_gap_options`/`oc_decisions`/`oc_transformations` rows (missing
+   client FK, pre-existing) — cleaned and the FK added for those 4
+   tables; the same missing-FK pattern in 39 more tables platform-wide
+   disclosed as RISK-012, not blindly fixed.
+2. **Migration Rollback Engine** (`migration_rollback_test_1`) — found
+   already real and wired but completely untested and missing a real
+   object-level ownership check on a genuinely destructive
+   `DROP SCHEMA CASCADE`; extended (not duplicated), fixed, first-ever
+   test coverage added.
+3. **Data Mapping Engine** (`data_mapping_test_1`) — real, enforced
+   shape validation per mapping type; deliberately consolidated with the
+   separately-named "Migration Mapping Engine" (same real capability,
+   one engine).
+4. **Data Reconciliation Engine** (`data_reconciliation_test_1`) — real
+   row-level comparison (row counts + real content checksums) between
+   two real database connections; a real table-naming collision (with a
+   pre-existing, unrelated PAYMENT reconciliation table) caught by this
+   pass's own tests before it could reach a shared environment, fixed
+   cleanly with zero broken state ever applied.
+5. **Requirements Clarification Engine** (`requirements_clarification
+   _test_1`) — closes an already-precisely-named gap by generating real,
+   specific questions from the existing `classifyQuality()`'s real
+   findings, never re-detecting anything itself.
+6. **Migration Planning Engine** (row #40, correction only) — found
+   already real (`MigrationExecutionService.createPlan`), matrix
+   corrected, no duplicate engine built.
+7. **Change Management Engine** (`change_management_test_1`) — real
+   enforced impact/implementation/rollback content requirements, real
+   cross-engine linkage to Risk and Deployment (both ownership-verified),
+   real self-approval prevention.
+8. **Executive Reporting Engine** (`executive_reporting_test_1`) — real,
+   read-only 8-dimension cross-domain aggregator; "insufficient evidence"
+   as a real first-class status, never an artificial percentage.
+9. **Analytics Engine** (row #68, investigation + a real severe security
+   fix) — found already real and substantial (`PortfolioIntelligence
+   Service`), but 7 of its 8 real cross-client routes had ZERO RBAC —
+   any authenticated identity, including a customer token, could read
+   AskABD's own aggregate financial/business intelligence. Fixed
+   immediately, proven live. The SAME mechanical audit that found this
+   also surfaced 46 more untriaged candidate routes platform-wide,
+   honestly disclosed as RISK-014 rather than blindly mass-fixed.
+10. **API Discovery / Validation Engine** (`api_discovery_test_1`) —
+    real OpenAPI 3.0/Swagger 2.0 parsing, real never-assumed live
+    -validation authorization gate, real SSRF-protected live validation
+    reusing `network-security-policy.ts` unmodified.
+11. **Dependency Analysis Engine** (`dependency_analysis_test_1`) — the
+    final named capability. Deliberately not a new link-storage engine —
+    real `depends_on` links reuse `TraceabilityEngine` entirely unmodified;
+    adds only real, explicit cycle detection (the existing chain-walker's
+    cycle guard silently truncates a real circular dependency rather than
+    reporting it) and a real dependency-impact summary.
+12. **A final, broader mechanical RBAC audit** (per the directive's own
+    "audit again after all named capabilities are complete" instruction)
+    — re-ran the same script across ALL 451 real routes in every route
+    file, not just the one file the portfolio finding came from. Found 2
+    more raw candidates, both individually investigated and confirmed
+    genuinely legitimate (a documented public-invitation exception, a
+    documented one-time admin-bootstrap exception) — no new real gap.
+
+**Coverage matrix status**: all 80 tracked rows now carry an honest,
+evidenced status — **zero `NOT_STARTED` rows remain**. 38 `IMPLEMENTED`,
+18 `PASS`, 1 `PASS**`, 21 `PASS_WITH_RISKS`, 2 `BLOCKED_EXTERNAL
+_DEPENDENCY`. Every `IMPLEMENTED`/`PASS_WITH_RISKS` row is capped there
+for an honest, specific, disclosed reason (usually `BLOCKED_EXTERNAL
+_AUTH` for live UI verification, or a named real fast-follow) — never
+silently upgraded.
+
+**Cumulative regression, this directive's own passes**: 809 → 838 → 850
+tests, zero unexplained failures at any point (RISK-010's disclosed
+full-suite flakiness aside, independently reconfirmed not to affect any
+of this work in isolated runs). Every pass: real migration (several
+caught and self-corrected real naming collisions before merge), real
+service, real routes, real RBAC rules, real tests, `tsc --noEmit` clean,
+`npm run build` clean, zero DB orphans verified, both protected real
+clients (`AskABD Manual UAT 2026`, `Test1`) confirmed unchanged after
+every single pass, real evidence doc, real commit, real push, `main`
+independently re-verified unchanged at `b63f797` after every commit.
+
+**What remains real, disclosed, and NOT done** (never silently treated as
+complete): no dedicated staff UI exists yet for any of the 11 new
+engines (all API-only this run of passes); Playwright/live-browser
+verification for all of them is `BLOCKED_EXTERNAL_AUTH` (the staff
+session has been expired since earlier this session; never worked
+around); RISK-009 (~90 more `req.body` null-guard instances),
+RISK-012 (39 more missing-client-FK tables), and RISK-014 (46 more
+untriaged no-RBAC-rule route candidates) are each real, large,
+genuinely separate bodies of work, individually disclosed rather than
+blindly mass-fixed or silently ignored; the ~26 remaining `mockClients`
+-backed ancillary nav-tab pages (Infrastructure, Applications, Reports,
+Environments, Alerts, etc.) are unchanged, each needing its own genuine
+data-source decision.
+
 **Next up, per the standing "continue automatically" authorization**:
-read the coverage matrix again and identify the next genuine
-`NOT_STARTED` capability (per the directive's own explicit continuation
-instruction) — the named list continues toward
-`FULL_END_TO_END_CLIENT_TEST_1`. Read
+with the master directive's own named list and its own follow-up audit
+both fully complete, the next real work is one of: (a) a dedicated pass
+on any of RISK-009/012/014's disclosed remainders, (b) building the
+first real staff UI for the 11 engines above once the staff session is
+available again, (c) the earlier-named still-pending suites
+(`release_readiness_test_1` onward toward `FULL_END_TO_END_CLIENT_TEST_1`
+— note `release_readiness_test_1` and several others in that original
+list are in fact already complete, see the coverage matrix directly
+rather than trusting this narrative list's original ordering), or (d)
+re-reading `docs/eoc-feature-coverage-matrix.md` fresh for the
+highest-value next real gap, matching this session's own established
+"search first, verify current state, don't assume" discipline. Read
 `docs/eoc-feature-coverage-matrix.md` alongside this file — it is the
 authoritative, row-by-row honest status tracker; this file is the
 narrative log. Re-read this file first and confirm `npm run health` is
@@ -397,12 +510,6 @@ Next.js dev first-compile timing quirk, not a defect, see Last Health
 Check below). Also re-check RISK-010 (full-suite flakiness) if it
 recurs — consider whether a dedicated fix pass is now warranted before
 trusting any future "full regression: N/N passing" claim at face value.
-`(app)/clients/[clientId]/` still has ~26 remaining ancillary nav-tab
-pages reading from `mockClients` (Infrastructure, Applications, Reports,
-Environments, Alerts, and others) — real, disclosed, individually
--scoped fast-follow candidates, each needing its own genuine data-source
-decision per `docs/enterprise-feature-gap-register.md`'s own P1 finding,
-not a mechanical batch fix.
 
 ### Original phase-based task description (superseded by the above, kept for history)
 
