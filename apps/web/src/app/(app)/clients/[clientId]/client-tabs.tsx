@@ -30,6 +30,7 @@ const tabs = [
   { label: 'Transformations', segment: '/transformations' },
   { label: 'Migrations', segment: '/migrations' },
   { label: 'Testing', segment: '/testing' },
+  { label: 'UAT', segment: '/uat' },
   { label: 'Compliance', segment: '/compliance' },
   { label: 'Readiness', segment: '/readiness' },
   { label: 'Scorecard', segment: '/scorecard' },
