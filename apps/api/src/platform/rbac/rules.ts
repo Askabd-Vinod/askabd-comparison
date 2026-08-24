@@ -573,6 +573,14 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   { method: 'POST', path: '/api/v1/oc/clients/:clientId/changes/:id/validate', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/clients/:clientId/changes/:id/close', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/clients/:clientId/changes/:id/cancel', permissions: ['Admin.Access'] },
+
+  // ─── executive_reporting_test_1 (2026-08-24) ─────────────────────────────
+  // Staff-only Executive Reporting Engine (executive-reporting-routes.ts) —
+  // same Admin.Access precedent as every other staff-only route above.
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/executive-reports', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/executive-reports', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/executive-reports/:id', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/executive-reports/:id/export/markdown', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/test-executions', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/test-runs/:runIdA/compare/:runIdB', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/test-defects', permissions: ['Admin.Access'] },
