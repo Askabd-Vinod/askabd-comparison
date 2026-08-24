@@ -33,6 +33,7 @@ const tabs = [
   { label: 'UAT', segment: '/uat' },
   { label: 'Compliance', segment: '/compliance' },
   { label: 'Readiness', segment: '/readiness' },
+  { label: 'Release Readiness', segment: '/release-readiness' },
   { label: 'Scorecard', segment: '/scorecard' },
   { label: 'Engineering', segment: '/engineering' },
   { label: 'Infrastructure', segment: '/infrastructure' },
