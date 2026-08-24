@@ -3,10 +3,29 @@ import { describe, expect, it, vi, beforeAll, afterAll } from 'vitest';
 import { operationsCenterRoutes } from '../src/routes/operations-center-routes.js';
 import { sharedPool } from '../src/services/db-pool.js';
 import { CommercialEngagementService } from '../src/services/commercial-engagement-service.js';
+import { OperationsCenterService } from '../src/services/operations-center-service.js';
 
-const TEST_CLIENT = 'demo-meridian-financial';
-const ISOLATION_CLIENT_A = 'stable-0435';
-const ISOLATION_CLIENT_B = 'guard-01';
+// RISK-012 platform-wide fix (migration 067, 2026-08-25) added a real
+// client_id -> oc_clients(id) foreign key to oc_commercial_engagements (and
+// 38 other tables) — these three constants used to be bare, non-existent
+// client ids, which the new FK now correctly rejects. Real clients created
+// in beforeAll below; the FK's own ON DELETE CASCADE cleans every
+// engagement/proposal/service/pricing row this file creates when the client
+// itself is deleted in afterAll.
+function minimalClient(name: string) {
+  return {
+    name, logo: '', industry: 'Technology', country: 'India', timezone: 'UTC',
+    businessSize: 'Medium', supportModel: 'Managed', criticality: 'standard',
+    primaryContact: 'test@example.com', departments: [], capabilities: [], processes: [],
+    applications: [], techApps: [], techServices: [], techApis: [], techDatabases: [],
+    techServers: [], techCloud: [], techInfrastructure: [], environments: {}, monitoring: {},
+    enabledServices: [],
+  };
+}
+
+let TEST_CLIENT: string;
+let ISOLATION_CLIENT_A: string;
+let ISOLATION_CLIENT_B: string;
 
 let app: ReturnType<typeof Fastify>;
 let engagementId: string;
@@ -16,15 +35,32 @@ beforeAll(async () => {
   app = Fastify();
   await app.register(operationsCenterRoutes);
   await app.ready();
+
+  const ocService = new OperationsCenterService();
+  const [testClient, isoA, isoB] = await Promise.all([
+    ocService.createClient(minimalClient('Commercial Engagement Test Client')),
+    ocService.createClient(minimalClient('Commercial Engagement Isolation A')),
+    ocService.createClient(minimalClient('Commercial Engagement Isolation B')),
+  ]);
+  TEST_CLIENT = testClient.id;
+  ISOLATION_CLIENT_A = isoA.id;
+  ISOLATION_CLIENT_B = isoB.id;
 });
 
 afterAll(async () => {
-  // Clean up test data
+  // Deleting the real client rows cascades (ON DELETE CASCADE, migration 067)
+  // to every engagement/proposal/service/pricing row this file created — the
+  // explicit per-engagement deletes below are kept as an extra, redundant
+  // safety net (harmless no-ops once cascade has already run) rather than
+  // removed, since they predate this fix and cost nothing to keep.
   if (engagementId) {
     await sharedPool.query('DELETE FROM oc_proposals WHERE engagement_id = $1', [engagementId]);
     await sharedPool.query('DELETE FROM oc_engagement_services WHERE engagement_id = $1', [engagementId]);
     await sharedPool.query('DELETE FROM oc_engagement_pricing WHERE engagement_id = $1', [engagementId]);
     await sharedPool.query('DELETE FROM oc_commercial_engagements WHERE id = $1', [engagementId]);
+  }
+  for (const clientId of [TEST_CLIENT, ISOLATION_CLIENT_A, ISOLATION_CLIENT_B]) {
+    if (clientId) await sharedPool.query('DELETE FROM oc_clients WHERE id = $1', [clientId]);
   }
   await app.close();
 });

@@ -19,7 +19,23 @@ import * as jose from 'jose';
 import { registerAuthMiddleware } from '../src/middleware/auth.js';
 import { registerAuthorizationMiddleware, registerTenantAccessMiddleware, COMPARISON_API_RULES } from '../src/platform/rbac/index.js';
 import { operationsCenterRoutes } from '../src/routes/operations-center-routes.js';
+import { OperationsCenterService } from '../src/services/operations-center-service.js';
 import { sharedPool } from '../src/services/db-pool.js';
+
+// RISK-012 platform-wide fix (migration 067, 2026-08-25) added a real
+// client_id -> oc_clients(id) foreign key to oc_connection_tests (and 38
+// other tables) — the second test below used to INSERT against a bare,
+// non-existent client id, which the new FK now correctly rejects.
+function minimalClient(name: string) {
+  return {
+    name, logo: '', industry: 'Technology', country: 'India', timezone: 'UTC',
+    businessSize: 'Medium', supportModel: 'Managed', criticality: 'standard',
+    primaryContact: 'test@example.com', departments: [], capabilities: [], processes: [],
+    applications: [], techApps: [], techServices: [], techApis: [], techDatabases: [],
+    techServers: [], techCloud: [], techInfrastructure: [], environments: {}, monitoring: {},
+    enabledServices: [],
+  };
+}
 
 const SECRET = 'test-secret-value-not-a-real-secret';
 
@@ -59,7 +75,9 @@ describe('GET /oc/clients/:clientId/connection-tests', () => {
   it('returns a real, previously-persisted connection test row, matching what testConnection() actually wrote', async () => {
     const app = await buildApp();
     const admin = await adminToken();
-    const clientId = `test-conntest-${Date.now()}`;
+    const ocService = new OperationsCenterService();
+    const client = await ocService.createClient(minimalClient('Connection Tests History Test'));
+    const clientId = client.id;
     await sharedPool.query(
       `INSERT INTO oc_connection_tests (client_id, provider, status, mode, duration_ms, steps, error_message, correlation_id)
        VALUES ($1, 'postgresql', 'connected', 'real', 120, '[{"step":"TCP Connect","pass":true,"durationMs":10}]', '', 'corr-1')`,
@@ -74,7 +92,11 @@ describe('GET /oc/clients/:clientId/connection-tests', () => {
     expect(body.tests[0].status).toBe('connected');
     expect(body.tests[0].mode).toBe('real');
 
+    // Deleting the real client cascades (ON DELETE CASCADE, migration 067) to
+    // the connection-test row above — the explicit delete is kept anyway as
+    // a redundant, harmless safety net.
     await sharedPool.query('DELETE FROM oc_connection_tests WHERE client_id = $1', [clientId]);
+    await sharedPool.query('DELETE FROM oc_clients WHERE id = $1', [clientId]);
     await app.close();
   });
 });

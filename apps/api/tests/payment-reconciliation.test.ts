@@ -2,10 +2,30 @@ import Fastify from 'fastify';
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { operationsCenterRoutes } from '../src/routes/operations-center-routes.js';
 import { sharedPool } from '../src/services/db-pool.js';
+import { OperationsCenterService } from '../src/services/operations-center-service.js';
 
-const TEST_CLIENT = 'demo-meridian-financial';
-const ISOLATION_CLIENT_A = 'stable-0435';
-const ISOLATION_CLIENT_B = 'guard-01';
+// RISK-012 platform-wide fix (migration 067, 2026-08-25) added a real
+// client_id -> oc_clients(id) foreign key to oc_payment_methods,
+// oc_financial_transactions, oc_reconciliation_runs/items/exceptions (and 34
+// other tables) — these three constants used to be bare, non-existent client
+// ids, which the new FK now correctly rejects. Real clients created in
+// beforeAll below; the surrounding demo-data-preserving cleanup logic is
+// otherwise unchanged — it will simply operate on real (initially empty)
+// client ids each run.
+function minimalClient(name: string) {
+  return {
+    name, logo: '', industry: 'Technology', country: 'India', timezone: 'UTC',
+    businessSize: 'Medium', supportModel: 'Managed', criticality: 'standard',
+    primaryContact: 'test@example.com', departments: [], capabilities: [], processes: [],
+    applications: [], techApps: [], techServices: [], techApis: [], techDatabases: [],
+    techServers: [], techCloud: [], techInfrastructure: [], environments: {}, monitoring: {},
+    enabledServices: [],
+  };
+}
+
+let TEST_CLIENT: string;
+let ISOLATION_CLIENT_A: string;
+let ISOLATION_CLIENT_B: string;
 
 let app: ReturnType<typeof Fastify>;
 
@@ -13,6 +33,17 @@ beforeAll(async () => {
   app = Fastify();
   await app.register(operationsCenterRoutes);
   await app.ready();
+
+  const ocService = new OperationsCenterService();
+  const [testClient, isoA, isoB] = await Promise.all([
+    ocService.createClient(minimalClient('Payment Reconciliation Test Client')),
+    ocService.createClient(minimalClient('Payment Reconciliation Isolation A')),
+    ocService.createClient(minimalClient('Payment Reconciliation Isolation B')),
+  ]);
+  TEST_CLIENT = testClient.id;
+  ISOLATION_CLIENT_A = isoA.id;
+  ISOLATION_CLIENT_B = isoB.id;
+
   // Pre-clean any leftover test data from previous runs (preserve demo provider records)
   await sharedPool.query("DELETE FROM oc_reconciliation_exceptions WHERE client_id IN ($1,$2,$3) AND run_id IN (SELECT id FROM oc_reconciliation_runs WHERE client_id IN ($1,$2,$3) AND (metadata::text NOT LIKE '%demo%' OR metadata IS NULL))", [TEST_CLIENT, ISOLATION_CLIENT_A, ISOLATION_CLIENT_B]);
   await sharedPool.query("DELETE FROM oc_reconciliation_items WHERE client_id IN ($1,$2,$3) AND run_id IN (SELECT id FROM oc_reconciliation_runs WHERE client_id IN ($1,$2,$3) AND (metadata::text NOT LIKE '%demo%' OR metadata IS NULL))", [TEST_CLIENT, ISOLATION_CLIENT_A, ISOLATION_CLIENT_B]);
@@ -28,6 +59,13 @@ afterAll(async () => {
   await sharedPool.query("DELETE FROM oc_reconciliation_runs WHERE client_id IN ($1,$2,$3) AND (metadata::text LIKE '%test%' OR created_at > NOW() - INTERVAL '1 hour')", [TEST_CLIENT, ISOLATION_CLIENT_A, ISOLATION_CLIENT_B]);
   await sharedPool.query("DELETE FROM oc_financial_transactions WHERE client_id IN ($1,$2,$3) AND provider != 'demo'", [TEST_CLIENT, ISOLATION_CLIENT_A, ISOLATION_CLIENT_B]);
   await sharedPool.query("DELETE FROM oc_payment_methods WHERE client_id IN ($1,$2,$3) AND provider != 'demo'", [TEST_CLIENT, ISOLATION_CLIENT_A, ISOLATION_CLIENT_B]);
+  // Each run creates brand-new, disposable real clients (fresh UUIDs) — there
+  // is never any real "demo" data at a freshly-generated id, so deleting the
+  // client rows outright (cascading, migration 067's ON DELETE CASCADE) is
+  // safe and cleans up everything the explicit deletes above didn't.
+  for (const clientId of [TEST_CLIENT, ISOLATION_CLIENT_A, ISOLATION_CLIENT_B]) {
+    if (clientId) await sharedPool.query('DELETE FROM oc_clients WHERE id = $1', [clientId]);
+  }
   await app.close();
 });
 

@@ -431,12 +431,15 @@ completion" principle.
   `recordRollbackOutcome` with genuine evidence from an actual pipeline
   run, once such a pipeline exists for a real client engagement.
 
-## RISK-012 — Many client-scoped tables have `client_id` with NO foreign key to `oc_clients` — real orphaned rows found and partially fixed
+## RISK-012 — Many client-scoped tables have `client_id` with NO foreign key to `oc_clients` — now RESOLVED platform-wide
 
-- **Status**: `RESOLVED` for the 4 tables in the Gap/Decision/Transformation
-  domain (`oc_gaps`, `oc_gap_options`, `oc_decisions`, `oc_transformations`
-  — migration 059); `OPEN` for the platform-wide pattern (39 more
-  occurrences across 15 other migration files, not fixed this pass)
+- **Status**: `RESOLVED` platform-wide (2026-08-25,
+  `risk_012_platform_fk_integrity_test_1`). The 4 tables in the
+  Gap/Decision/Transformation domain were fixed first (migration 059,
+  2026-08-24); this pass completed the remaining 39 tables across 18
+  migration files (migration 067), closing every occurrence the earlier
+  mechanical audit found. **43 of 43 known occurrences are now fixed —
+  zero remain open.**
 - **Severity**: Medium (data-integrity, not a security/data-leak issue —
   orphaned rows belong to already-deleted clients, so no live client's
   data was ever exposed or at risk; the real harm is accumulating dead
@@ -477,22 +480,67 @@ completion" principle.
   applied cleanly (would have failed if any remaining row violated the
   new constraint), full API regression run afterward with zero
   unexplained failures.
-- **Why NOT fixed platform-wide this pass**: retrofitting foreign keys
-  onto 19 migration files' worth of tables, each needing its own
-  orphan-cleanup-then-constrain migration and its own regression
-  verification, is a large, cross-cutting, genuinely separate body of
-  work from "build the Risk Engine" — correctly out of scope for a single
-  feature pass, matching this session's own established precedent
-  (RISK-009's 100+ `req.body` occurrences, the 41-file `mockClients`
-  gap). Tracked here precisely (with the exact grep command used) so a
-  future dedicated pass can act on it directly rather than re-discovering
-  it.
-- **Suggested fix**: a dedicated pass that, for each of the remaining 39
-  occurrences, (a) checks for and cleans any real orphaned rows, (b) adds
-  the missing FK with `ON DELETE CASCADE` (matching this session's own
-  now-established convention for every client-scoped table), and (c)
-  re-runs full regression after each batch — the same three-step pattern
-  migration 059 already proved works cleanly.
+- **Update (2026-08-25, `risk_012_platform_fk_integrity_test_1`) — the
+  remaining 39 occurrences, now fixed**: migration 067, following the
+  exact three-step pattern migration 059 already proved (mapped every
+  grep hit to its real table name via script rather than by hand,
+  queried real per-table orphan counts before writing any SQL, then
+  deleted + constrained).
+  - **The real scale, confirmed by direct query before writing the
+    migration**: over 40,000 real orphaned rows across the 39 tables —
+    `oc_client_service_requirements` alone had 21,681 orphaned rows out
+    of 21,761 total (99.6%); `oc_events` had 16,439 of 16,462 (99.9%).
+    Both real protected clients (`AskABD Manual UAT 2026`, `Test1`)
+    independently verified to have real, non-orphaned rows in every
+    affected table, both before AND after the migration, with identical
+    row counts (20 `oc_client_service_requirements` each; 4/0 `oc_events`
+    respectively) — their data was never at risk by construction (their
+    `client_id` genuinely exists in `oc_clients`, so the `NOT EXISTS`
+    orphan condition can never match it).
+  - **Two real ordering bugs found and fixed before the migration ran
+    cleanly** — both caught by the migration failing loudly and rolling
+    back atomically (verified: no row in `_migrations`, no partial
+    constraint, orphan counts unchanged after each failed attempt — the
+    exact safety this session relies on for every schema change):
+    (1) several of the 39 tables have real foreign keys to EACH OTHER
+    (e.g. `oc_baselines.metric_id → oc_metric_definitions.id`,
+    `oc_workflow_executions.event_id → oc_events.id`,
+    `oc_reconciliation_items.run_id → oc_reconciliation_runs.id`) —
+    deleting a still-referenced parent before its child failed with a
+    real FK violation on the first attempt; fixed by re-deriving the
+    delete order topologically (children strictly before parents) from
+    a direct `information_schema` query, not by guessing. (2) a second,
+    same-class bug: `oc_engagement_pricing` — a table OUTSIDE the 39,
+    not itself client-scoped — has its own un-cascaded FK to
+    `oc_commercial_engagements`; 3 real orphaned pricing rows needed
+    cleanup before their parent engagements could be deleted, found via
+    a second, broader query for every real FK anywhere in the database
+    that references INTO the 39-table set (not just among the 39
+    themselves), confirming no other external child table had the same
+    issue.
+  - **A real, expected downstream break, found and fixed properly (not
+    weakened around)**: the new constraints correctly rejected 4
+    pre-existing test files that created rows against bare, non-existent
+    client ids (`reliability-hardening.test.ts`,
+    `commercial-engagement.test.ts`, `payment-reconciliation.test.ts`,
+    `connection-tests-history.test.ts` — 46 tests total, all failing
+    with real `insert or update ... violates foreign key constraint`
+    errors on the first full-regression run after the migration). Per
+    the standing "stop, find root cause, fix, repeat all affected tests"
+    discipline: each fixed to create a real `oc_clients` row first (the
+    same `minimalClient()` helper pattern already established elsewhere
+    this session), never by loosening the constraint. All 4 files, 62
+    tests, now passing; the constraint itself was never touched.
+  - **Result**: all 43 known occurrences (4 from migration 059 + 39 from
+    this pass) now carry a real `client_id → oc_clients(id) ON DELETE
+    CASCADE` foreign key. Zero orphans remain across all 43 tables,
+    verified by direct query.
+- **Regression evidence**: full suite stays at 895 (no new test files
+  added this pass — a repair, not new coverage): the migration's first
+  full-regression run showed 46 real failures across the 4 affected
+  files; after fixing those 4 files to create real clients, the same
+  895-test suite passes 895/895 again. `tsc --noEmit` clean. Both
+  protected clients reconfirmed unchanged.
 
 ## RISK-013 — `MigrationExecutionService.rollback()` had no object-level ownership check for a destructive `DROP SCHEMA CASCADE` — fixed; sibling methods still lack it
 

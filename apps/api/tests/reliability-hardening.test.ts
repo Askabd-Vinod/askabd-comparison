@@ -8,10 +8,30 @@ import Fastify from 'fastify';
 import { describe, expect, it, vi, beforeAll, afterAll } from 'vitest';
 import { operationsCenterRoutes } from '../src/routes/operations-center-routes.js';
 import { RequirementsService } from '../src/services/requirements-service.js';
+import { OperationsCenterService } from '../src/services/operations-center-service.js';
 import { sharedPool } from '../src/services/db-pool.js';
 
-const CLIENT_A = 'test-reliability-hardening-a';
-const CLIENT_B = 'test-reliability-hardening-b';
+// RISK-012 platform-wide fix (migration 067, 2026-08-25) added a real
+// client_id -> oc_clients(id) foreign key to oc_client_service_requirements
+// (and 38 other tables) — these two constants used to be bare, non-existent
+// client ids, which the new FK now correctly rejects. Real clients created
+// in beforeAll below; the FK's own ON DELETE CASCADE cleans every row this
+// file creates when the client itself is deleted in afterAll, the same
+// convention already established elsewhere this session (e.g.
+// otp-security.test.ts's minimalClient() pattern).
+function minimalClient(name: string) {
+  return {
+    name, logo: '', industry: 'Technology', country: 'India', timezone: 'UTC',
+    businessSize: 'Medium', supportModel: 'Managed', criticality: 'standard',
+    primaryContact: 'test@example.com', departments: [], capabilities: [], processes: [],
+    applications: [], techApps: [], techServices: [], techApis: [], techDatabases: [],
+    techServers: [], techCloud: [], techInfrastructure: [], environments: {}, monitoring: {},
+    enabledServices: [],
+  };
+}
+
+let CLIENT_A: string;
+let CLIENT_B: string;
 const SERVICE_ID = 'discovery';
 const REQ_KEY = 'discovery_scope';
 
@@ -21,13 +41,21 @@ beforeAll(async () => {
   app = Fastify();
   await app.register(operationsCenterRoutes);
   await app.ready();
+
+  const ocService = new OperationsCenterService();
+  const clientA = await ocService.createClient(minimalClient('Reliability Hardening Test A'));
+  const clientB = await ocService.createClient(minimalClient('Reliability Hardening Test B'));
+  CLIENT_A = clientA.id;
+  CLIENT_B = clientB.id;
 });
 
 afterAll(async () => {
   // Clean up test-only client data — never touches real/regression clients.
+  // Deleting the real client rows cascades (ON DELETE CASCADE, migration 067)
+  // to every row this file created in oc_client_service_requirements and
+  // oc_client_service_requirement_history — no manual per-table cleanup needed.
   for (const clientId of [CLIENT_A, CLIENT_B]) {
-    await sharedPool.query('DELETE FROM oc_client_service_requirement_history WHERE client_id = $1', [clientId]);
-    await sharedPool.query('DELETE FROM oc_client_service_requirements WHERE client_id = $1', [clientId]);
+    if (clientId) await sharedPool.query('DELETE FROM oc_clients WHERE id = $1', [clientId]);
   }
   await app.close();
 });
