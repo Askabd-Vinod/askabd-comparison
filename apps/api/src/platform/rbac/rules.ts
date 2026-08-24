@@ -533,6 +533,14 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/data-mapping-fields/:fieldId', permissions: ['Admin.Access'] },
   { method: 'PATCH', path: '/api/v1/oc/clients/:clientId/data-mapping-fields/:fieldId', permissions: ['Admin.Access'] },
   { method: 'DELETE', path: '/api/v1/oc/clients/:clientId/data-mapping-fields/:fieldId', permissions: ['Admin.Access'] },
+
+  // ─── data_reconciliation_test_1 (2026-08-24) ─────────────────────────────
+  // Staff-only Data Reconciliation Engine (data-reconciliation-routes.ts) —
+  // real database credentials involved via connection ids, same precedent as
+  // every other connector-touching route this session.
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/reconciliation-runs', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/reconciliation-runs', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/reconciliation-runs/:id', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/test-executions', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/test-runs/:runIdA/compare/:runIdB', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/test-defects', permissions: ['Admin.Access'] },
