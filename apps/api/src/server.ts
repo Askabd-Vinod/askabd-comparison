@@ -28,6 +28,7 @@ import { requirementsClarificationRoutes } from './routes/requirements-clarifica
 import { changeManagementRoutes } from './routes/change-management-routes.js';
 import { executiveReportingRoutes } from './routes/executive-reporting-routes.js';
 import { apiDiscoveryRoutes } from './routes/api-discovery-routes.js';
+import { dependencyAnalysisRoutes } from './routes/dependency-analysis-routes.js';
 import { connectionSecurityRoutes } from './routes/connection-security-routes.js';
 import { registerAuthMiddleware } from './middleware/auth.js';
 import { registerRateLimitMiddleware } from './middleware/rate-limit.js';
@@ -230,6 +231,7 @@ export async function createServer(): Promise<FastifyInstance> {
   await server.register(changeManagementRoutes, { prefix: '/api/v1' });
   await server.register(executiveReportingRoutes, { prefix: '/api/v1' });
   await server.register(apiDiscoveryRoutes, { prefix: '/api/v1' });
+  await server.register(dependencyAnalysisRoutes, { prefix: '/api/v1' });
   await server.register(connectionSecurityRoutes, { prefix: '/api/v1' });
   await server.register(platformServicesRoutes);
   return server;

@@ -593,6 +593,14 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/api-specs/:id/gap-report', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/clients/:clientId/api-specs/:id/authorize-live-validation', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/clients/:clientId/api-endpoints/:endpointId/validate', permissions: ['Admin.Access'] },
+
+  // ─── dependency_analysis_test_1 (2026-08-24) ─────────────────────────────
+  // Staff-only Dependency Analysis Engine (dependency-analysis-routes.ts) —
+  // same Admin.Access precedent as every other cross-domain analysis route
+  // above.
+  { method: 'POST', path: '/api/v1/oc/clients/:clientId/dependencies/link', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/dependencies/:entityType/:entityId/cycles', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:clientId/dependencies/:entityType/:entityId/impact', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/test-executions', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/test-runs/:runIdA/compare/:runIdB', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/clients/:clientId/test-defects', permissions: ['Admin.Access'] },
