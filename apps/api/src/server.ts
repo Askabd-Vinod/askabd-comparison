@@ -34,6 +34,7 @@ import { registerAuthMiddleware } from './middleware/auth.js';
 import { registerRateLimitMiddleware } from './middleware/rate-limit.js';
 import { registerErrorHandler } from './middleware/error-handler.js';
 import { registerRawBodyCapture } from './middleware/raw-body.js';
+import { registerBodyNormalization } from './middleware/body-normalization.js';
 import { registerAuthorizationMiddleware, registerTenantAccessMiddleware, COMPARISON_API_RULES } from './platform/rbac/index.js';
 import { registerAuditEngine } from './platform/audit/index.js';
 import { registerMonitoring } from './platform/monitoring/index.js';
@@ -120,6 +121,13 @@ export async function createServer(): Promise<FastifyInstance> {
     pathPrefix: '/api/v1/oc/',
     devBypass: config.NODE_ENV !== 'production',
   });
+
+  // RISK-009 platform-wide fix: normalizes request.body from undefined to {}
+  // for every POST/PUT/PATCH before any route handler runs — closes the
+  // entire "genuinely empty POST throws an unhandled TypeError" class in one
+  // place. Registered after auth/RBAC/tenant-access (so a request already
+  // rejected upstream never reaches this) and before every route.
+  registerBodyNormalization(server);
 
   // Rate limiting middleware (after auth so authenticated users get higher limits)
   registerRateLimitMiddleware(server);

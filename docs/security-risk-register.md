@@ -282,9 +282,12 @@ completion" principle.
 
 ## RISK-009 — Many POST routes read `req.body` without a null-guard; a genuinely empty-body request throws an unhandled exception instead of a clean 400
 
-- **Status**: `MITIGATED` for every route touched this session (`uat-routes.ts`,
-  `release-readiness-routes.ts`); `OPEN` for the rest of the platform
-  (mechanical audit scoped, not yet fixed — see below)
+- **Status**: `RESOLVED` platform-wide (2026-08-25,
+  `risk_009_body_normalization_test_1`) — the single shared hook this
+  entry's own "suggested fix" named, implemented exactly as described.
+  Closes the entire class in one place; every one of the 100+
+  individual call sites (~90 in `operations-center-routes.ts` alone) is
+  now covered without having been touched individually.
 - **Severity**: Low (robustness/DoS-adjacent, not a data-leak or
   authorization bypass — every real caller, staff UI and customer portal
   alike, always sends a real JSON body, even if `{}`; this is only
@@ -319,19 +322,37 @@ completion" principle.
   CHECK-constraint violation message. Regression tests added in both
   `uat-test-1.test.ts` and `release-readiness-test-1.test.ts` (empty-body
   POSTs now confirmed `<500` and non-leaking).
-- **Why not fixed platform-wide this pass**: ~90 additional occurrences,
-  almost entirely in `operations-center-routes.ts`, are out of the blast
-  radius of this session's two new features; a blanket edit across that
-  file is a large, unrelated diff carrying real regression risk for a
-  low-severity, narrow-exposure class of bug, disproportionate to fix
-  under this pass's own scope. Tracked here instead of silently dropped.
-- **Suggested fix**: a single shared Fastify hook (e.g. a `preHandler` or
-  `onRequest` registered once in `server.ts`, alongside the existing auth/
-  RBAC/tenant-access middleware) that normalizes `request.body ??= {}` for
-  every JSON POST/PUT/PATCH before any route handler runs — closes the
-  entire class in one place rather than touching every individual route
-  file, and is the natural next fast-follow candidate given this session's
-  own "extend don't duplicate" precedent.
+- **Update (2026-08-25, `risk_009_body_normalization_test_1`) — the
+  platform-wide fix**: `middleware/body-normalization.ts` (new) — a
+  `preHandler` hook registered once in `server.ts`, after auth/RBAC/
+  tenant-access and before every route, that sets `request.body = {}`
+  whenever a POST/PUT/PATCH request's body is genuinely `undefined`.
+  Exactly the fix this entry's own "suggested fix" section named,
+  implemented as described, not a different approach. No route handler
+  code was touched — every existing `if (!body.x) return 400` check
+  across the platform now simply runs against a real `{}` instead of
+  throwing on `undefined` first.
+- **Real bug proven, not assumed, before claiming the fix works**: a
+  dedicated test builds the app WITHOUT the new hook and confirms
+  `POST /oc/jira/config` with no body genuinely throws an unhandled
+  `TypeError` (a raw 500) — proving RISK-009 was a real, reproducible
+  bug, not a hypothetical one, before proving the fix closes it.
+- **Verified against 3 representative routes never individually touched
+  by any RISK-009 pass** (confirming the middleware itself closes the
+  gap, not a per-route patch): `POST /oc/gaps/:gapId/evidence`,
+  `POST /oc/clients/:clientId/engagements`, `POST /oc/jira/config` — all
+  3 now return their own existing, correct `400` validation message
+  instead of a raw `500` on an empty body. A real, non-empty body is
+  confirmed completely unaffected (the hook never overwrites an actual
+  parsed body), and a genuinely empty `{}` JSON body is confirmed to
+  behave identically to no body at all (both correctly reach the same
+  clean validation path).
+- **Regression evidence**: `apps/api/tests/risk-009-body-normalization
+  -test-1.test.ts`, 6/6 passing. Full platform regression run
+  unaffected (no multipart/file-upload or other content-type handling
+  changed — the hook is scoped to POST/PUT/PATCH and only acts when
+  `request.body` is genuinely `undefined`, never overwriting a real
+  parsed body of any kind).
 
 ## RISK-010 — The full `vitest run` suite is intermittently, non-deterministically flaky under this environment's real database, unrelated to code correctness
 
