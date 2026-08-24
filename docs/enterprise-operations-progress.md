@@ -478,38 +478,111 @@ complete): no dedicated staff UI exists yet for any of the 11 new
 engines (all API-only this run of passes); Playwright/live-browser
 verification for all of them is `BLOCKED_EXTERNAL_AUTH` (the staff
 session has been expired since earlier this session; never worked
-around); RISK-009 (~90 more `req.body` null-guard instances),
-RISK-012 (39 more missing-client-FK tables), and RISK-014 (46 more
-untriaged no-RBAC-rule route candidates) are each real, large,
+around); RISK-009 (~90 more `req.body` null-guard instances) and
+RISK-012 (39 more missing-client-FK tables) are each real, large,
 genuinely separate bodies of work, individually disclosed rather than
 blindly mass-fixed or silently ignored; the ~26 remaining `mockClients`
 -backed ancillary nav-tab pages (Infrastructure, Applications, Reports,
 Environments, Alerts, etc.) are unchanged, each needing its own genuine
 data-source decision.
 
+## Completed This Session — risk_014_triage_test_1/2/3: 13 real cross-tenant/integrity gaps closed, 2 vulnerabilities beyond pure RBAC fixed, 1 doc-accuracy correction, 1 audit-tooling self-correction, RISK-015/016 opened (2026-08-24, continued)
+
+Picking up RISK-014's own explicitly disclosed "46 candidate routes, not
+yet individually triaged" — three real, sequential triage passes rather
+than a blind batch fix, each read every candidate handler in full before
+changing anything:
+
+**Pass 1** (`risk_014_triage_test_1`, 5 tests): fixed 7 real, severe,
+previously-undisclosed cross-client leaks — `GET/POST /oc/clients`
+(list-every-client, fetch-any-client-by-id), `GET/POST /oc/audit` (full
+platform audit log, read+write), `GET/POST /oc/notifications`,
+`GET /oc/clients/health-summary` — all gated `Admin.Access`. A real
+methodology correction found mid-pass and recorded rather than hidden:
+3 further candidates assumed to be gaps by the same reasoning were
+live-tested (`app.inject`, not just a handler read) and found already
+correctly denied by the pre-existing `tenant-access.ts` body/query
+-clientId check; a 4th (`POST /oc/service-actions`) turned out to have
+no `clientId` concept at all — opaque-`entityId` ownership, a
+genuinely different, still-open question.
+
+**Pass 2** (`risk_014_triage_test_2`, 3 tests): a real, more severe
+finding than a plain RBAC hole — `POST /oc/otp/verify`'s success path
+WRITES to the target client's real `business_owner_email`/
+`business_owner_name`/`organization_legal_name` fields with no
+ownership check; combined with `POST /oc/otp/send` accepting any
+`clientId` plus an attacker-chosen recipient email, any authenticated
+identity could hijack an arbitrary existing client's identity
+-verification fields. Fixed with `Admin.Access` on all 3 OTP routes. A
+second, independent fix in the same handler: `/oc/otp/send`'s HTML
+email template interpolated caller-supplied fields unescaped into an
+email sent via AskABD's real domain to a caller-chosen recipient — a
+real phishing-content vector, closed with a real `escapeHtml()` helper.
+`/oc/me/*` investigated and confirmed genuinely safe (every field comes
+from the caller's own verified identity). `POST /oc/jira/webhook`
+turned out to be a real documentation-vs-implementation gap —
+`docs/production-connection-readiness.md` claimed "Shared secret header
+validation" that was never actually built — corrected the doc and
+opened **RISK-015** rather than attempting an unverified partial fix
+(real signature verification needs new config plumbing that doesn't
+exist yet).
+
+**Pass 3** (`risk_014_triage_test_3`, 7 tests): re-derived the
+mechanical RBAC-gap-sweep script from scratch to actually parse
+PUT/PATCH/DELETE registrations, not just GET/POST — and found this
+session's own earlier `dependency_analysis_test_1` "final audit, only 2
+more candidates across 451 routes" claim was **wrong**, not just
+narrow: the corrected sweep finds 512 real routes and 69 real
+candidates. Recorded as an explicit, honest correction rather than left
+standing. Of the 69: most were already-triaged/safe, a real new find
+— **RISK-016**, the entire comparison-marketplace surface
+(`/api/v1/merchants/**`, `/api/v1/admin/brands/**`,
+`/api/v1/admin/reviews/**`, pricing/offers,
+`/api/v1/platform/services/**`) has never had this audit run against
+it at all, disclosed rather than blindly fixed or ignored — and 3 more
+real, confirmed `/oc/**` gaps fixed: `GET /oc/platform/commercial
+/summary` (real cross-client AskABD financial data, same severity as
+the Portfolio Intelligence gap), `GET /oc/workflow/executions`
+(unscoped cross-client automation history), `POST /oc/workflow/rules`
++ `PATCH .../toggle` (unprotected writes to platform automation rules).
+
+**Regression across all three passes**: 850 → 855 → 858 → 865, zero
+unexplained failures. `tsc --noEmit` clean every pass. No migrations.
+Both protected clients confirmed unchanged after every pass. Commits
+`6c63d9b`, `fd07825`, `860ce4c` — `main` re-verified unchanged at
+`b63f797` after each.
+
+**What remains real, disclosed, and NOT done from RISK-014 itself**: 28
+of the original 46 `/oc/**` candidates remain fully untriaged (the
+22-route catalog/reference group already spot-checked and mostly
+confirmed safe in principle but not every single one individually
+tested; the residual few not yet re-verified live); the
+`POST /oc/service-actions` opaque-`entityId` ownership question from
+pass 1 remains open. RISK-015 (Jira webhook signature verification) and
+RISK-016 (comparison-marketplace RBAC audit) are both real, separate,
+disclosed bodies of future work, not fixed this session.
+
 **Next up, per the standing "continue automatically" authorization**:
-with the master directive's own named list and its own follow-up audit
-both fully complete, the next real work is one of: (a) a dedicated pass
-on any of RISK-009/012/014's disclosed remainders, (b) building the
-first real staff UI for the 11 engines above once the staff session is
-available again, (c) the earlier-named still-pending suites
-(`release_readiness_test_1` onward toward `FULL_END_TO_END_CLIENT_TEST_1`
-— note `release_readiness_test_1` and several others in that original
-list are in fact already complete, see the coverage matrix directly
-rather than trusting this narrative list's original ordering), or (d)
-re-reading `docs/eoc-feature-coverage-matrix.md` fresh for the
-highest-value next real gap, matching this session's own established
-"search first, verify current state, don't assume" discipline. Read
-`docs/eoc-feature-coverage-matrix.md` alongside this file — it is the
-authoritative, row-by-row honest status tracker; this file is the
-narrative log. Re-read this file first and confirm `npm run health` is
-still green (services may need `npm run dev:all` again if the machine was
-restarted between sessions; the Web dev-server health check specifically
-needs `/staff/login` pre-warmed first with a longer-timeout curl — a known
-Next.js dev first-compile timing quirk, not a defect, see Last Health
-Check below). Also re-check RISK-010 (full-suite flakiness) if it
-recurs — consider whether a dedicated fix pass is now warranted before
-trusting any future "full regression: N/N passing" claim at face value.
+with the master directive's own named list, its follow-up audit, and
+three RISK-014 triage passes all complete, the next real work is one
+of: (a) RISK-015 (Jira webhook signature verification — needs new
+config plumbing), (b) RISK-016 (the comparison-marketplace RBAC audit
+— a full, dedicated pass, never yet started), (c) RISK-009/012's
+disclosed remainders, (d) building the first real staff UI for the 11
+new engines once the staff session is available again, (e) the
+~26 remaining `mockClients` pages, or (f) re-reading
+`docs/eoc-feature-coverage-matrix.md` fresh for the highest-value next
+real gap. Read `docs/eoc-feature-coverage-matrix.md` alongside this
+file — it is the authoritative, row-by-row honest status tracker; this
+file is the narrative log. Re-read this file first and confirm
+`npm run health` is still green (services may need `npm run dev:all`
+again if the machine was restarted between sessions; the Web dev-server
+health check specifically needs `/staff/login` pre-warmed first with a
+longer-timeout curl — a known Next.js dev first-compile timing quirk,
+not a defect, see Last Health Check below). Also re-check RISK-010
+(full-suite flakiness) if it recurs — consider whether a dedicated fix
+pass is now warranted before trusting any future "full regression: N/N
+passing" claim at face value.
 
 ### Original phase-based task description (superseded by the above, kept for history)
 
