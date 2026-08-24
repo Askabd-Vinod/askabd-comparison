@@ -1046,23 +1046,41 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     reply.send(plan);
   });
 
+  // RISK-013 follow-up (docs/security-risk-register.md): clientId is
+  // OPTIONAL on every one of these routes below — a real, disclosed,
+  // deliberate choice (matching `rollback`'s own already-shipped
+  // precedent): every EXISTING caller that omits it keeps identical
+  // behavior; a caller that supplies it gets a real ownership check,
+  // mapped to the same safe 404 `rollback` already uses.
   server.post('/oc/migration/dry-run', async (req, reply) => {
-    const { migrationId } = req.body as any;
+    const { migrationId, clientId } = req.body as any;
     if (!migrationId) { reply.status(400).send({ error: 'migrationId required' }); return; }
-    const result = await migrationExecution.dryRun(migrationId);
+    let result;
+    try {
+      result = await migrationExecution.dryRun(migrationId, clientId);
+    } catch (err) {
+      if (err instanceof MigrationOwnershipError) { return reply.status(404).send({ error: { code: 'not_found', message: 'Migration run not found.' } }); }
+      throw err;
+    }
     ocService.createAuditEntry({ entityType: 'migration', entityId: result.clientId, entityName: migrationId, action: 'migration_dry_run_' + result.status, actor: 'system', details: { status: result.status }, evidence: result.evidence }).catch(() => {});
     reply.send(result);
   });
 
   server.post('/oc/migration/execute', async (req, reply) => {
-    const { migrationId } = req.body as any;
+    const { migrationId, clientId } = req.body as any;
     if (!migrationId) { reply.status(400).send({ error: 'migrationId required' }); return; }
-    // Auto-advance: migration started
-    const plan = await migrationExecution.getRun(migrationId);
-    if (plan?.clientId) {
-      await lifecycleService.transition(plan.clientId, 'migration_started', 'system', 'Migration execution started', true, 'system').catch(() => {});
+    let result;
+    try {
+      // Auto-advance: migration started
+      const plan = await migrationExecution.getRun(migrationId, clientId);
+      if (plan?.clientId) {
+        await lifecycleService.transition(plan.clientId, 'migration_started', 'system', 'Migration execution started', true, 'system').catch(() => {});
+      }
+      result = await migrationExecution.execute(migrationId, undefined, clientId);
+    } catch (err) {
+      if (err instanceof MigrationOwnershipError) { return reply.status(404).send({ error: { code: 'not_found', message: 'Migration run not found.' } }); }
+      throw err;
     }
-    const result = await migrationExecution.execute(migrationId);
     // Auto-advance: migration completed
     if (result.status === 'completed' && result.clientId) {
       await lifecycleService.transition(result.clientId, 'migration_completed', 'system', `Migration completed: ${result.progress.mandatoryCompleted}/${result.progress.mandatory}`, true, 'system').catch(() => {});
@@ -1073,10 +1091,17 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
 
   server.post('/oc/migration/:migrationId/validate', async (req, reply) => {
     const { migrationId } = req.params as any;
-    const result = await migrationExecution.validate(migrationId);
+    const { clientId } = (req.query as { clientId?: string }) ?? {};
+    let result;
+    try {
+      result = await migrationExecution.validate(migrationId, clientId);
+    } catch (err) {
+      if (err instanceof MigrationOwnershipError) { return reply.status(404).send({ error: { code: 'not_found', message: 'Migration run not found.' } }); }
+      throw err;
+    }
     // Auto-advance: validation passed
     if (result.status === 'passed' || result.status === 'passed_with_expected_drift') {
-      const run = await migrationExecution.getRun(migrationId);
+      const run = await migrationExecution.getRun(migrationId, clientId);
       if (run?.clientId) {
         await lifecycleService.transition(run.clientId, 'validation_started', 'system', 'Validation started', true, 'system').catch(() => {});
         await lifecycleService.transition(run.clientId, 'validation_passed', 'system', 'All validation checks passed', true, 'system').catch(() => {});
@@ -1130,9 +1155,18 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
   });
 
   // Single migration run detail — reuses MigrationExecutionService.getRun, no fabricated fields added.
+  // RISK-013 follow-up: ?clientId= optional, same backward-compatible shape
+  // as every other route above.
   server.get('/oc/migrations/:migrationId', async (req, reply) => {
     const { migrationId } = req.params as any;
-    const run = await migrationExecution.getRun(migrationId);
+    const { clientId } = (req.query as { clientId?: string }) ?? {};
+    let run;
+    try {
+      run = await migrationExecution.getRun(migrationId, clientId);
+    } catch (err) {
+      if (err instanceof MigrationOwnershipError) { return reply.status(404).send({ error: { code: 'not_found', message: 'Migration run not found.' } }); }
+      throw err;
+    }
     if (!run) { reply.status(404).send({ error: 'Migration run not found' }); return; }
     return { migration: run };
   });
@@ -1143,9 +1177,22 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
   // immediately with an operationId instead of blocking the HTTP request for the
   // entire migration's duration, and the frontend polls GET /oc/operations/:id for
   // real, per-step progress as it actually happens (see operation-service.ts).
+  // RISK-013 follow-up: this is the REAL route the web app's migration
+  // detail view actually calls (not the synchronous /execute above) — the
+  // same optional-clientId ownership check is extended here too, even
+  // though it wasn't in the original disclosure's named list, specifically
+  // because leaving the route real callers actually use unprotected would
+  // make the /execute fix above real in name only.
   server.post('/oc/migration/:migrationId/execute-async', async (req, reply) => {
     const { migrationId } = req.params as any;
-    const plan = await migrationExecution.getRun(migrationId);
+    const { clientId } = (req.body as { clientId?: string } | undefined) ?? {};
+    let plan;
+    try {
+      plan = await migrationExecution.getRun(migrationId, clientId);
+    } catch (err) {
+      if (err instanceof MigrationOwnershipError) { return reply.status(404).send({ error: { code: 'not_found', message: 'Migration run not found.' } }); }
+      throw err;
+    }
     if (!plan) { reply.status(404).send({ error: 'Migration run not found' }); return; }
     if (plan.status === 'running') { reply.status(409).send({ error: 'Migration already running' }); return; }
 
@@ -1171,7 +1218,7 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
             : step.status === 'skipped' || step.status === 'not_supported' ? { warningUnitsDelta: 1 }
             : {};
           operationService.progress(operation.id, { ...delta, currentStage: step.name, evidenceMessage: `${step.name}: ${step.status}${step.error ? ' — ' + step.error : ''}` }).catch(() => {});
-        });
+        }, plan.clientId); // plan.clientId is the real, already-ownership-verified row value from getRun above
         if (result.status === 'completed') {
           await lifecycleService.transition(result.clientId, 'migration_completed', 'system', `Migration completed: ${result.progress.mandatoryCompleted}/${result.progress.mandatory}`, true, 'system').catch(() => {});
           await operationService.complete(operation.id, { result: { migrationId, status: result.status, progress: result.progress }, evidenceMessage: 'Migration completed successfully' });

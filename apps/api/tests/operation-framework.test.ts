@@ -191,7 +191,18 @@ describe('Async migration execution — real per-step progress via the real rout
     expect(finalOp.progressPercent).toBe(100);
     expect(finalOp.evidence.length).toBeGreaterThan(1); // real per-step entries, not one fake summary line
 
+    // A real, pre-existing cleanup bug found and fixed while investigating a
+    // separate migration-ownership fix (docs/security-risk-register.md
+    // RISK-013 update, 2026-08-25): this only ever dropped the SOURCE
+    // schema — the real TARGET schema execute() actually creates
+    // (plan.targetSchema, MigrationExecutionService.createPlan's own
+    // `mig_<clientId>_<timestamp>` naming) was never cleaned up here at
+    // all. A mechanical sweep of every real oc_clients row found 137 such
+    // orphaned target schemas accumulated from this exact gap across many
+    // prior test runs; all cleaned up directly, and this test's own
+    // cleanup fixed so it stops recurring.
     await sharedPool.query(`DROP SCHEMA IF EXISTS ${schemaName} CASCADE`).catch(() => {});
+    await sharedPool.query(`DROP SCHEMA IF EXISTS ${plan.targetSchema} CASCADE`).catch(() => {});
     await app.close();
   }, 15000);
 

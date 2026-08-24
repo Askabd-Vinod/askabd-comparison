@@ -616,7 +616,10 @@ completion" principle.
 
 ## RISK-013 — `MigrationExecutionService.rollback()` had no object-level ownership check for a destructive `DROP SCHEMA CASCADE` — fixed; sibling methods still lack it
 
-- **Status**: `RESOLVED` for `rollback()`; `OPEN` for `execute()`/`validate()`/`dryRun()`/`getRun()` (same missing-clientId shape, lower urgency, not fixed this pass)
+- **Status**: `RESOLVED` for all 5 methods (`rollback()` first, then
+  `getRun()`/`validate()`/`dryRun()`/`execute()` — see the 2026-08-25
+  update below) plus the real `execute-async` route beyond the
+  originally-named list.
 - **Severity**: Medium-High for `rollback` specifically (a genuinely
   destructive, irreversible `DROP SCHEMA ... CASCADE`); Low for the
   read-mostly/transactional siblings
@@ -649,13 +652,8 @@ completion" principle.
   response.
 - **Mechanical audit performed**: `execute()`, `validate()`, `dryRun()`,
   and `getRun()` share the identical "no `clientId` parameter" shape.
-  **Not fixed this pass** — `execute`/`dryRun`/`validate` are additive or
-  read-only (no destructive `DROP`), a materially lower severity than
-  `rollback`, and retrofitting all 4 (plus their route call sites) is a
-  larger, separate body of work; tracked here rather than silently
-  discovered-and-ignored, matching this pass's own `RISK-012` precedent
-  for scoping a mechanical audit's fix to the highest-severity instance
-  found.
+  Originally not fixed in this pass, tracked as a suggested fix — now
+  **RESOLVED** (2026-08-25, `migration_execute_validate_ownership_test_1`).
 - **Evidence**: `apps/api/tests/migration-rollback-test-1.test.ts` (7 new
   tests) — real schema creation, real execute, real rollback with
   independent `information_schema` re-verification (never trusting the
@@ -664,9 +662,74 @@ completion" principle.
   HTTP-layer proof. Full regression re-run for both pre-existing migration
   test files (`operation-framework.test.ts`, `migrations-routes.test.ts`)
   confirmed zero regression from the signature change.
-- **Suggested fix**: apply the same optional-`clientId` pattern to
-  `execute`/`validate`/`dryRun`/`getRun` and their route call sites in a
-  dedicated follow-up pass.
+- **Update (2026-08-25, `migration_execute_validate_ownership_test_1`) —
+  the sibling fix, completed**: applied the exact same optional-`clientId`
+  pattern to `getRun`/`validate`/`dryRun`/`execute`, plus one route
+  beyond the originally-named list: `POST /oc/migration/:migrationId
+  /execute-async` — the REAL route the web app's migration detail view
+  actually calls for execution (the synchronous `/execute` above is
+  registered but not used by any real UI). Extending `execute-async` too
+  was a deliberate scope decision, not scope creep: leaving the route
+  real callers actually use unprotected would have made the `execute`
+  fix real in name only. `getRun`'s fix required care —
+  `MigrationOwnershipError` is thrown OUTSIDE its own DB-query
+  try/catch, deliberately, so a real ownership mismatch is never
+  silently swallowed as "not found" (that catch exists only for genuine
+  DB errors). The real web UI (`migrations/[migrationId]/detail-view.tsx`)
+  updated to send `clientId` on all 3 newly-protected calls
+  (`dry-run`, `execute-async`, `validate`), matching the precedent
+  already set for `rollback`.
+  - **A real bug caught by this pass's own edit, before it ever ran**:
+    wiring `clientId` through the `execute-async` route's fire-and-forget
+    async callback left a stray duplicate `});` from the original code —
+    a real syntax error, caught immediately by `tsc --noEmit` before any
+    test ran, not discovered live.
+  - **A real, much larger, pre-existing discovery made while writing this
+    fix's own tests**: verifying the new `execute-async` test's cleanup
+    surfaced **137 orphaned Postgres schemas** (`mig_<clientId>_
+    <timestamp>`, `MigrationExecutionService.createPlan`'s real target
+    -schema naming) — real schemas left behind by `execute()` calls
+    across many prior sessions' migration test runs whose owning test
+    client was later deleted, with nothing ever tracking or cleaning
+    them up (schemas aren't rows in a table with a `client_id` foreign
+    key — RISK-012's fix does not and cannot reach them). Every one of
+    the 137 confirmed to have NO corresponding live `oc_clients` row
+    (cross-checked programmatically against every real client id, zero
+    false positives) before any were dropped. All 137 real, verified
+    -safe orphans cleaned up directly (`DROP SCHEMA ... CASCADE`);
+    confirmed zero `mig_*` schemas remain, and both real protected
+    clients (`AskABD Manual UAT 2026`, `Test1`) confirmed unchanged
+    before and after. Not re-opened as a new numbered risk — the same
+    root cause and remediation as RISK-012 (accumulated test/QA
+    artifacts, no security exposure since no live client's data was
+    ever at risk), just a different physical mechanism (Postgres
+    schemas, not table rows) that RISK-012's own table-scoped fix
+    couldn't have caught.
+  - **Confirmed NOT a one-time cleanup — genuinely fixed at the source
+    too**: a full-suite regression run immediately after the 137-schema
+    cleanup found exactly ONE new orphan, proving the pattern was still
+    actively recurring, not just historical. Traced to a real,
+    pre-existing bug in `operation-framework.test.ts` (unrelated to this
+    pass's own changes) — its one real end-to-end migration-execution
+    test dropped its SOURCE schema in `afterAll` but never
+    `plan.targetSchema`, the real schema `execute()` actually creates —
+    the exact same class of mistake this session's own investigation
+    had just found and fixed in its own new test file. Fixed the same
+    way (drop both real schemas, not just the source one); re-ran that
+    file alone (9/9 passing) and confirmed zero `mig_*` schemas remain
+    afterward.
+  - **Regression evidence**: `apps/api/tests/migration-execute-validate
+    -ownership-test-1.test.ts`, 10/10 passing — real cross-client
+    ownership blocks for `getRun`/`validate`/`dryRun`/`execute` at the
+    service layer (each with independent `information_schema`
+    re-verification that the blocked operation genuinely did nothing),
+    backward-compatibility preserved, a genuinely nonexistent migration
+    id returning `null` rather than an ownership error, and real
+    HTTP-layer proof for all 4 routes (`dry-run`, `validate`, `GET
+    /oc/migrations/:id`, `execute-async`) including a real wait for the
+    fire-and-forget async execution to genuinely complete before
+    asserting cleanup correctness (never a fabricated "it probably
+    finished" assumption).
 
 ## RISK-014 — `PortfolioIntelligenceService`'s real cross-client routes had no RBAC (fixed); individual triage in progress on the remaining candidates found by the same mechanical audit
 

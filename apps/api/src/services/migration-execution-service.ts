@@ -129,8 +129,17 @@ export class MigrationExecutionService {
    * Dry run — validates in a transaction, always rolls back.
    * Tests ALL tables (not just a sample).
    */
-  async dryRun(migrationId: string): Promise<MigrationRun> {
-    const run = await this.getRun(migrationId);
+  /**
+   * RISK-013 follow-up (docs/security-risk-register.md — the exact
+   * `execute`/`validate`/`dryRun`/`getRun` sibling fix `rollback`'s own
+   * fix already disclosed as needed): `clientId` optional, same
+   * backward-compatible shape as `rollback` — every existing internal
+   * caller in this file that omits it (most of them) is completely
+   * unaffected; only a caller that explicitly passes it gets the real
+   * ownership check.
+   */
+  async dryRun(migrationId: string, clientId?: string): Promise<MigrationRun> {
+    const run = await this.getRun(migrationId, clientId);
     if (!run) throw new Error('Migration run not found');
     if (run.status === 'running') throw new Error('Migration already running — cannot dry-run');
 
@@ -189,8 +198,8 @@ export class MigrationExecutionService {
    * report genuine per-step progress into oc_operations while this same, unmodified
    * step logic runs.
    */
-  async execute(migrationId: string, onStep?: (step: MigrationStep) => void): Promise<MigrationRun> {
-    const run = await this.getRun(migrationId);
+  async execute(migrationId: string, onStep?: (step: MigrationStep) => void, clientId?: string): Promise<MigrationRun> {
+    const run = await this.getRun(migrationId, clientId);
     if (!run) throw new Error('Migration run not found');
     if (run.status === 'running') throw new Error('Migration already running. Wait for completion or cancel.');
     if (run.status === 'completed') throw new Error('Migration already completed. Create a new migration run to re-migrate.');
@@ -340,8 +349,8 @@ export class MigrationExecutionService {
   /**
    * Validate migration against the plan — compares expected vs actual.
    */
-  async validate(migrationId: string): Promise<{ status: string; checks: any[]; evidence: string[] }> {
-    const run = await this.getRun(migrationId);
+  async validate(migrationId: string, clientId?: string): Promise<{ status: string; checks: any[]; evidence: string[] }> {
+    const run = await this.getRun(migrationId, clientId);
     if (!run) throw new Error('Migration not found');
 
     // Tables known to be mutable/operational (audit/event data that grows during normal operation)
@@ -437,13 +446,28 @@ export class MigrationExecutionService {
     }
   }
 
-  async getRun(id: string): Promise<MigrationRun | null> {
+  /**
+   * `clientId` optional — when provided, throws `MigrationOwnershipError`
+   * if the real row's `client_id` doesn't match (the check happens OUTSIDE
+   * the query's own try/catch below, deliberately — that catch exists for
+   * genuine DB errors and must not silently swallow an ownership mismatch
+   * as if it were just "not found"). Every existing internal caller in
+   * this file that omits `clientId` is completely unaffected.
+   */
+  async getRun(id: string, clientId?: string): Promise<MigrationRun | null> {
+    let run: MigrationRun | null = null;
     try {
       const res = await dbPool.query('SELECT * FROM oc_migration_runs WHERE id = $1', [id]);
-      if (res.rows.length === 0) return null;
-      const row = res.rows[0];
-      return { id: row.id, clientId: row.client_id, sourceSchema: row.source_schema, targetSchema: row.target_schema, status: row.status, steps: row.steps || [], plan: row.plan || {}, progress: row.progress || {}, startedAt: row.started_at, completedAt: row.completed_at, durationMs: row.duration_ms, error: row.error_message, evidence: row.evidence || [], createdAt: row.created_at };
+      if (res.rows.length > 0) {
+        const row = res.rows[0];
+        run = { id: row.id, clientId: row.client_id, sourceSchema: row.source_schema, targetSchema: row.target_schema, status: row.status, steps: row.steps || [], plan: row.plan || {}, progress: row.progress || {}, startedAt: row.started_at, completedAt: row.completed_at, durationMs: row.duration_ms, error: row.error_message, evidence: row.evidence || [], createdAt: row.created_at };
+      }
     } catch { return null; }
+    if (!run) return null;
+    if (clientId && run.clientId !== clientId) {
+      throw new MigrationOwnershipError('This migration run does not belong to this client.');
+    }
+    return run;
   }
 
   async getClientRuns(clientId: string): Promise<any[]> {

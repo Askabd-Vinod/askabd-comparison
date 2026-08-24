@@ -32,7 +32,9 @@ export function MigrationDetailView({ migration: initial, clientName }: { migrat
     setError(null);
     try {
       if (action === 'dry-run') {
-        const res = await fetch(`${API}/api/v1/oc/migration/dry-run`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ migrationId: m.id }) });
+        // clientId included — real object-level ownership check (RISK-013
+        // follow-up), same precedent already established for rollback below.
+        const res = await fetch(`${API}/api/v1/oc/migration/dry-run`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ migrationId: m.id, clientId: m.clientId }) });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || 'Dry run failed');
         setM(data);
@@ -40,14 +42,16 @@ export function MigrationDetailView({ migration: initial, clientName }: { migrat
         // Real async execution — returns immediately with an operationId; the
         // OperationProgress panel below polls the real oc_operations row for genuine,
         // per-step progress as the migration actually runs (no more blocking on a
-        // single "Executing…" spinner for the entire duration).
-        const res = await fetch(`${API}/api/v1/oc/migration/${m.id}/execute-async`, { method: 'POST' });
+        // single "Executing…" spinner for the entire duration). clientId included —
+        // real object-level ownership check (RISK-013 follow-up).
+        const res = await fetch(`${API}/api/v1/oc/migration/${m.id}/execute-async`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: m.clientId }) });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || 'Execution failed to start');
         setOperationId(data.operation.id);
         setM({ ...m, status: 'running' as any });
       } else if (action === 'validate') {
-        const res = await fetch(`${API}/api/v1/oc/migration/${m.id}/validate`, { method: 'POST' });
+        // clientId included — real object-level ownership check (RISK-013 follow-up).
+        const res = await fetch(`${API}/api/v1/oc/migration/${m.id}/validate?clientId=${encodeURIComponent(m.clientId)}`, { method: 'POST' });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || 'Validation failed');
         setValidation(data);
