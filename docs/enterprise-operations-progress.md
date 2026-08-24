@@ -562,27 +562,97 @@ pass 1 remains open. RISK-015 (Jira webhook signature verification) and
 RISK-016 (comparison-marketplace RBAC audit) are both real, separate,
 disclosed bodies of future work, not fixed this session.
 
+## Completed This Session — "ASKABD ENTERPRISE OPERATIONS — INTEGRATION + COMPLETION PHASE" directive, Phase 1: security backlog (2026-08-25)
+
+A new master directive was received, explicitly reframing the priority:
+turning the many real backend engines built so far into one cohesive,
+usable Enterprise Operations Centre — starting with Phase 1, "resolve
+every remaining security risk where technically possible." Nine real
+risks resolved this pass, each with real fixes, real regression tests,
+real evidence, and a real commit — not a batch sweep:
+
+- **RISK-015** (Jira webhook signature verification) — real
+  cryptographic HMAC-SHA256 verification (raw-body capture middleware,
+  a real secret-generation route, real replay protection via a new
+  DB-backed table). A real public-route prefix-matching bug this pass's
+  own tests caught before it shipped (the secret-generation route was
+  accidentally made public too).
+- **RISK-016** (comparison-marketplace RBAC audit) — a complete audit
+  of a wholly different, older product surface (zero real UI consumers,
+  fixed anyway since a live API is a real risk regardless). 3 dead
+  `rules.ts` entries pointing at non-existent routes found and
+  corrected; 4 real classes of missing RBAC coverage fixed.
+- **RISK-017** (opened, disclosed, deliberately NOT shallow-patched) —
+  a real IDOR in the marketplace's `userId` handling where the obvious
+  fix (substitute `auth.userId`) was investigated and found to itself
+  be wrong (no `User` model, no identity-mapping bridge, `auth.userId`
+  not UUID-shaped in dev-bypass mode) — the real fix requires a genuine
+  new feature, honestly deferred rather than shipped broken.
+- **RISK-012** (missing client_id foreign keys) — the remaining 39
+  tables (18 migration files) fixed platform-wide, completing what
+  migration 059 started. Real scale: 40,000+ orphaned rows across the
+  39 tables. Two real topological-ordering bugs found and fixed before
+  the migration ran cleanly (tables with FKs to each other; one
+  external child table not itself client-scoped). A real, expected
+  downstream break (46 tests across 4 pre-existing test files that used
+  bare non-existent client ids) found and fixed properly — real clients
+  created, the new constraint never weakened.
+- **RISK-009** (missing `req.body` null-guards) — the exact single
+  shared `preHandler` hook this risk's own disclosure had named,
+  closing the ~90-occurrence class in one place with zero route changes.
+- **RISK-004** (CORS credentials+wildcard) — production now fails fast
+  (`process.exit(1)`) rather than silently combining `credentials:true`
+  with a reflect-any-Origin policy.
+- **RISK-005** (MIME validation) — real magic-byte content sniffing,
+  found to also affect a second upload route beyond the one originally
+  disclosed, fixed on both with one shared module. Honest, disclosed
+  limits (DOCX-as-ZIP, no true text/CSV magic bytes) documented, not
+  overclaimed.
+- **RISK-006** (upload cleanup) — real physical-file cleanup, live
+  -verified end-to-end against a real filesystem.
+- **RISK-013** (migration ownership siblings) — the same real
+  ownership pattern already proven for `rollback()` extended to
+  `getRun`/`validate`/`dryRun`/`execute`, plus the real `execute-async`
+  route the web UI actually calls (beyond the originally-named list —
+  the synchronous `/execute` isn't used by any real UI, so protecting
+  only it would have been real in name only). Along the way: a **137
+  -schema real orphan discovery** (physical Postgres schemas
+  `execute()` creates, which RISK-012's table-scoped fix can't reach)
+  — cleaned, and its actively-recurring source (a real bug in an
+  unrelated, pre-existing test file) found and fixed, not just a
+  one-time sweep.
+
+**Cumulative regression, Phase 1 alone**: 895 → 901 → 922 → 932 tests,
+zero unexplained failures at any point. Every pass: `tsc --noEmit`
+clean, real evidence doc, real commit, real push, `main` independently
+re-verified unchanged at `b63f797` after every single commit.
+
+**What remains OPEN in `docs/security-risk-register.md`, correctly NOT
+attempted as shallow fixes**: RISK-007 (Migration Validation Engine
+self-referential) and RISK-008 (VPN/security-profile enforcement
+doesn't cross-check TLS mode) are both genuinely architectural — real
+design decisions, not bounded bug fixes. RISK-010 (full-suite
+flakiness) is disclosed test infrastructure, not a security issue.
+RISK-011 is `BLOCKED_EXTERNAL_DEPENDENCY` by design. RISK-014 has 28 of
+its original 46 candidates still fully untriaged (a real, bounded,
+but not-yet-started future pass) plus one opaque-`entityId` ownership
+question. RISK-017 (above) needs a genuine new identity-mapping
+feature.
+
 **Next up, per the standing "continue automatically" authorization**:
-with the master directive's own named list, its follow-up audit, and
-three RISK-014 triage passes all complete, the next real work is one
-of: (a) RISK-015 (Jira webhook signature verification — needs new
-config plumbing), (b) RISK-016 (the comparison-marketplace RBAC audit
-— a full, dedicated pass, never yet started), (c) RISK-009/012's
-disclosed remainders, (d) building the first real staff UI for the 11
-new engines once the staff session is available again, (e) the
-~26 remaining `mockClients` pages, or (f) re-reading
-`docs/eoc-feature-coverage-matrix.md` fresh for the highest-value next
-real gap. Read `docs/eoc-feature-coverage-matrix.md` alongside this
-file — it is the authoritative, row-by-row honest status tracker; this
-file is the narrative log. Re-read this file first and confirm
-`npm run health` is still green (services may need `npm run dev:all`
-again if the machine was restarted between sessions; the Web dev-server
-health check specifically needs `/staff/login` pre-warmed first with a
-longer-timeout curl — a known Next.js dev first-compile timing quirk,
-not a defect, see Last Health Check below). Also re-check RISK-010
-(full-suite flakiness) if it recurs — consider whether a dedicated fix
-pass is now warranted before trusting any future "full regression: N/N
-passing" claim at face value.
+Phase 1's explicit target list is complete. The master directive's own
+next phases are Phase 2 (remove ALL fabricated/mock data from every
+UI page — the ~26 `mockClients`-backed ancillary pages this session has
+tracked throughout, each needing its own genuine data-source decision,
+never a blind batch fix) and Phase 3 (integrate every existing engine
+into one cohesive staff Enterprise Operations Centre navigation
+structure — the 11+ engines built in the prior window remain API-only
+with no dedicated staff UI). Read `docs/eoc-feature-coverage-matrix.md`
+alongside this file for the row-by-row status. Re-confirm `npm run
+health` is still green before continuing (services may need `npm run
+dev:all` again if the machine was restarted; the Web dev-server health
+check needs `/staff/login` pre-warmed first with a longer-timeout curl
+— a known Next.js dev first-compile quirk, not a defect).
 
 ### Original phase-based task description (superseded by the above, kept for history)
 
