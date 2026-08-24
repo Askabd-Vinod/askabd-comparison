@@ -33,6 +33,7 @@ import { connectionSecurityRoutes } from './routes/connection-security-routes.js
 import { registerAuthMiddleware } from './middleware/auth.js';
 import { registerRateLimitMiddleware } from './middleware/rate-limit.js';
 import { registerErrorHandler } from './middleware/error-handler.js';
+import { registerRawBodyCapture } from './middleware/raw-body.js';
 import { registerAuthorizationMiddleware, registerTenantAccessMiddleware, COMPARISON_API_RULES } from './platform/rbac/index.js';
 import { registerAuditEngine } from './platform/audit/index.js';
 import { registerMonitoring } from './platform/monitoring/index.js';
@@ -67,6 +68,11 @@ export async function createServer(): Promise<FastifyInstance> {
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
 
+  // Raw-body capture (must be registered before any route touches request.body) —
+  // required for real HMAC webhook-signature verification (RISK-015). Behaviorally
+  // identical to Fastify's default JSON parser for every other route.
+  registerRawBodyCapture(server);
+
   // Multipart file upload support
   const multipart = await import('@fastify/multipart');
   await server.register(multipart.default, { limits: { fileSize: 20 * 1024 * 1024 } });
@@ -88,6 +94,15 @@ export async function createServer(): Promise<FastifyInstance> {
       // actions (see routes/invitation-routes.ts). Every other invitation route
       // (create/list/resend/revoke) stays authenticated + Admin.Access-gated.
       '/api/v1/oc/invitations/lookup', '/api/v1/oc/invitations/accept',
+      // RISK-015 real fix (2026-08-24): a real external Jira webhook sender can
+      // never present an askabd-identity bearer token — this route's real
+      // authorization is the HMAC-SHA256 signature check inside the route
+      // itself (see jira-integration-service.ts's `verifyWebhookRequest`),
+      // the exact same "public route, own token-based auth" shape as the two
+      // invitation routes above. `POST /oc/jira/webhook-secret` (which
+      // generates the signing secret) is a real staff action and stays
+      // authenticated + Admin.Access-gated (see platform/rbac/rules.ts).
+      '/api/v1/oc/jira/webhook',
     ],
   });
 

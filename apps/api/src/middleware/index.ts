@@ -15,3 +15,5 @@ export { registerRateLimitMiddleware } from './rate-limit.js';
 export type { RateLimitConfig } from './rate-limit.js';
 
 export { registerErrorHandler } from './error-handler.js';
+
+export { registerRawBodyCapture, getRawBody } from './raw-body.js';

@@ -33,6 +33,7 @@ import { InvitationService } from '../services/invitation-service.js';
 import { searchClientWorkspace } from '../services/client-search-service.js';
 import { CustomerActivityService, type ActivityModule, type ActivityResult } from '../services/customer-activity-service.js';
 import { getAuth } from '../middleware/auth.js';
+import { getRawBody } from '../middleware/raw-body.js';
 import { getAuthorization } from '../platform/rbac/middleware.js';
 
 // Use the shared application-wide database pool
@@ -3066,6 +3067,25 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
     reply.send(result);
   });
 
+  // Generate (or rotate) the real HMAC secret POST /oc/jira/webhook verifies
+  // inbound requests against (RISK-015). Returned in PLAINTEXT exactly once —
+  // never retrievable again after this response. Generating a new secret
+  // immediately invalidates the previous one for this environment.
+  server.post('/oc/jira/webhook-secret', async (req, reply) => {
+    const body = (req.body as any) ?? {};
+    const environment = body.environment || 'development';
+    const { secret } = await jiraService.generateWebhookSecret(environment);
+
+    ocService.createAuditEntry({
+      entityType: 'jira', entityId: environment, entityName: 'webhook_secret',
+      action: 'jira_webhook_secret_generated', actor: getAuth(req)?.userId || 'unknown-staff',
+      details: { environment },
+      evidence: [`Webhook secret (re)generated for ${environment} — previous secret, if any, is now invalid`],
+    }).catch(() => {});
+
+    reply.status(201).send({ environment, secret, warning: 'This secret is shown only once. Store it securely — it will not be retrievable again.' });
+  });
+
   // Test Jira connection
   server.post('/oc/jira/test', async (req) => {
     const body = req.body as any;
@@ -3285,9 +3305,38 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
   /**
    * Jira Webhook receiver.
    * Processes issue transition events and triggers AskABD re-verification.
-   * Security: validates event structure (in production, validate webhook signature).
+   *
+   * Security (RISK-015, real fix — replaces the previous structural-JSON
+   * -only validation): every request must carry a real HMAC-SHA256 signature
+   * (`X-AskABD-Webhook-Signature`) and timestamp (`X-AskABD-Webhook
+   * -Timestamp`), verified against a secret generated via
+   * `POST /oc/jira/webhook-secret` for this `?environment=`. This route is
+   * intentionally NOT gated by `rules.ts` RBAC (a real Jira webhook sender
+   * can never present an askabd-identity bearer token) — its authorization
+   * IS this cryptographic check, not a permission check. See
+   * `jira-integration-service.ts`'s `verifyWebhookRequest` for the full
+   * verification logic and its honest production-configuration caveat.
    */
   server.post('/oc/jira/webhook', async (req, reply) => {
+    const environment = (req.query as any)?.environment || 'development';
+    const rawBody = getRawBody(req);
+    const verification = await jiraService.verifyWebhookRequest({
+      environment,
+      rawBody: rawBody ?? Buffer.alloc(0),
+      signatureHeader: req.headers['x-askabd-webhook-signature'] as string | undefined,
+      timestampHeader: req.headers['x-askabd-webhook-timestamp'] as string | undefined,
+    });
+    if (!verification.ok) {
+      ocService.createAuditEntry({
+        entityType: 'jira', entityId: environment, entityName: 'webhook_rejected',
+        action: 'jira_webhook_verification_failed', actor: 'jira-webhook',
+        details: { reason: verification.reason },
+        evidence: [`Webhook rejected: ${verification.reason} — ${verification.message}`],
+      }).catch(() => {});
+      reply.status(401).send({ error: { code: verification.reason, message: verification.message } });
+      return;
+    }
+
     const body = req.body as any;
 
     // Validate webhook payload structure

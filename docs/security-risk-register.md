@@ -894,41 +894,88 @@ completion" principle.
 
 ## RISK-015 — `POST /oc/jira/webhook` has no real signature/shared-secret verification despite documentation claiming it does
 
-- **Status**: `OPEN` — confirmed real, not yet fixed (see the
-  `risk_014_triage_test_2` update in RISK-014 above for the full
-  investigation)
-- **Severity**: Medium — not a read-exposure leak; a real integrity
-  /spoofing risk (an authenticated identity that knows/guesses a real
-  linked `issueKey` can falsely mark another client's defect
+- **Status**: `RESOLVED` (2026-08-24, `risk_015_jira_webhook_signature
+  _test_1`) — real, cryptographic HMAC-SHA256 verification implemented
+  and live-proven; see below for the full fix.
+- **Severity (as found)**: Medium — not a read-exposure leak; a real
+  integrity/spoofing risk (an authenticated identity that knows/guesses
+  a real linked `issueKey` can falsely mark another client's defect
   `verified`/`resolved`) plus a real documentation-accuracy gap (a
   security control is described as implemented and is not)
 - **Found in**: `risk_014_triage_test_2` (2026-08-24), continuing the
   RISK-014 individual-triage pass into the `/oc/me/*`/OTP/jira-webhook
   group
-- **Root cause**: `docs/production-connection-readiness.md` documents
+- **Root cause**: `docs/production-connection-readiness.md` documented
   "Shared secret header validation" as this webhook's production auth
-  mechanism; the real handler in `operations-center-routes.ts` performs
-  only structural payload validation, no secret/signature check exists,
-  and no `webhookSecret`-equivalent config field exists anywhere in the
-  codebase (`jira-service.ts`'s config schema has no such field) — the
-  documented control was never actually implemented.
-- **Why not fixed this pass**: a real fix requires new config plumbing
-  (a secret field, storage/masking, and comparison logic matched to
-  whatever header format the actual Jira webhook/Automation
-  configuration sends — native Jira webhooks and Jira Automation's "Send
-  web request" action differ in what they support), not a `rules.ts`
-  rule — a genuinely separate feature, the same "large, separate body of
-  work, disclosed not blindly fixed" reasoning already applied to
-  RISK-009/012/014's other untriaged remainders this session.
-- **Suggested fix**: add a `webhookSecret` field to Jira config storage
-  (masked at rest and in API responses, following the existing connector
-  `maskSecrets` pattern), document the exact header Jira/Jira Automation
-  will send it in, and verify that header in `POST /oc/jira/webhook`
-  before processing — reject with 401 on mismatch, exactly like a real
-  webhook receiver. Until then, also correct
-  `docs/production-connection-readiness.md`'s "Shared secret header
-  validation" line to state the true current status rather than the
-  intended one.
+  mechanism; the real handler in `operations-center-routes.ts` performed
+  only structural payload validation, no secret/signature check existed,
+  and no `webhookSecret`-equivalent config field existed anywhere in the
+  codebase — the documented control was never actually implemented.
+- **The real fix** (2026-08-24, `risk_015_jira_webhook_signature_test_1`):
+  - **Real raw-body capture** (`middleware/raw-body.ts`, new): a custom
+    Fastify JSON content-type parser, behaviorally identical to the
+    default one for every other route, additionally stashes the exact
+    raw request bytes. Required because an HMAC computed by a real
+    sender covers the exact bytes it sent — `JSON.stringify(parsedBody)`
+    is NOT guaranteed to reproduce them (key order, whitespace, unicode
+    escaping can all differ) — proven by a real test that signs one byte
+    -ordering and sends a semantically-identical-but-differently-ordered
+    one, and confirms it is correctly rejected.
+  - **Real secret generation** (`POST /oc/jira/webhook-secret`,
+    Admin.Access-gated): generates a genuine 256-bit random secret
+    (`crypto.randomBytes(32)`), stores it through the same
+    `SecretProvider` seam already used for the Jira API token, and
+    returns it in PLAINTEXT exactly once (never retrievable again).
+    Regenerating immediately invalidates the previous secret — live
+    -proven.
+  - **Real cryptographic verification** (`verifyWebhookRequest` in
+    `jira-integration-service.ts`), Stripe/GitHub-style: the client
+    signs `${unixTimestampSeconds}.${rawBody}` with HMAC-SHA256, sent as
+    `X-AskABD-Webhook-Signature` + `X-AskABD-Webhook-Timestamp`. Verifies,
+    in order: (1) a secret exists for this environment at all — **fails
+    CLOSED** if not (a real change from the pre-fix behavior, which
+    accepted everything); (2) signature header present; (3) timestamp
+    header present, numeric, and within a real 5-minute tolerance window
+    (rejects both a stale captured request and a future-dated one); (4)
+    the HMAC matches, compared via `crypto.timingSafeEqual` (constant
+    -time, avoiding a timing side-channel), with a length-mismatch guard
+    so a malformed header cannot throw instead of failing cleanly; (5)
+    real, DB-backed anti-replay — `oc_jira_webhook_deliveries`,
+    `UNIQUE(environment, signature_hash)` — a byte-identical replayed
+    request is rejected via a real unique-constraint violation, not an
+    in-memory set that would reset on every process restart.
+  - **A real bug this pass's own middleware-chain testing caught before
+    it shipped**: adding `/api/v1/oc/jira/webhook` to `server.ts`'s
+    `publicRoutes` (required — a real Jira webhook can never present a
+    bearer token) uses prefix matching
+    (`path === r || path.startsWith(r + '/')`). The secret-generation
+    route was originally named `POST /oc/jira/webhook/secret` — nested
+    under the now-public path — which the prefix match silently made
+    PUBLIC TOO (any unauthenticated caller could have generated/rotated
+    the signing secret). Caught by this pass's own test suite (`a
+    customer token is denied` / `unauthenticated is denied` both failed
+    with 201 instead of 403/401) before being committed. Fixed by
+    renaming to the sibling path `POST /oc/jira/webhook-secret` (not
+    nested under `/oc/jira/webhook`), re-verified clean. Mechanically
+    checked the two pre-existing `publicRoutes` entries
+    (`/oc/invitations/lookup`, `/oc/invitations/accept`) for the same
+    class of bug — neither has any nested sibling route, so neither was
+    ever actually exposed to it.
+  - **Honest, disclosed production-configuration requirement** (not a
+    fabricated "fully automatic" claim): native Jira Cloud "classic"
+    webhooks cannot compute this signature themselves. A real production
+    deployment needs either a Jira Automation rule with a custom-header
+    expression that computes the HMAC, or a small relay holding the same
+    secret in front of this endpoint. `docs/production-connection
+    -readiness.md`'s DEP-014 section corrected with the full real setup
+    procedure.
+- **Regression test evidence**: `apps/api/tests/risk-015-jira-webhook
+  -signature.test.ts`, 14/14 passing — valid signature accepted; missing
+  signature/timestamp rejected; malformed timestamp rejected; stale
+  timestamp rejected; wrong secret rejected; tampered body rejected;
+  exact replay rejected; secret rotation invalidates the old secret;
+  raw-byte-exactness proven; secret-generation route RBAC (customer 403,
+  unauthenticated 401, staff 201) proven.
 
 ---
 

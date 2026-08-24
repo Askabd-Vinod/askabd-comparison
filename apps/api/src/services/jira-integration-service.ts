@@ -28,10 +28,34 @@
  * "production ready" without that evidence.
  */
 
+import { randomBytes, createHmac, createHash, timingSafeEqual } from 'node:crypto';
 import { sharedPool } from './db-pool.js';
 import { getSecretProvider } from './secrets-provider.js';
 
 const dbPool = sharedPool;
+
+// Real HMAC-SHA256 webhook signature verification (RISK-015). Same signing
+// scheme as Stripe/GitHub: the signature covers `${timestamp}.${rawBody}`, not
+// the body alone, so a captured (signature, body) pair from one moment cannot
+// be replayed at another with a forged fresh timestamp — the timestamp itself
+// is authenticated. `WEBHOOK_TOLERANCE_SECONDS` bounds real clock skew between
+// AskABD and whatever sends the webhook (a Jira Automation rule or a relay in
+// front of native Jira webhooks — see the doc comment on `verifyWebhookRequest`
+// for why native Jira webhooks cannot produce this signature by themselves).
+const WEBHOOK_TOLERANCE_SECONDS = 5 * 60;
+
+export type WebhookVerificationFailureReason =
+  | 'not_configured'
+  | 'missing_signature'
+  | 'missing_timestamp'
+  | 'malformed_timestamp'
+  | 'stale_timestamp'
+  | 'invalid_signature'
+  | 'replayed_request';
+
+export type WebhookVerificationResult =
+  | { ok: true }
+  | { ok: false; reason: WebhookVerificationFailureReason; message: string };
 
 export type JiraStatus = 'not_configured' | 'configured' | 'authenticated' | 'healthy' | 'degraded' | 'failed';
 
@@ -139,6 +163,124 @@ export class JiraIntegrationService {
       lastHealthStatus: row.last_health_status,
       lastHealthError: row.last_health_error,
     };
+  }
+
+  // ─── WEBHOOK SIGNATURE (RISK-015) ───────────────────────────────────────────
+
+  /**
+   * Generate a new, cryptographically random webhook secret for an environment
+   * and store it (through the same SecretProvider seam as the Jira API token —
+   * masked in every API response, never retrievable again after this call).
+   * Returns the PLAINTEXT secret exactly once, for the caller to configure into
+   * whatever actually sends the webhook (see `verifyWebhookRequest`'s doc
+   * comment). Generating a new secret immediately invalidates the previous one
+   * — any webhook sender still using the old value starts failing verification,
+   * by design (matches the "resend invalidates the previous OTP" precedent
+   * already established in `otp-store.ts`).
+   */
+  async generateWebhookSecret(environment: string): Promise<{ secret: string }> {
+    const secret = randomBytes(32).toString('hex'); // 256 bits — real, CSPRNG
+    const secrets = getSecretProvider();
+    const stored = await secrets.putSecret(`jira/${environment}/webhook-secret`, secret);
+    await dbPool.query(
+      `INSERT INTO oc_jira_integrations (environment, base_url, project_key, webhook_secret_encrypted, status, updated_at)
+       VALUES ($1, '', '', $2, 'not_configured', NOW())
+       ON CONFLICT (environment) DO UPDATE SET webhook_secret_encrypted = $2, updated_at = NOW()`,
+      [environment, stored]
+    );
+    return { secret };
+  }
+
+  /**
+   * Real, cryptographic verification of an inbound webhook request — the
+   * actual fix for RISK-015 (`docs/security-risk-register.md`). Verifies:
+   *   1. A secret has been generated for this environment at all (fail CLOSED
+   *      — an environment with no secret configured accepts NO webhook, unlike
+   *      the pre-fix behavior which accepted everything).
+   *   2. The signature header is present.
+   *   3. The timestamp header is present, is a valid integer, and is within
+   *      `WEBHOOK_TOLERANCE_SECONDS` of the real server clock (rejects both a
+   *      stale captured request and a request claiming a future timestamp).
+   *   4. HMAC-SHA256(secret, `${timestamp}.${rawBody}`) — computed over the
+   *      EXACT raw bytes received (see `middleware/raw-body.ts`), never a
+   *      re-serialized `JSON.stringify` of the parsed body — matches the
+   *      supplied signature, compared in constant time
+   *      (`crypto.timingSafeEqual`) to avoid a timing side-channel.
+   *   5. This exact (environment, signature) pair has never been accepted
+   *      before — a real, DB-backed anti-replay check (`oc_jira_webhook
+   *      _deliveries`, `UNIQUE(environment, signature_hash)`), not an
+   *      in-memory set that would reset on every process restart.
+   *
+   * Real production caveat, honestly disclosed rather than hidden: native
+   * Jira Cloud "classic" webhooks do not support computing an HMAC signature
+   * themselves. A real production deployment must front this endpoint with
+   * either a Jira Automation rule ("Send web request" action, which DOES
+   * support a custom header — the signature would need to be computed by a
+   * short Automation script or a lightweight relay service that holds the
+   * same secret) or an equivalent relay. This module's verification logic
+   * itself is real and independently correct regardless of which real sender
+   * eventually computes the signature — it is not a fabricated check.
+   */
+  async verifyWebhookRequest(params: {
+    environment: string;
+    rawBody: Buffer;
+    signatureHeader: string | undefined;
+    timestampHeader: string | undefined;
+  }): Promise<WebhookVerificationResult> {
+    const { environment, rawBody, signatureHeader, timestampHeader } = params;
+
+    const config = await this.getConfigInternal(environment);
+    const secretRef: string = config?.webhook_secret_encrypted || '';
+    if (!secretRef) {
+      return { ok: false, reason: 'not_configured', message: `No webhook secret has been generated for environment "${environment}". Call POST /oc/jira/webhook-secret first.` };
+    }
+
+    if (!signatureHeader) {
+      return { ok: false, reason: 'missing_signature', message: 'Missing X-AskABD-Webhook-Signature header.' };
+    }
+    if (!timestampHeader) {
+      return { ok: false, reason: 'missing_timestamp', message: 'Missing X-AskABD-Webhook-Timestamp header.' };
+    }
+
+    const timestamp = Number(timestampHeader);
+    if (!Number.isFinite(timestamp) || !/^\d+$/.test(timestampHeader)) {
+      return { ok: false, reason: 'malformed_timestamp', message: 'X-AskABD-Webhook-Timestamp must be a Unix timestamp in seconds.' };
+    }
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    if (Math.abs(nowSeconds - timestamp) > WEBHOOK_TOLERANCE_SECONDS) {
+      return { ok: false, reason: 'stale_timestamp', message: `Timestamp outside the ${WEBHOOK_TOLERANCE_SECONDS}s tolerance window — request rejected as stale or replayed.` };
+    }
+
+    const secret = await getSecretProvider().getSecret(secretRef);
+    const signedPayload = `${timestamp}.${rawBody.toString('utf8')}`;
+    const expected = createHmac('sha256', secret).update(signedPayload).digest('hex');
+
+    const providedBuf = Buffer.from(signatureHeader, 'hex');
+    const expectedBuf = Buffer.from(expected, 'hex');
+    // Guard the length check outside timingSafeEqual (which throws, not returns false,
+    // on mismatched lengths) — a malformed/short header must not throw an unhandled error.
+    const signatureValid = providedBuf.length === expectedBuf.length && timingSafeEqual(providedBuf, expectedBuf);
+    if (!signatureValid) {
+      return { ok: false, reason: 'invalid_signature', message: 'Signature does not match — wrong secret or tampered payload.' };
+    }
+
+    // Anti-replay: this exact signature has never been accepted for this environment
+    // before. Hash it (rather than storing the raw signature) purely so this table
+    // never holds a value someone could otherwise treat as sensitive-looking.
+    const signatureHash = createHash('sha256').update(signatureHeader).digest('hex');
+    try {
+      await dbPool.query(
+        'INSERT INTO oc_jira_webhook_deliveries (environment, signature_hash) VALUES ($1, $2)',
+        [environment, signatureHash]
+      );
+    } catch (err) {
+      if ((err as { code?: string }).code === '23505') {
+        return { ok: false, reason: 'replayed_request', message: 'This exact request has already been processed once — rejected as a replay.' };
+      }
+      throw err;
+    }
+
+    return { ok: true };
   }
 
   // ─── HEALTH CHECK ───────────────────────────────────────────────────────────

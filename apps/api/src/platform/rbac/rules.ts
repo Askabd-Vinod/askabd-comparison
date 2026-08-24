@@ -218,16 +218,19 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   // low-severity internal-tooling metadata, not re-gated this pass). `POST
   // /jira/webhook` is intentionally NOT gated — it is Jira calling AskABD,
   // not a user action; it would never carry an AskABD Admin.Access
-  // -permission token. NOTE (2026-08-24, RISK-014/RISK-015): that reasoning
-  // only explains why Jira itself doesn't need a rule here — it does not
-  // mean the route is actually safe. It currently has NO real signature
-  // /shared-secret verification at all (despite docs claiming otherwise),
-  // so gating it Admin.Access would not help anyway (Jira can't present
-  // staff credentials either) — see docs/security-risk-register.md
-  // RISK-015 for the real fix this route still needs.
+  // -permission token. UPDATE (2026-08-24, RISK-015 real fix — see
+  // `jira-integration-service.ts`'s `verifyWebhookRequest`): this route's
+  // authorization is now a real, independent cryptographic HMAC-signature
+  // check (fail-closed — an environment with no secret generated accepts
+  // nothing), not an RBAC rule, which is why it correctly stays absent from
+  // this list rather than gaining a permissions entry — a bearer-token
+  // check would still be the wrong mechanism for a non-AskABD-identity
+  // caller. `POST /jira/webhook/secret` (generates/rotates that HMAC
+  // secret) is a real staff action and IS gated below.
   { method: 'POST', path: '/api/v1/oc/jira/config', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/jira/test', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/jira/sync', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/jira/webhook-secret', permissions: ['Admin.Access'] },
 
   // ─── Platform commercial summary (RISK-014 triage pass, 2026-08-24) ─────────
   // Same shape and severity as the already-fixed Portfolio Intelligence gap:

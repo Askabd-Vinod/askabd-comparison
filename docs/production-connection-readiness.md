@@ -124,18 +124,31 @@ openssl rand -base64 48
 - View Workflow
 
 **Webhook (if used):**
-- URL: `https://api.askabd.com/api/v1/oc/jira/webhook`
+- URL: `https://api.askabd.com/api/v1/oc/jira/webhook?environment=production`
 - Events: issue_updated, issue_generic
-- Authentication: **NOT YET IMPLEMENTED** — corrected 2026-08-24
-  (`risk_014_triage_test_2`, see `docs/security-risk-register.md`
-  RISK-015). This line previously read "Shared secret header
-  validation", describing an intended, not an actual, control: the real
-  handler performs only structural JSON validation, no secret/signature
-  field exists anywhere in the codebase, and the route is not in
-  `publicRoutes`, so a real Jira webhook (which cannot present an
-  askabd-identity JWT) cannot successfully call it today regardless. Do
-  not configure a production Jira webhook against this URL until
-  RISK-015 is resolved.
+- Authentication: **REAL, implemented 2026-08-24**
+  (`risk_015_jira_webhook_signature_test_1`, see
+  `docs/security-risk-register.md` RISK-015 — RESOLVED). HMAC-SHA256,
+  Stripe/GitHub-style: the sender computes
+  `hex(HMAC-SHA256(secret, "${unixTimestampSeconds}.${rawRequestBody}"))`
+  and sends it as `X-AskABD-Webhook-Signature`, plus the same timestamp
+  as `X-AskABD-Webhook-Timestamp`. AskABD verifies both the signature
+  (constant-time comparison) and that the timestamp is within a 5-minute
+  tolerance window, and rejects an exact replay of a previously-accepted
+  request (real, DB-backed, survives a process restart). The route is
+  correctly registered in `publicRoutes` (a real Jira webhook cannot
+  present an askabd-identity JWT) — this cryptographic check IS its
+  authorization, not RBAC.
+  **Real production setup requirement, honestly disclosed**: native Jira
+  Cloud "classic" webhooks cannot compute this signature themselves.
+  Generate the secret via `POST /api/v1/oc/jira/webhook-secret`
+  (staff-only, `{"environment":"production"}`, returns the secret in
+  PLAINTEXT exactly once — store it immediately, it cannot be retrieved
+  again), then configure either (a) a Jira Automation rule ("Send web
+  request" action) whose custom-header expression computes the HMAC
+  above, or (b) a small relay service in front of this endpoint that
+  holds the same secret and adds the two headers before forwarding.
+  Regenerating the secret immediately invalidates the previous one.
 
 **Verification procedure:**
 1. POST /api/v1/oc/jira/config (save configuration)
