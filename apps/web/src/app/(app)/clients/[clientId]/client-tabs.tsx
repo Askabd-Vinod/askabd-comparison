@@ -51,6 +51,7 @@ const tabs = [
   { label: 'Automation', segment: '/automation' },
   { label: 'Audit', segment: '/audit' },
   { label: 'Risks', segment: '/risks' },
+  { label: 'Change Management', segment: '/changes' },
   { label: 'Maturity', segment: '/maturity' },
   { label: 'Roadmap', segment: '/roadmap' },
   { label: 'Knowledge', segment: '/knowledge' },
