@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { randomInt } from 'node:crypto';
+import { Readable } from 'node:stream';
 import { config } from '../config/env.js';
 import { sharedPool } from '../services/db-pool.js';
 import { OperationsCenterService } from '../services/operations-center-service.js';
@@ -1390,12 +1391,29 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
           return;
         }
 
+        // RISK-005 fix: the multipart part's Content-Type above is entirely
+        // client-declared and trivially spoofable — real magic-byte content
+        // sniffing (mime-sniff.ts) confirms the actual bytes back up the
+        // claim before this file is ever persisted. Buffered (not streamed)
+        // specifically so the real content can be inspected before storage
+        // — bounded by the same 20MB multipart limit already registered in
+        // server.ts, so this is not an unbounded-memory change.
+        const fileBuffer = await data.toBuffer();
+        const { sniffMimeType } = await import('../services/mime-sniff.js');
+        if (!sniffMimeType(mimeType, fileBuffer)) {
+          reply.status(400).send({ error: `File content does not match the declared type ${mimeType} — rejected after inspecting the real file content.` });
+          return;
+        }
+
         const versionRes = await pool.query("SELECT COALESCE(MAX(version), 0) + 1 as next_ver FROM oc_client_service_documents WHERE client_id = $1 AND service_id = $2 AND requirement_key = $3", [clientId, serviceId, requirementKey]);
         const nextVersion = parseInt(versionRes.rows[0].next_ver);
 
         await pool.query("UPDATE oc_client_service_documents SET status = 'superseded' WHERE client_id = $1 AND service_id = $2 AND requirement_key = $3 AND status NOT IN ('superseded', 'replaced')", [clientId, serviceId, requirementKey]);
 
-        const stored = await storage.save(clientId, serviceId, requirementKey, originalName, nextVersion, data.file);
+        // Readable.from(fileBuffer), not data.file — the multipart stream
+        // was already fully consumed by data.toBuffer() above (needed to
+        // sniff its real content before deciding whether to persist it).
+        const stored = await storage.save(clientId, serviceId, requirementKey, originalName, nextVersion, Readable.from(fileBuffer));
 
         if (stored.fileSize > 20 * 1024 * 1024) {
           storage.delete(stored.storageReference);

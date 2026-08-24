@@ -139,7 +139,8 @@ completion" principle.
 
 ## RISK-004 — CORS `credentials:true` + wildcard-reflecting origin
 
-- **Status**: `OPEN` (disclosed, not fixed)
+- **Status**: `RESOLVED` (2026-08-25, `risk_004_cors_production_fail_fast
+  _test_1`) — exactly the fix this entry's own "suggested fix" named.
 - **Severity**: Low-Medium
 - **Found in**: `security_test_1` (2026-08-23)
 - **Real impact**: `apps/api/src/server.ts` combines `credentials: true`
@@ -149,39 +150,89 @@ completion" principle.
   reading `middleware/auth.ts` — no cookie is ever read for auth), so a
   malicious cross-origin page cannot automatically ride a victim's session
   the way it could with cookie-based auth.
-- **Why not fixed yet**: deliberately not touched live during `security_test_1`
-  to avoid risking the actively-running dev server that pass's own live
-  verification depended on.
-- **Suggested fix** (documented, not yet applied): fail closed to
-  same-origin in a production-shaped config when `CORS_ORIGIN` is unset,
-  mirroring the existing JWT dev-bypass `NODE_ENV !== 'production'` pattern.
+- **The real fix**: `config/env.ts`'s `validateProductionCorsOrigin` (new,
+  pure, exported for direct testing) — the app now refuses to start
+  (`process.exit(1)`, the same fail-fast shape already used for other
+  invalid config in this exact file) when `NODE_ENV === 'production'` and
+  `CORS_ORIGIN` is `'*'` (either explicit or via the schema's own default
+  when unset). Matches `deploy/PRODUCTION.md`'s own go-live checklist,
+  which already required "CORS_ORIGIN restricted to actual frontend
+  domain" — this makes that requirement impossible to silently skip
+  rather than merely documented. Development/test environments are
+  completely unaffected (the wildcard default remains fine outside
+  production — this repo's own test suite runs with `NODE_ENV=test`).
+- **Regression evidence**: `apps/api/tests/risk-004-cors-production-fail
+  -fast.test.ts`, 7/7 passing — production + wildcard/unset refused,
+  production + a real restricted origin (single or comma-separated list)
+  allowed, development/test + wildcard allowed unchanged, an unset
+  `NODE_ENV` never treated as production.
 
 ## RISK-005 — Document-upload MIME validation is client-supplied only
 
-- **Status**: `OPEN` (disclosed, not fixed)
+- **Status**: `RESOLVED` (2026-08-25, `risk_005_mime_sniffing_test_1`)
 - **Severity**: Low-Medium
 - **Found in**: `security_test_1` (2026-08-23)
-- **Real impact**: the Security Validation document-upload route trusts the
-  multipart part's own client-supplied `Content-Type` header for its
-  allowlist check — trivially spoofable, no magic-byte/content-sniffing.
-  The allowlist gives a false sense of enforcement. Real path-traversal
-  protection on the same route WAS positively verified (2 real attack
-  attempts, both safely contained — see `security_test_1`'s evidence).
-- **Suggested fix**: real magic-byte sniffing for at least the declared
-  types (PDF/PNG/JPEG/DOCX/TXT) before persisting.
+- **Real impact**: BOTH real document-upload routes (not just the one
+  originally found) trust the multipart part's own client-supplied
+  `Content-Type` header for their allowlist check — trivially spoofable,
+  no magic-byte/content-sniffing. The allowlist gave a false sense of
+  enforcement. Real path-traversal protection on the originally-found
+  route WAS already positively verified (2 real attack attempts, both
+  safely contained — see `security_test_1`'s evidence) and remains
+  unchanged by this fix.
+- **The real fix**: `services/mime-sniff.ts` (new, shared by both real
+  upload routes) — real magic-byte checks for PDF, PNG, JPEG, and DOCX
+  (ZIP magic bytes; a real, disclosed limit — this cannot by itself
+  distinguish DOCX from another ZIP-based format without parsing the
+  archive's internal entries, which this pass deliberately did not
+  attempt), plus a real heuristic for TXT/CSV (no NUL byte in a real
+  sample, and no match against any of the other binary signatures — the
+  strongest check possible for formats with no defined magic bytes at
+  all, a real and disclosed inherent limitation, not specific to this
+  implementation).
+  - `operations-center-routes.ts`'s onboarding-requirement document
+    upload: now buffers the upload (bounded by the same 20MB multipart
+    limit already registered in `server.ts`) to sniff its real content
+    before persisting, rejecting a mismatch with a clean 400 before any
+    row is written.
+  - `discovery-intake-routes.ts`'s discovery-source document upload:
+    already buffered the file — added the same sniff check as an
+    additional, independent layer before `service.submitDocument`'s own
+    (unchanged) allowlist check.
+- **Regression evidence**: `apps/api/tests/risk-005-mime-sniffing-test
+  -1.test.ts`, 14/14 passing — unit-level real magic-byte correctness
+  for every covered type (including the documented DOCX/text
+  limitations), plus a REAL, live, end-to-end spoofing attempt against
+  BOTH routes (genuine PNG magic bytes uploaded claiming `Content-Type:
+  text/plain`) confirmed rejected with a clean 400 and zero orphaned
+  rows, and a genuine, correctly-labeled text upload confirmed still
+  accepted end-to-end (the fix does not break real uploads).
 
 ## RISK-006 — `cleanup-qa-client.mjs` does not sweep physical uploaded files
 
-- **Status**: `OPEN` (disclosed, minor)
+- **Status**: `RESOLVED` (2026-08-25) — exactly the fix this entry's own
+  "suggested fix" named.
 - **Severity**: Low (data hygiene, not a security/data-integrity issue)
 - **Found in**: `security_test_1`, `connector_test_1` (2026-08-23/24)
-- **Real impact**: the reusable QA-client cleanup script deletes DB rows but
-  never the corresponding physical files under `apps/api/uploads/<clientId>/`
-  — every QA pass that uploads a real document has had to manually `rm -rf`
-  the client's upload directory as a separate step. Local dev artifact only;
-  never a real client's data.
-- **Suggested fix**: add a real `fs.rmSync(uploads/<clientId>, {recursive:true})`
-  step to the script.
+- **Real impact**: the reusable QA-client cleanup script deleted DB rows
+  but never the corresponding physical files under
+  `apps/api/uploads/<clientId>/` (or the separate discovery-document
+  tree, `apps/api/uploads/discovery/<clientId>/` — see
+  `document-storage-service.ts`'s two real `storageReference` shapes,
+  both handled by the fix) — every QA pass that uploaded a real document
+  had to manually `rm -rf` the client's upload directory as a separate
+  step. Local dev artifact only; never a real client's data.
+- **The real fix**: `scripts/playwright-evidence/cleanup-qa-client.mjs`'s
+  new `removeClientUploads()` — resolved relative to the script's own
+  file location (not `process.cwd()`, which depends on where the script
+  happens to be invoked from), removes both real upload-directory shapes
+  with `fs.rmSync(..., {recursive:true, force:true})`, and only runs
+  AFTER the DB transaction genuinely commits (never deletes real files
+  ahead of a rollback). Live-verified end-to-end: a real disposable test
+  client created, real files written to both real directory shapes,
+  script run, both directories confirmed physically gone
+  (`ls`/`existsSync` after) and both real protected clients confirmed
+  unaffected.
 - **Update (2026-08-24, `release_readiness_test_1`)**: a real, zero-orphans
   DB sweep (per the "cleanup scripts must verify zero orphans" mandate)
   after this pass's own full regression found the SAME class of gap in

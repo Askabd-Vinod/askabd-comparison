@@ -10,6 +10,36 @@
  * never touches the two permanently-protected real clients.
  */
 import pg from 'pg';
+import { rmSync, existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join, resolve } from 'node:path';
+
+// RISK-006 fix (2026-08-25): this script deleted DB rows but
+// never the corresponding physical uploaded files under
+// apps/api/uploads/<clientId>/ (and the separate discovery-document tree,
+// apps/api/uploads/discovery/<clientId>/ — see document-storage-service.ts's
+// two real storageReference shapes) — every QA pass that uploaded a real
+// document had to manually `rm -rf` the client's upload directory as a
+// separate step. Resolved relative to THIS script's own location (not
+// process.cwd(), which depends on where the script happens to be invoked
+// from) so it reliably finds the real apps/api/uploads directory regardless
+// of caller.
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const UPLOADS_ROOT = process.env.DOCUMENT_STORAGE_PATH || resolve(__dirname, '../../apps/api/uploads');
+
+function removeClientUploads(clientId) {
+  for (const rel of [clientId, join('discovery', clientId)]) {
+    const dir = join(UPLOADS_ROOT, rel);
+    // Path-traversal guard mirroring local-storage-provider.ts's own
+    // validateReference — clientId always comes from argv here (never
+    // request-supplied), but this stays defensive rather than assuming.
+    if (!resolve(dir).startsWith(resolve(UPLOADS_ROOT))) continue;
+    if (existsSync(dir)) {
+      rmSync(dir, { recursive: true, force: true });
+      console.log('Removed physical upload directory:', dir);
+    }
+  }
+}
 
 const PROTECTED_CLIENT_IDS = new Set([
   'client-9a2a1b23-5872-45d5-8246-2f0ba05bc691', // Test1
@@ -96,6 +126,9 @@ async function main() {
     console.log('oc_clients deleted:', rc.rowCount);
     await client.query('COMMIT');
     console.log('COMMITTED');
+    // Only remove physical files after the DB transaction genuinely
+    // committed — never delete real uploaded files ahead of a rollback.
+    removeClientUploads(clientId);
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('ROLLED BACK:', err.message);

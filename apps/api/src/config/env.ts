@@ -53,5 +53,46 @@ if (!isOk(result)) {
   process.exit(1);
 }
 
+/**
+ * RISK-004 fix (docs/security-risk-register.md): server.ts combines
+ * `credentials: true` with a reflect-any-Origin CORS policy whenever
+ * CORS_ORIGIN is `'*'` (its own schema default above, when the env var is
+ * unset) — the textbook risky CORS combination. `deploy/PRODUCTION.md`'s own
+ * go-live checklist already requires "CORS_ORIGIN restricted to actual
+ * frontend domain"; this makes that requirement impossible to silently skip
+ * rather than merely documented. Same fail-fast shape already used for
+ * invalid config just above — not a new mechanism.
+ *
+ * A pure, exported function (rather than an inline check) so this exact
+ * validation logic can be unit-tested directly, without spawning a real
+ * subprocess or reloading this module with different env vars.
+ */
+export function validateProductionCorsOrigin(nodeEnv: string | undefined, corsOrigin: string | undefined): string | null {
+  // Mirrors server.ts's own `config.CORS_ORIGIN ?? '*'` read — an unset
+  // CORS_ORIGIN is exactly as dangerous in production as an explicit '*'.
+  const effectiveOrigin = corsOrigin ?? '*';
+  if (nodeEnv === 'production' && effectiveOrigin === '*') {
+    return (
+      'Configuration validation failed: CORS_ORIGIN must be set to the real frontend domain(s) in production — ' +
+      'refusing to start with the wildcard default, which would combine with credentials:true in server.ts ' +
+      '(reflect-any-Origin + credentials is the textbook risky CORS combination). ' +
+      'Set CORS_ORIGIN to a comma-separated list of allowed origins, e.g. https://app.askabd.com.'
+    );
+  }
+  return null;
+}
+
 export const config = result.value;
+
+// config.NODE_ENV/CORS_ORIGIN are typed `string | undefined` despite the Zod
+// schema's own `.default(...)` above (a pre-existing looseness in how
+// @askabd/shared-configuration's loadConfig types its output) — the function
+// itself defaults a missing CORS_ORIGIN to '*' internally, matching
+// server.ts's own identical `config.CORS_ORIGIN ?? '*'` read.
+const corsError = validateProductionCorsOrigin(config.NODE_ENV, config.CORS_ORIGIN);
+if (corsError) {
+  console.error(corsError);
+  process.exit(1);
+}
+
 export { isProduction, isDevelopment };

@@ -6,6 +6,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { DiscoveryIntakeService, DiscoverySourceNotFoundError, type SourceType, type ExtractionConfidence } from '../services/discovery-intake-service.js';
 import { getAuth } from '../middleware/auth.js';
+import { sniffMimeType } from '../services/mime-sniff.js';
 
 const SOURCE_TYPES: SourceType[] = ['free_text', 'document', 'meeting_notes', 'email', 'other'];
 const CONFIDENCE_LEVELS: ExtractionConfidence[] = ['high', 'medium', 'low', 'unverified'];
@@ -47,10 +48,23 @@ export async function discoveryIntakeRoutes(server: FastifyInstance): Promise<vo
     for await (const chunk of data.file) chunks.push(chunk as Buffer);
     const buffer = Buffer.concat(chunks);
 
+    // RISK-005 fix (docs/security-risk-register.md): data.mimetype is the
+    // multipart part's own client-declared Content-Type — trivially
+    // spoofable. Real magic-byte content sniffing (mime-sniff.ts, shared
+    // with the onboarding-requirement document upload route) confirms the
+    // actual bytes back up the claim before this file is ever persisted.
+    // service.submitDocument's own ALLOWED_MIME_TYPES check still runs
+    // first (unchanged) — this is an additional, independent check, not a
+    // replacement for it.
+    const claimedMimeType = data.mimetype || 'application/octet-stream';
+    if (!sniffMimeType(claimedMimeType, buffer)) {
+      return reply.status(400).send({ error: { code: 'invalid_document', message: `File content does not match the declared type ${claimedMimeType} — rejected after inspecting the real file content.` } });
+    }
+
     const title = (data.fields?.title?.value as string) || data.filename || 'Untitled document';
     const auth = getAuth(req);
     try {
-      const source = await service.submitDocument(clientId, { title, fileName: data.filename || 'unnamed', mimeType: data.mimetype || 'application/octet-stream', buffer }, auth?.userId ?? null);
+      const source = await service.submitDocument(clientId, { title, fileName: data.filename || 'unnamed', mimeType: claimedMimeType, buffer }, auth?.userId ?? null);
       reply.status(201).send({ source });
     } catch (err) {
       reply.status(400).send({ error: { code: 'invalid_document', message: (err as Error).message } });
