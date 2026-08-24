@@ -742,11 +742,140 @@ completion" principle.
     NOT resolve — **left OPEN, untriaged, disclosed** as its own item
     (not merged with the clientId-shaped findings above, since it isn't
     one).
-  - **Remaining untriaged from the original 46**: 35 (the `/oc/me/*`,
-    OTP, jira-webhook, body-clientId-scoped, and catalog/reference
-    groups from the original update, still not independently
-    re-confirmed this pass) **plus** the newly-identified
-    `POST /oc/service-actions` opaque-entityId question above.
+- **Update (2026-08-24, `risk_014_triage_test_2` — the `/oc/me/*`, OTP,
+  and jira-webhook group)**:
+  - `GET /oc/me`, `GET /oc/me/pending-invitations`,
+    `POST /oc/me/pending-invitations/:id/accept` — read each handler in
+    full and **confirmed genuinely legitimate**: every field used
+    (`orgContext`, `userId`) is read from the caller's own verified JWT
+    claims, never from a request-supplied value. **Not a gap — closed
+    by verification, no fix needed.**
+  - `POST /oc/otp/send` / `/verify` / `/resend` — **a real, more severe
+    gap than the plain RBAC-shaped findings above**: `POST
+    /oc/otp/verify`'s success path WRITES to the target `clientId`'s
+    real `business_owner_email`/`business_owner_name`/`organization
+    _legal_name` requirement fields via `RequirementsService
+    .updateRequirement`, with NO ownership check on `clientId` at all.
+    Combined with `POST /oc/otp/send` accepting any `clientId` plus an
+    attacker-chosen recipient `email` with no ownership check either,
+    any authenticated identity (a real customer token included) could
+    target an arbitrary EXISTING client, receive that client's real OTP
+    at an address of its own choosing, and use it to overwrite that
+    client's identity-verification fields — a real cross-tenant
+    integrity/spoofing vulnerability, not merely a read-exposure one.
+    **FIXED**: real `Admin.Access` rules added to all 3 routes in
+    `rules.ts` (confirmed via grep: only staff `(app)/clients/onboard`
+    and `(app)/verify` pages call these, never the customer `(portal)`);
+    live-proven with `risk_014_triage_test_2.test.ts`, 3/3 passing
+    (customer 403, unauthenticated 401, staff not blocked by RBAC).
+    A second, independent, related-but-distinct finding in the same
+    handler: `/oc/otp/send`'s HTML email template interpolated several
+    caller-supplied fields (`businessOwner`, `clientName`, `onboarding
+    Data.*`) unescaped into an email body sent, via AskABD's real
+    sending domain, to a fully caller-chosen recipient — a genuine
+    HTML-injection/phishing-content vector, independent of the RBAC fix
+    (relevant even to a legitimate staff caller pasting untrusted
+    client-supplied text). **FIXED**: a real `escapeHtml()` helper
+    added in `operations-center-routes.ts`, applied to every
+    caller-supplied field in that template (only the server-generated
+    `otp` code and `expiry` timestamp remain unescaped, since neither
+    is ever caller-supplied). Two sibling `sendEmail` call sites
+    (`workflow-automation-service.ts`, `invitation-service.ts`) were
+    checked and found lower-risk — `workflow-automation-service.ts`'s
+    recipient is server-derived from `clientId`, not caller-supplied,
+    and `invitation-service.ts`'s interpolated `clientName` can only
+    be set by an already Admin.Access-gated staff action — both
+    disclosed here, neither fixed this pass (a genuinely separate,
+    lower-priority body of work, not blindly batched in).
+  - `POST /oc/jira/webhook` — **a real, confirmed documentation
+    -vs-implementation gap**, distinct in kind from every finding above
+    (not a missing `rules.ts` entry — an entirely missing security
+    control the platform's own docs claim exists).
+    `docs/production-connection-readiness.md` documents this webhook's
+    real production authentication as "Shared secret header validation"
+    — but the actual route handler (read in full) performs ONLY
+    structural JSON validation (`!body.webhookEvent`), with no shared
+    -secret, HMAC, or signature check of any kind, and a grep across
+    `apps/api/src` confirms no `webhookSecret`/equivalent config field
+    exists anywhere in the codebase to check against — the documented
+    control was never actually built. Practical impact: (a) a real
+    external Jira instance calling this in production, presenting
+    whatever "shared secret header" its own webhook config sends, gets
+    no verification at all — the header is accepted or ignored, not
+    checked; (b) more relevantly to this triage pass's RBAC lens, since
+    the route is NOT in `server.ts`'s `publicRoutes`, it currently
+    requires `defaultPolicy:'authenticated'` — meaning the real Jira
+    server (which cannot present an askabd-identity JWT at all) cannot
+    successfully call it today regardless, but any authenticated AskABD
+    identity (including a customer token) that knows or guesses a real
+    `issueKey` already linked to ANY client's defect COULD POST a
+    fabricated webhook payload and falsely mark that defect
+    `verified`/`resolved` in `oc_jira_issue_links` — a real integrity
+    /spoofing risk, not a read-exposure one. **NOT fixed this pass** —
+    implementing real signature verification requires new config
+    plumbing (a `webhookSecret` field, secret storage/masking following
+    the existing connector `maskSecrets` pattern, and the actual
+    comparison logic against whatever header format the real Jira
+    webhook/Automation configuration would send) — a genuinely separate
+    feature, not a `rules.ts` one-liner, and Admin.Access is not the
+    right fix either (it would only block the already-nonfunctional
+    real Jira integration further, not add real verification). Tracked
+    as **RISK-015** below rather than folded into this entry, since the
+    root cause and fix shape are both different in kind.
+  - **Remaining fully untriaged from the original 46**: 28 — the
+    6-route body-clientId-scoped lifecycle/discovery/assessment group
+    (`/oc/lifecycle/init`, `/oc/lifecycle/transition`,
+    `/oc/discovery/start`, `/oc/assessment/start`,
+    `/oc/assessment/domain/start`, `/oc/recommendations/generate`) and
+    the 22-route catalog/reference group (`capabilities` family,
+    `optimization/rules`, `workflow/rules`, `workflow/executions`,
+    `scheduler/jobs`, `compliance` family, `service-bundles` family,
+    `platform/commercial/summary`, `jira/config`, `jira/issues`) from
+    the original update. (`/oc/me/*`, OTP, and jira-webhook — 7 routes —
+    are now resolved/triaged as of this update, on top of the 11 from
+    the prior update, accounting for 18 of the original 46.) **Plus**
+    the newly-identified `POST /oc/service-actions` opaque-entityId
+    question from the prior update.
+
+---
+
+## RISK-015 — `POST /oc/jira/webhook` has no real signature/shared-secret verification despite documentation claiming it does
+
+- **Status**: `OPEN` — confirmed real, not yet fixed (see the
+  `risk_014_triage_test_2` update in RISK-014 above for the full
+  investigation)
+- **Severity**: Medium — not a read-exposure leak; a real integrity
+  /spoofing risk (an authenticated identity that knows/guesses a real
+  linked `issueKey` can falsely mark another client's defect
+  `verified`/`resolved`) plus a real documentation-accuracy gap (a
+  security control is described as implemented and is not)
+- **Found in**: `risk_014_triage_test_2` (2026-08-24), continuing the
+  RISK-014 individual-triage pass into the `/oc/me/*`/OTP/jira-webhook
+  group
+- **Root cause**: `docs/production-connection-readiness.md` documents
+  "Shared secret header validation" as this webhook's production auth
+  mechanism; the real handler in `operations-center-routes.ts` performs
+  only structural payload validation, no secret/signature check exists,
+  and no `webhookSecret`-equivalent config field exists anywhere in the
+  codebase (`jira-service.ts`'s config schema has no such field) — the
+  documented control was never actually implemented.
+- **Why not fixed this pass**: a real fix requires new config plumbing
+  (a secret field, storage/masking, and comparison logic matched to
+  whatever header format the actual Jira webhook/Automation
+  configuration sends — native Jira webhooks and Jira Automation's "Send
+  web request" action differ in what they support), not a `rules.ts`
+  rule — a genuinely separate feature, the same "large, separate body of
+  work, disclosed not blindly fixed" reasoning already applied to
+  RISK-009/012/014's other untriaged remainders this session.
+- **Suggested fix**: add a `webhookSecret` field to Jira config storage
+  (masked at rest and in API responses, following the existing connector
+  `maskSecrets` pattern), document the exact header Jira/Jira Automation
+  will send it in, and verify that header in `POST /oc/jira/webhook`
+  before processing — reject with 401 on mismatch, exactly like a real
+  webhook receiver. Until then, also correct
+  `docs/production-connection-readiness.md`'s "Shared secret header
+  validation" line to state the true current status rather than the
+  intended one.
 
 ---
 

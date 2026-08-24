@@ -126,7 +126,16 @@ openssl rand -base64 48
 **Webhook (if used):**
 - URL: `https://api.askabd.com/api/v1/oc/jira/webhook`
 - Events: issue_updated, issue_generic
-- Authentication: Shared secret header validation
+- Authentication: **NOT YET IMPLEMENTED** — corrected 2026-08-24
+  (`risk_014_triage_test_2`, see `docs/security-risk-register.md`
+  RISK-015). This line previously read "Shared secret header
+  validation", describing an intended, not an actual, control: the real
+  handler performs only structural JSON validation, no secret/signature
+  field exists anywhere in the codebase, and the route is not in
+  `publicRoutes`, so a real Jira webhook (which cannot present an
+  askabd-identity JWT) cannot successfully call it today regardless. Do
+  not configure a production Jira webhook against this URL until
+  RISK-015 is resolved.
 
 **Verification procedure:**
 1. POST /api/v1/oc/jira/config (save configuration)

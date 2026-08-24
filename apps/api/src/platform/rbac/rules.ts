@@ -93,6 +93,24 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   // clientId with no ownership check.
   { method: 'GET', path: '/api/v1/oc/notifications', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/notifications', permissions: ['Admin.Access'] },
+  // OTP send/verify/resend are the staff-driven new-client onboarding
+  // identity-verification flow (confirmed: only apps/web's staff-only
+  // `(app)/clients/onboard` and `(app)/verify` pages call these — never the
+  // customer `(portal)`). A real, more severe finding than the RBAC gap alone:
+  // POST /oc/otp/verify's success path WRITES to the target clientId's real
+  // `business_owner_email`/`business_owner_name`/`organization_legal_name`
+  // requirement fields with no ownership check at all — any authenticated
+  // identity, having supplied its own attacker-controlled email to
+  // /oc/otp/send for an arbitrary EXISTING clientId, could receive that
+  // client's real OTP at an address it chose and use it to overwrite that
+  // client's identity-verification fields. Gating all 3 Admin.Access closes
+  // this entirely (see risk_014_triage_test_2 evidence for the live proof).
+  // A second, independent fix (HTML-escaping the /oc/otp/send email template's
+  // caller-supplied fields, in operations-center-routes.ts) closes a related
+  // but distinct injection vector for the same route as defense-in-depth.
+  { method: 'POST', path: '/api/v1/oc/otp/send', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/otp/verify', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/otp/resend', permissions: ['Admin.Access'] },
 
   // ─── Client Service Assignment (governance-sensitive — admin only) ──────────
   // Only admin/super_admin may confirm or remove a client's service assignment.
