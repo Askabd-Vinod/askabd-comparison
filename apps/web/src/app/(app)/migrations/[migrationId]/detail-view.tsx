@@ -53,7 +53,7 @@ export function MigrationDetailView({ migration: initial, clientName }: { migrat
         setValidation(data);
         setTab('validation');
       } else if (action === 'rollback') {
-        const res = await fetch(`${API}/api/v1/oc/migration/${m.id}/rollback`, { method: 'POST' });
+        const res = await fetch(`${API}/api/v1/oc/migration/${m.id}/rollback?clientId=${encodeURIComponent(m.clientId)}`, { method: 'POST' });
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || 'Rollback failed');
         router.refresh();

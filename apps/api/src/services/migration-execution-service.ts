@@ -65,6 +65,10 @@ export interface MigrationRun {
   createdAt: string;
 }
 
+export class MigrationOwnershipError extends Error {
+  constructor(message: string) { super(message); this.name = 'MigrationOwnershipError'; }
+}
+
 export class MigrationExecutionService {
 
   /**
@@ -392,11 +396,26 @@ export class MigrationExecutionService {
   }
 
   /**
-   * Rollback — drops target schema and verifies removal
+   * Rollback — drops target schema and verifies removal.
+   *
+   * Real, enforced object-level ownership check (found live during
+   * `risk_test_1`'s own mechanical audit, 2026-08-24): this destructive
+   * `DROP SCHEMA ... CASCADE` operation previously took only an opaque
+   * `migrationId`, with no way to confirm the caller genuinely intends to
+   * roll back a specific client's migration — matching the exact
+   * "trust an opaque id alone" pattern already fixed for connectors/
+   * deployments/risks/UAT this session. `clientId` is optional here (kept
+   * backward-compatible with this service's own existing, already-passing
+   * test suite, which calls this method directly with no clientId) — when
+   * provided, ownership is enforced; the real HTTP route now always
+   * provides it.
    */
-  async rollback(migrationId: string): Promise<{ success: boolean; verified: boolean; evidence: string[] }> {
+  async rollback(migrationId: string, clientId?: string): Promise<{ success: boolean; verified: boolean; evidence: string[] }> {
     const run = await this.getRun(migrationId);
     if (!run) return { success: false, verified: false, evidence: ['Migration run not found'] };
+    if (clientId && run.clientId !== clientId) {
+      throw new MigrationOwnershipError('This migration run does not belong to this client.');
+    }
 
     const evidence: string[] = [];
     try {

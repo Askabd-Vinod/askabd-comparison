@@ -10,7 +10,7 @@ import { DiscoveryService } from '../services/discovery-service.js';
 import { AssessmentService, type AssessmentDomain } from '../services/assessment-service.js';
 import { RecommendationService } from '../services/recommendation-service.js';
 import { MigrationValidationService } from '../services/migration-validation-service.js';
-import { MigrationExecutionService } from '../services/migration-execution-service.js';
+import { MigrationExecutionService, MigrationOwnershipError } from '../services/migration-execution-service.js';
 import { operationService } from '../services/operation-service.js';
 import { ProblemUniverseService } from '../services/problem-universe-service.js';
 import { GapAnalysisService, RequirementNotReadyError, type ComplianceStatus, type EvidenceSourceType, type EvidenceVerificationStatus } from '../services/gap-analysis-service.js';
@@ -1066,7 +1066,16 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
 
   server.post('/oc/migration/:migrationId/rollback', async (req, reply) => {
     const { migrationId } = req.params as any;
-    const result = await migrationExecution.rollback(migrationId);
+    const { clientId } = (req.query as { clientId?: string }) ?? {};
+    let result;
+    try {
+      result = await migrationExecution.rollback(migrationId, clientId);
+    } catch (err) {
+      if (err instanceof MigrationOwnershipError) {
+        return reply.status(404).send({ error: { code: 'not_found', message: 'Migration run not found.' } });
+      }
+      throw err;
+    }
     ocService.createAuditEntry({ entityType: 'migration', entityId: '', entityName: migrationId, action: result.success ? 'rollback_completed' : 'rollback_failed', actor: getAuth(req)?.userId || 'unknown-staff', details: {}, evidence: result.evidence }).catch(() => {});
     reply.send(result);
   });

@@ -494,6 +494,60 @@ completion" principle.
   re-runs full regression after each batch — the same three-step pattern
   migration 059 already proved works cleanly.
 
+## RISK-013 — `MigrationExecutionService.rollback()` had no object-level ownership check for a destructive `DROP SCHEMA CASCADE` — fixed; sibling methods still lack it
+
+- **Status**: `RESOLVED` for `rollback()`; `OPEN` for `execute()`/`validate()`/`dryRun()`/`getRun()` (same missing-clientId shape, lower urgency, not fixed this pass)
+- **Severity**: Medium-High for `rollback` specifically (a genuinely
+  destructive, irreversible `DROP SCHEMA ... CASCADE`); Low for the
+  read-mostly/transactional siblings
+- **Found in**: `risk_test_1`'s continuation into capability #44 (Migration
+  Rollback Engine), 2026-08-24 — investigating the coverage matrix's
+  (incorrect) "NOT_STARTED" claim led to discovering `rollback()` already
+  existed and was already wired to a real, RBAC-gated route, but took only
+  an opaque `migrationId` with no way to confirm the caller genuinely
+  intends to affect a specific client's migration — the exact "trust an
+  opaque id alone" pattern already fixed for connectors/deployments/risks/
+  UAT this session, here on the single most destructive migration
+  operation in the platform.
+- **Real impact**: any staff Admin.Access token could pass ANY
+  `migrationId` (not necessarily one they meant to target) and the schema
+  would be dropped with no cross-check against an intended client — a real
+  risk of an accidental or careless cross-client destructive action, even
+  though staff already has legitimate broad cross-client access by this
+  platform's own design (so this is a "wrong target by mistake" safety net,
+  not a tenant-isolation bypass in the IDOR sense).
+- **Fixed this pass**: `rollback(migrationId, clientId?)` — `clientId`
+  optional (backward-compatible with this service's own pre-existing,
+  already-passing test suite, which calls it with no `clientId`); when
+  provided, a real `MigrationOwnershipError` is thrown on mismatch. The
+  real HTTP route (`POST /oc/migration/:migrationId/rollback`) now always
+  supplies `?clientId=` and maps the ownership error to a safe `404`. The
+  one real caller in the web app (`migrations/[migrationId]/detail-view.tsx`)
+  updated to send it. Proven live: a real Client B `clientId` cannot roll
+  back Client A's real migration — the real target schema is confirmed
+  still present via `information_schema` afterward, not just a rejected
+  response.
+- **Mechanical audit performed**: `execute()`, `validate()`, `dryRun()`,
+  and `getRun()` share the identical "no `clientId` parameter" shape.
+  **Not fixed this pass** — `execute`/`dryRun`/`validate` are additive or
+  read-only (no destructive `DROP`), a materially lower severity than
+  `rollback`, and retrofitting all 4 (plus their route call sites) is a
+  larger, separate body of work; tracked here rather than silently
+  discovered-and-ignored, matching this pass's own `RISK-012` precedent
+  for scoping a mechanical audit's fix to the highest-severity instance
+  found.
+- **Evidence**: `apps/api/tests/migration-rollback-test-1.test.ts` (7 new
+  tests) — real schema creation, real execute, real rollback with
+  independent `information_schema` re-verification (never trusting the
+  return value alone), real cross-client ownership block with the target
+  schema confirmed still present, backward-compatibility preserved, real
+  HTTP-layer proof. Full regression re-run for both pre-existing migration
+  test files (`operation-framework.test.ts`, `migrations-routes.test.ts`)
+  confirmed zero regression from the signature change.
+- **Suggested fix**: apply the same optional-`clientId` pattern to
+  `execute`/`validate`/`dryRun`/`getRun` and their route call sites in a
+  dedicated follow-up pass.
+
 ---
 
 ## Mechanical cross-reference
