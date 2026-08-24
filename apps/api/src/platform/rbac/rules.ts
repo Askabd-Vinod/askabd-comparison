@@ -65,6 +65,35 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   { method: 'POST', path: '/api/v1/oc/clients', permissions: ['Admin.Access'] },
   { method: 'PUT', path: '/api/v1/oc/clients/:id', permissions: ['Admin.Access'] },
 
+  // ─── RISK-014 triage pass (2026-08-24) — same shape as the Portfolio ────────
+  // Intelligence gap above: real, platform-wide, cross-client data with zero
+  // tenant-scoping backstop and no explicit rule, falling through to
+  // defaultPolicy:'authenticated'. Each confirmed by reading its handler in
+  // full AND confirmed the customer-facing `(portal)` frontend never calls
+  // any of them (only staff `(app)` pages/components do) before gating.
+  // GET /oc/clients lists EVERY client on the platform; GET /oc/clients/:id
+  // fetches ANY client by id with no ownership check at all (unlike
+  // PUT :id above, this route has no tenant-access.ts backstop either).
+  { method: 'GET', path: '/api/v1/oc/clients', permissions: ['Admin.Access'] },
+  // GET /oc/clients/health-summary computes and returns every client's real
+  // health score in one response — a direct cross-client aggregate leak.
+  // Listed BEFORE the :id rule below (both require the same permission here,
+  // but :id is a single-segment wildcard that would otherwise shadow this
+  // exact path first-match-wins — see rules.ts's own "more specific rules
+  // first" convention at the top of this file).
+  { method: 'GET', path: '/api/v1/oc/clients/health-summary', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/clients/:id', permissions: ['Admin.Access'] },
+  // GET/POST /oc/audit is the full platform audit log across ALL entities —
+  // read exposes every client's audit trail; write allows injecting
+  // fabricated audit entries attributed to any actor/entity.
+  { method: 'GET', path: '/api/v1/oc/audit', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/audit', permissions: ['Admin.Access'] },
+  // GET /oc/notifications with no clientId query param returns every
+  // client's notifications; POST creates a notification for an arbitrary
+  // clientId with no ownership check.
+  { method: 'GET', path: '/api/v1/oc/notifications', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/notifications', permissions: ['Admin.Access'] },
+
   // ─── Client Service Assignment (governance-sensitive — admin only) ──────────
   // Only admin/super_admin may confirm or remove a client's service assignment.
   // The auth middleware (middleware/auth.ts) now reads real roles/permissions

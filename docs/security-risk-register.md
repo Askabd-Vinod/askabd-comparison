@@ -548,18 +548,31 @@ completion" principle.
   `execute`/`validate`/`dryRun`/`getRun` and their route call sites in a
   dedicated follow-up pass.
 
-## RISK-014 — `PortfolioIntelligenceService`'s real cross-client routes had no RBAC (fixed); 46 more candidate routes found by the same mechanical audit, not yet individually triaged
+## RISK-014 — `PortfolioIntelligenceService`'s real cross-client routes had no RBAC (fixed); individual triage in progress on the remaining candidates found by the same mechanical audit
 
-- **Status**: `RESOLVED` for the 7 confirmed routes (real, cross-client
-  platform business intelligence, no legitimate reason to be open to a
-  customer token); `OPEN` for the 46 remaining candidate routes below
-  (each needs individual investigation — some are very likely legitimate,
-  see below — not blindly fixed)
-- **Severity**: High for the 7 resolved routes (real financial
+- **Status**: `RESOLVED` for 14 routes total across two passes — the
+  original 7 (`PortfolioIntelligenceService`) plus 7 more found in the
+  2026-08-24 triage pass (`GET/POST /oc/clients` family, `/oc/audit`,
+  `/oc/notifications` — see that pass's update below for the full list).
+  `VERIFIED NOT A GAP` for 3 more (`/oc/operations`, `POST /oc/defects`,
+  `POST /oc/incidents` WITH a clientId — already correctly denied by
+  the pre-existing `tenant-access.ts` body/query-clientId check,
+  confirmed live, not by reading alone). `OPEN, low severity, disclosed`
+  for 1 (`POST /oc/incidents` with clientId omitted — creates an
+  unattributed `client_id: NULL` record, a data-hygiene issue, not a
+  tenant leak). `OPEN, untriaged` for 1 newly-identified item of a
+  different shape (`POST /oc/service-actions` — opaque `entityId`
+  ownership, no `clientId` concept exists on this route at all).
+  `OPEN, fully untriaged` for the remaining 35 (each still needs
+  individual investigation — some are very likely legitimate, see
+  below — none blindly fixed).
+- **Severity**: High for the 14 resolved routes (real financial
   investment/savings/ROI data, real cross-client problem/gap/technology
-  patterns, real resource allocation — genuine AskABD business
-  intelligence, not any single client's data, but still never meant for
-  a customer token); Unknown/mixed for the 46 untriaged candidates
+  patterns, real resource allocation, real full client directory/audit
+  log/notification stream — genuine AskABD or cross-client business
+  data, never meant for a customer token); Low for the 1 disclosed
+  data-hygiene item; Unknown for the 1 opaque-entityId item and the 35
+  fully untriaged candidates
 - **Found in**: `executive_reporting_test_1` continuation (2026-08-24) —
   investigating coverage matrix row #68 ("Analytics Engine") led to
   reading `portfolio-intelligence-service.ts` in full, which surfaced 8
@@ -663,6 +676,77 @@ completion" principle.
   reduce the 46 still-untriaged candidates from the earlier update —
   it independently confirms the broader sweep was complete and that at
   least these 2 of the "plausibly legitimate" category genuinely are.
+- **Update (2026-08-24, `risk_014_triage_test_1` — individual triage pass
+  on the "most likely place a genuine further finding exists" group)**:
+  read all 11 handlers in that group in full (`GET/POST /oc/clients`,
+  `GET /oc/clients/:id`, `GET /oc/clients/health-summary`, `GET/POST
+  /oc/audit`, `GET /oc/operations`, `POST /oc/service-actions`,
+  `GET/POST /oc/notifications`, `POST /oc/defects`, `POST /oc/incidents`)
+  and independently confirmed (grep across `apps/web/src/app/(portal)`)
+  that the customer-facing portal frontend never calls any of them —
+  only staff `(app)` pages/components do.
+  - **7 confirmed real gaps, FIXED this pass** (real Admin.Access rules
+    added to `rules.ts`, proven live with `risk_014_triage_test_1.test.ts`,
+    5/5): `GET /oc/clients` (lists every client on the platform),
+    `GET /oc/clients/:id` (fetches ANY client by id — unlike `PUT :id`,
+    this had no `tenant-access.ts` backstop either), `GET /oc/clients
+    /health-summary` (every client's real health score in one response),
+    `GET /oc/audit` (the full platform audit log across every client and
+    entity), `POST /oc/audit` (write access to inject fabricated audit
+    entries for any actor/entity), `GET /oc/notifications` (every
+    client's notifications when no `clientId` query param is supplied),
+    `POST /oc/notifications` (create a notification for an arbitrary
+    `clientId`, no ownership check).
+  - **4 investigated with a real live test (`app.inject`, not just
+    reading the handler) before assuming a gap** — this correction
+    matters: `tenant-access.ts`'s `extractClientId` already inspects
+    BOTH `request.body.clientId` AND `request.query.clientId` for every
+    `/api/v1/oc/**` route generically (see that file's own doc comment
+    and the pre-existing `tenant-access-body-query.test.ts`), so a
+    naive "this route has a clientId in the body/query with no rule in
+    `rules.ts`" read is NOT sufficient to conclude a gap — it must be
+    checked against the live middleware chain, not `rules.ts` alone.
+    Doing so found:
+    `GET /oc/operations?clientId=<foreign>` → **already correctly
+    denied**, `403 tenant_not_resolved` (live-verified); with no
+    `clientId` at all it returns `{operations:[]}` before any query
+    ever runs — not a leak either way. **Not a gap — closed by
+    verification, no fix needed.**
+    `POST /oc/defects` / `POST /oc/incidents` with a foreign `clientId`
+    in the body → **already correctly denied**, `403
+    tenant_not_resolved` (live-verified). **Not a gap — closed by
+    verification, no fix needed.**
+    `POST /oc/incidents` with `clientId` OMITTED entirely → tenant
+    -access.ts has nothing to check (by design — "route is not
+    client-scoped by URL param" applies equally to an absent body
+    field) and the route itself accepts `body.clientId || null`,
+    creating a real, successfully-persisted incident with
+    `client_id: NULL` — an unattributed record any authenticated
+    identity (including a customer token) can create at will. Real,
+    but a data-hygiene/potential-noise issue, not a cross-tenant data
+    leak — no client's existing data is exposed or altered. **Left
+    OPEN, low severity, disclosed** (a rate-limit or "must supply a
+    real, mapping-authorized clientId" constraint would close it; not
+    fixed this pass).
+    `POST /oc/service-actions` — **the original claim was wrong**:
+    `ServiceActionInput`/`oc_service_actions` has no `client_id`
+    concept at all (verified by reading the real interface and INSERT
+    in `operations-center-service.ts` directly) — it is keyed by an
+    opaque `entityId`/`entityType`, the exact class of route
+    `tenant-access.ts`'s own doc comment already discloses as
+    out-of-scope ("routes that reference a client only indirectly
+    through an opaque resource ID ... requiring a DB lookup to resolve
+    ownership remain NOT covered here"). Whether that `entityId`
+    legitimately allows a customer to record an action against another
+    client's entity is a real, genuinely open question this pass did
+    NOT resolve — **left OPEN, untriaged, disclosed** as its own item
+    (not merged with the clientId-shaped findings above, since it isn't
+    one).
+  - **Remaining untriaged from the original 46**: 35 (the `/oc/me/*`,
+    OTP, jira-webhook, body-clientId-scoped, and catalog/reference
+    groups from the original update, still not independently
+    re-confirmed this pass) **plus** the newly-identified
+    `POST /oc/service-actions` opaque-entityId question above.
 
 ---
 
