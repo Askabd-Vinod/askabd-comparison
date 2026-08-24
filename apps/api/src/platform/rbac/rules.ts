@@ -211,12 +211,56 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   // enforced by tenant-access (non-admin roles are already denied there).
   // `GET /jira/config` is intentionally left ungated — it never returns the
   // token (masked at the service layer) and matches the read-only precedent
-  // of other ungated GETs. `POST /jira/webhook` is intentionally NOT gated —
-  // it is Jira calling AskABD, not a user action; it would never carry an
-  // AskABD Admin.Access-permission token.
+  // of other ungated GETs — independently re-verified true during the
+  // 2026-08-24 RISK-014 triage pass (`jira-integration-service.ts`'s
+  // `getConfig` does mask `authToken` with `••••••••`; `authEmail`/`baseUrl`
+  // remain visible to any authenticated identity — reviewed and accepted as
+  // low-severity internal-tooling metadata, not re-gated this pass). `POST
+  // /jira/webhook` is intentionally NOT gated — it is Jira calling AskABD,
+  // not a user action; it would never carry an AskABD Admin.Access
+  // -permission token. NOTE (2026-08-24, RISK-014/RISK-015): that reasoning
+  // only explains why Jira itself doesn't need a rule here — it does not
+  // mean the route is actually safe. It currently has NO real signature
+  // /shared-secret verification at all (despite docs claiming otherwise),
+  // so gating it Admin.Access would not help anyway (Jira can't present
+  // staff credentials either) — see docs/security-risk-register.md
+  // RISK-015 for the real fix this route still needs.
   { method: 'POST', path: '/api/v1/oc/jira/config', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/jira/test', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/jira/sync', permissions: ['Admin.Access'] },
+
+  // ─── Platform commercial summary (RISK-014 triage pass, 2026-08-24) ─────────
+  // Same shape and severity as the already-fixed Portfolio Intelligence gap:
+  // real, cross-client AskABD commercial/financial data (every engagement's
+  // real investment/contracted/realized values, aggregated AND itemized in a
+  // `pipeline` of up to 20 real engagements with real client names) with no
+  // `:clientId` in the path and, before this fix, no RBAC rule at all —
+  // falling through to `defaultPolicy:'authenticated'`. Confirmed via grep
+  // that only the staff-only `(app)/platform/commercial/page.tsx` calls it.
+  { method: 'GET', path: '/api/v1/oc/platform/commercial/summary', permissions: ['Admin.Access'] },
+
+  // ─── Workflow automation rules/executions (RISK-014 triage, 2026-08-24) ─────
+  // Found via a corrected mechanical audit that (unlike the earlier "451
+  // routes, all methods covered" pass) actually parses PUT/PATCH/DELETE
+  // registrations too — a real completeness gap in this session's own prior
+  // audit tooling, not just in the routes it was checking (see the
+  // RISK-014 update below for the honest correction to that earlier claim).
+  // GET /oc/workflow/executions returns EVERY client's real automation
+  // -execution history (event type, rule, status, client_id) when no
+  // `?clientId=` filter is supplied — the same unscoped-aggregate-leak shape
+  // already fixed for GET /oc/notifications. POST /oc/workflow/rules and
+  // PATCH /oc/workflow/rules/:ruleId/toggle are unprotected WRITES to the
+  // platform's own automation-rule definitions — any authenticated identity
+  // could create arbitrary rules or disable real ones (e.g. escalation/
+  // notification automation), an integrity risk distinct from read exposure.
+  // GET /oc/workflow/rules (read-only rule DEFINITIONS, no client data) is
+  // deliberately left ungated — same reasoning as GET /oc/capabilities and
+  // GET /oc/compliance/frameworks below: genuinely global reference/config
+  // data, not per-client. Confirmed via grep that only the staff-only
+  // `(app)/platform/workflows/page.tsx` calls any of these three.
+  { method: 'GET', path: '/api/v1/oc/workflow/executions', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/workflow/rules', permissions: ['Admin.Access'] },
+  { method: 'PATCH', path: '/api/v1/oc/workflow/rules/:ruleId/toggle', permissions: ['Admin.Access'] },
 
   // ─── Client invitations — admin-only management ─────────────────────────────
   // Creating/listing/resending/revoking an invitation is how a real identity AND a

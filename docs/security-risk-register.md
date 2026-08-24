@@ -836,6 +836,59 @@ completion" principle.
     the prior update, accounting for 18 of the original 46.) **Plus**
     the newly-identified `POST /oc/service-actions` opaque-entityId
     question from the prior update.
+- **Update (2026-08-24, `risk_014_triage_test_3` — a corrected, more
+  complete mechanical sweep, plus 3 more real gaps it found)**: **an
+  honest correction to this session's own earlier audit claim.**
+  `dependency_analysis_test_1`'s "final mechanical audit pass" (see this
+  file's own earlier update above) claimed "re-ran the same mechanical
+  script across ALL route files ... covering all 451 real registered
+  routes in the platform" and found only 2 more candidates. That script
+  is now known to have had incomplete method coverage — re-deriving it
+  from scratch to actually parse every `server.<method>()` registration
+  (GET/POST/PUT/PATCH/DELETE, not evidently GET/POST alone) across every
+  route file finds **512 real registered routes, not 451**, and a
+  materially larger real candidate set (69, vs. the 2 claimed). This is
+  disclosed plainly rather than left standing: the earlier "only 2 more"
+  claim was **wrong**, not merely incomplete-by-design — it should have
+  said "2 more found by a script that does not parse PATCH/PUT/DELETE
+  registrations," not "2 more, full stop." The corrected script and its
+  full 69-candidate output are preserved in this update for anyone
+  re-running this triage.
+  - Of the 69, most are already-triaged `/oc/**` routes now confirmed
+    safe by the updates above (`/oc/me/*`, lifecycle/discovery/
+    assessment body-clientId group, capabilities/compliance/service
+    -bundles catalog group, `jira/issues`, `jira/config` GET, staff
+    -roles bootstrap, invitations lookup/accept), OR routes belonging to
+    a **different product surface entirely** — the original
+    merchant/brand/review/pricing comparison-marketplace routes
+    (`/api/v1/admin/brands/*`, `/api/v1/merchants/*`,
+    `/api/v1/admin/merchants/*`, `/api/v1/admin/verifications/*`,
+    `/api/v1/admin/reviews/*`, `/api/v1/prices`, `/api/v1/offers`,
+    `/api/v1/platform/services/*`, etc.) — which RISK-014's own scope has
+    never been (it has always been specifically about the Enterprise
+    Operations Centre's `/oc/**` surface). These are **disclosed here as
+    a real, separate, out-of-scope-for-RISK-014 finding**, not silently
+    dropped: that whole surface has never had an equivalent mechanical
+    RBAC-gap audit performed against it this session, and should get one
+    as its own dedicated pass, not folded into this entry.
+  - **3 real, confirmed, previously-undisclosed `/oc/**` gaps — FIXED**
+    this pass, each verified via grep to be called only by staff
+    `(app)/platform/*` pages, never the customer `(portal)`:
+    `GET /oc/platform/commercial/summary` (real, cross-client AskABD
+    commercial/financial data — same shape and severity as the
+    already-fixed Portfolio Intelligence gap); `GET /oc/workflow
+    /executions` (every client's real automation-execution history when
+    no `?clientId=` filter is supplied — same unscoped-aggregate-leak
+    shape as the already-fixed `GET /oc/notifications`); `POST /oc
+    /workflow/rules` and `PATCH /oc/workflow/rules/:ruleId/toggle`
+    (unprotected writes to the platform's own automation-rule
+    definitions — an integrity risk: any authenticated identity could
+    create arbitrary rules or disable real escalation/notification
+    automation). All 3 (4 routes) gated `Admin.Access`, live-proven with
+    `risk-014-triage-test-3.test.ts`, 7/7 passing. `GET /oc/workflow
+    /rules` (read-only rule definitions, no client data) investigated
+    and left deliberately ungated — genuinely global config, the same
+    reasoning already applied to `GET /oc/capabilities`.
 
 ---
 
@@ -876,6 +929,62 @@ completion" principle.
   `docs/production-connection-readiness.md`'s "Shared secret header
   validation" line to state the true current status rather than the
   intended one.
+
+---
+
+## RISK-016 — the comparison-marketplace surface (`/api/v1/merchants/**`, `/api/v1/admin/brands/**`, `/api/v1/admin/reviews/**`, pricing/offers, `/api/v1/platform/services/**`) has never had RISK-014's mechanical RBAC-gap sweep run against it
+
+- **Status**: `OPEN`, fully untriaged — disclosed, not investigated this
+  pass
+- **Severity**: Unknown — genuinely unassessed. Some candidates in this
+  group are very plausibly fine by design (e.g.
+  `POST /api/v1/merchants/register` reads as a real, intentional
+  self-service merchant-signup endpoint — `authenticatedOnly`-shaped by
+  nature, not a gap), but none have been individually read the way every
+  `/oc/**` candidate in RISK-014 was.
+- **Found in**: `risk_014_triage_test_3` (2026-08-24) — a corrected,
+  more complete version of RISK-014's mechanical sweep (now covering
+  PUT/PATCH/DELETE registrations, not just GET/POST) surfaced 512 real
+  registered routes platform-wide, not the 451 previously claimed, and a
+  meaningful fraction of the newly-visible candidates belong to this
+  entirely different product surface — the original comparison
+  /merchant/brand/review/pricing marketplace, not the Enterprise
+  Operations Centre. RISK-014 has always been explicitly scoped to
+  `/oc/**`; this surface was never in scope for any prior pass and has
+  never been individually triaged at all.
+- **Representative untriaged candidates** (not exhaustive — see the
+  `risk_014_triage_test_3` script output for the full list):
+  `POST /api/v1/admin/brands`, `PUT /api/v1/admin/brands/:id`,
+  `POST /api/v1/admin/brands/:id/archive`,
+  `POST /api/v1/admin/brands/:id/restore`,
+  `POST /api/v1/merchants/register`,
+  `POST /api/v1/admin/merchants/:id/approve`,
+  `POST /api/v1/admin/merchants/:id/suspend`,
+  `POST /api/v1/admin/merchants/:id/reactivate`,
+  `POST /api/v1/merchants/:id/verification`,
+  `POST /api/v1/admin/verifications/:id/review`,
+  `POST /api/v1/merchants/:id/branches`,
+  `POST /api/v1/prices`, `POST /api/v1/offers`,
+  `GET /api/v1/offers/trending`, `POST /api/v1/reviews`,
+  `POST /api/v1/reviews/:id/helpful`,
+  `GET /api/v1/admin/reviews/pending`,
+  `POST /api/v1/admin/reviews/:id/moderate`, the entire
+  `/api/v1/platform/services/**` family (health, recovery, registry,
+  preflight, go-no-go), and `GET /api/v1/admin/templates/:id/attributes`.
+- **Why not fixed or even triaged this pass**: this session's entire
+  focus, across every prior pass, has been the Enterprise Operations
+  Centre; the comparison-marketplace domain is a materially different
+  product surface with its own business rules (several of these plainly
+  read as intentionally-public self-service actions, e.g. merchant
+  registration and review submission) that would need to be understood
+  on their own terms before any RBAC change — exactly the "large,
+  separate body of work, disclosed not blindly fixed" reasoning already
+  applied to every other large remainder this session.
+- **Suggested fix**: a dedicated future pass, scoped specifically to this
+  surface, that reads each candidate's real business intent (is this
+  meant to be self-service/public, staff-only, or role-specific) before
+  any RBAC change — the same discipline RISK-014's `/oc/**` passes used,
+  not a blind batch application of `Admin.Access`.
 
 ---
 
