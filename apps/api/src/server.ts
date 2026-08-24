@@ -21,6 +21,7 @@ import { testingEngineRoutes } from './routes/testing-engine-routes.js';
 import { uatRoutes } from './routes/uat-routes.js';
 import { releaseReadinessRoutes } from './routes/release-readiness-routes.js';
 import { deploymentRoutes } from './routes/deployment-routes.js';
+import { riskRoutes } from './routes/risk-routes.js';
 import { connectionSecurityRoutes } from './routes/connection-security-routes.js';
 import { registerAuthMiddleware } from './middleware/auth.js';
 import { registerRateLimitMiddleware } from './middleware/rate-limit.js';
@@ -216,6 +217,7 @@ export async function createServer(): Promise<FastifyInstance> {
   await server.register(uatRoutes, { prefix: '/api/v1' });
   await server.register(releaseReadinessRoutes, { prefix: '/api/v1' });
   await server.register(deploymentRoutes, { prefix: '/api/v1' });
+  await server.register(riskRoutes, { prefix: '/api/v1' });
   await server.register(connectionSecurityRoutes, { prefix: '/api/v1' });
   await server.register(platformServicesRoutes);
   return server;

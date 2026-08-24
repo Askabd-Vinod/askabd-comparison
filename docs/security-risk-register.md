@@ -431,6 +431,69 @@ completion" principle.
   `recordRollbackOutcome` with genuine evidence from an actual pipeline
   run, once such a pipeline exists for a real client engagement.
 
+## RISK-012 — Many client-scoped tables have `client_id` with NO foreign key to `oc_clients` — real orphaned rows found and partially fixed
+
+- **Status**: `RESOLVED` for the 4 tables in the Gap/Decision/Transformation
+  domain (`oc_gaps`, `oc_gap_options`, `oc_decisions`, `oc_transformations`
+  — migration 059); `OPEN` for the platform-wide pattern (39 more
+  occurrences across 15 other migration files, not fixed this pass)
+- **Severity**: Medium (data-integrity, not a security/data-leak issue —
+  orphaned rows belong to already-deleted clients, so no live client's
+  data was ever exposed or at risk; the real harm is accumulating dead
+  data and a false sense that "delete a client" is a clean, complete
+  operation when for these tables it silently wasn't)
+- **Found in**: `risk_test_1` (2026-08-24) — the standing "verify zero
+  orphan records after every QA cycle" check on the newly-built Risk
+  Engine (which links to `oc_gaps` as a real risk source) surfaced **1026
+  real orphaned `oc_gaps` rows** (`client_id` matching no existing
+  `oc_clients` row), plus 6/1/56 orphaned rows in
+  `oc_gap_options`/`oc_decisions`/`oc_transformations` respectively —
+  accumulated across many prior sessions' test/QA runs, not introduced
+  this pass.
+- **Root cause, confirmed by reading migration 037 directly**: all 4
+  tables declare `client_id TEXT NOT NULL` with no
+  `REFERENCES oc_clients(id)` at all, so deleting a client via
+  `DELETE FROM oc_clients WHERE id = $1` never cascaded to (or was
+  blocked by) these tables — every test file's own `afterAll` that forgot
+  to explicitly clean these 4 tables silently left real orphans behind
+  forever, with nothing ever surfacing the accumulation until this pass's
+  own zero-orphans check happened to touch this exact domain.
+- **Mechanical audit performed** (per the standing "same pattern
+  everywhere" mandate): `grep -rn "client_id TEXT NOT NULL,$"
+  apps/api/src/db/migrations/*.sql` found **43 occurrences across 19
+  migration files** — this is a real, sprawling, PRE-EXISTING pattern
+  spanning nearly the whole platform's schema (e.g.
+  `006_operations_center.sql`, `007_connectors_discovery.sql`,
+  `009_client_documents.sql`, `020_commercial_engagement.sql`,
+  `034_client_database_connections.sql`, `038_business_requirements.sql`,
+  and 13 more), not something introduced this session.
+- **Fixed this pass**: migration 059 — deleted the real orphaned rows
+  (data belonging to already-deleted clients, safe to remove; both
+  protected real clients `AskABD Manual UAT 2026`/`Test1` confirmed
+  unchanged before and after), then added the missing
+  `REFERENCES oc_clients(id) ON DELETE CASCADE` constraint to all 4
+  tables in the Gap/Decision/Transformation domain — the one domain this
+  pass's own new Risk Engine directly links to. Verified: migration
+  applied cleanly (would have failed if any remaining row violated the
+  new constraint), full API regression run afterward with zero
+  unexplained failures.
+- **Why NOT fixed platform-wide this pass**: retrofitting foreign keys
+  onto 19 migration files' worth of tables, each needing its own
+  orphan-cleanup-then-constrain migration and its own regression
+  verification, is a large, cross-cutting, genuinely separate body of
+  work from "build the Risk Engine" — correctly out of scope for a single
+  feature pass, matching this session's own established precedent
+  (RISK-009's 100+ `req.body` occurrences, the 41-file `mockClients`
+  gap). Tracked here precisely (with the exact grep command used) so a
+  future dedicated pass can act on it directly rather than re-discovering
+  it.
+- **Suggested fix**: a dedicated pass that, for each of the remaining 39
+  occurrences, (a) checks for and cleans any real orphaned rows, (b) adds
+  the missing FK with `ON DELETE CASCADE` (matching this session's own
+  now-established convention for every client-scoped table), and (c)
+  re-runs full regression after each batch — the same three-step pattern
+  migration 059 already proved works cleanly.
+
 ---
 
 ## Mechanical cross-reference
