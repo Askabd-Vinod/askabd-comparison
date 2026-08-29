@@ -83,6 +83,32 @@ async function assertRbacDenied(path: string): Promise<{ status: number; denied:
   }
 }
 
+/**
+ * Real audit-row lookup with a short, bounded retry (final_validation_test_1
+ * finding: `OperationsCenterService`'s own `auditBestEffort()` deliberately
+ * fires the audit write without awaiting it — "primary operation already
+ * succeeded" — a real, correct design choice so a slow/failing audit write
+ * never blocks or fails the real client-creation operation it accompanies.
+ * That created a genuine, live-observed race here: this journey checked for
+ * the audit row immediately after `createClient()` returned and sometimes
+ * lost the race, reporting a real client as `FAILED` even though the audit
+ * write itself was never actually missing — only not yet committed. Still a
+ * real check against the real table, never a fabricated pass: if the row
+ * genuinely never appears within the retry window, this correctly reports
+ * failure, exactly as before.
+ */
+async function findAuditRowWithRetry(entityType: string, entityId: string, action: string, attempts = 5, delayMs = 150): Promise<boolean> {
+  for (let i = 0; i < attempts; i++) {
+    const row = await sharedPool.query(
+      `SELECT 1 FROM oc_audit_log WHERE entity_type = $1 AND entity_id = $2 AND action = $3 LIMIT 1`,
+      [entityType, entityId, action],
+    );
+    if (row.rows.length > 0) return true;
+    if (i < attempts - 1) await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  return false;
+}
+
 export class BusinessJourneyEngine {
   private oc = new OperationsCenterService();
   private reporting = new ExecutiveReportingEngine();
@@ -159,9 +185,11 @@ export class BusinessJourneyEngine {
       steps.push({ name: 'RBAC denies unauthenticated access', status: rbac.denied ? 'passed' : 'failed', detail: rbac.denied ? `Real 401/403 (${rbac.status})` : `Expected a deny, got HTTP ${rbac.status}` });
       if (!rbac.denied) status = 'failed';
 
-      // STEP 5 — real audit assertion.
-      const auditRow = await sharedPool.query(`SELECT action, actor FROM oc_audit_log WHERE entity_type = 'client' AND entity_id = $1 AND action = 'created'`, [clientId]);
-      const auditOk = auditRow.rows.length > 0;
+      // STEP 5 — real audit assertion. Bounded retry: createClient()'s own
+      // audit write is deliberately fire-and-forget (see
+      // findAuditRowWithRetry's own doc comment) — a real client created
+      // moments ago can genuinely still be mid-write, not actually missing.
+      const auditOk = await findAuditRowWithRetry('client', client.id, 'created');
       auditResult = { entityType: 'client', entityId: clientId, action: 'created', found: auditOk };
       steps.push({ name: 'Real audit log entry exists', status: auditOk ? 'passed' : 'failed', detail: auditOk ? 'Real oc_audit_log row found' : 'No matching audit row found' });
       if (!auditOk) status = 'failed';

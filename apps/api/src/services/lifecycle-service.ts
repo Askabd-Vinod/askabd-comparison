@@ -77,17 +77,21 @@ export interface LifecycleRecord {
 
 export class LifecycleService {
 
+  // Real, honest failure behavior (final_validation_test_1 fabrication-audit
+  // fix): the legitimate "no lifecycle record yet" case (`rows.length === 0`)
+  // is unchanged; removed the outer catch that used to fabricate the
+  // identical `null` for a genuine query failure too — a real client's
+  // onboarding-stage lookup failing would previously have looked exactly
+  // like "onboarding not started," a real, disclosed fabrication risk.
   async getLifecycle(clientId: string): Promise<LifecycleRecord | null> {
-    try {
-      const res = await dbPool.query('SELECT * FROM oc_lifecycle WHERE client_id = $1', [clientId]);
-      if (res.rows.length === 0) return null;
-      const row = res.rows[0];
-      return {
-        clientId: row.client_id, status: row.status,
-        previousStatus: row.previous_status, events: row.events || [],
-        version: row.version || 1, updatedAt: row.updated_at, createdAt: row.created_at,
-      };
-    } catch { return null; }
+    const res = await dbPool.query('SELECT * FROM oc_lifecycle WHERE client_id = $1', [clientId]);
+    if (res.rows.length === 0) return null;
+    const row = res.rows[0];
+    return {
+      clientId: row.client_id, status: row.status,
+      previousStatus: row.previous_status, events: row.events || [],
+      version: row.version || 1, updatedAt: row.updated_at, createdAt: row.created_at,
+    };
   }
 
   async initializeLifecycle(clientId: string, initialStatus: string = 'organization-created'): Promise<LifecycleRecord> {

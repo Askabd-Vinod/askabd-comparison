@@ -3352,15 +3352,33 @@ export async function operationsCenterRoutes(server: FastifyInstance): Promise<v
    * row on every directory page view. A client with no snapshot yet (health-score
    * never computed for them) is reported honestly as overallScore: null, not zero.
    */
-  server.get('/oc/clients/health-summary', async () => {
+  server.get('/oc/clients/health-summary', async (req) => {
     const { clients } = { clients: await ocService.listClients({}) };
+    // Per-client error isolation (final_validation_test_1 fabrication-audit
+    // fix): getLatestSnapshot() no longer swallows a real DB failure into a
+    // fabricated `null` (see client-health-service.ts) — genuinely correct
+    // for the single-client route, which now safely 500s on a real failure.
+    // This BULK endpoint aggregates every client in one response, so letting
+    // one client's real query failure reject the whole Promise.all would
+    // blank the entire directory dashboard over one bad row — worse than the
+    // old silent-null behavior, not better. Isolated here instead: a real
+    // failure is caught per-client, logged (never silent), and surfaced as
+    // an explicit `error: true` flag — distinguishable from a genuine "no
+    // snapshot yet" client (`overallScore: null, error: false`), never
+    // conflated with it.
     const summaries = await Promise.all(clients.map(async (c: any) => {
-      const snapshot = await healthScoreService.getLatestSnapshot(c.id);
-      return {
-        clientId: c.id,
-        overallScore: snapshot ? snapshot.overall_score : null,
-        computedAt: snapshot ? snapshot.computed_at : null,
-      };
+      try {
+        const snapshot = await healthScoreService.getLatestSnapshot(c.id);
+        return {
+          clientId: c.id,
+          overallScore: snapshot ? snapshot.overall_score : null,
+          computedAt: snapshot ? snapshot.computed_at : null,
+          error: false,
+        };
+      } catch (err) {
+        req.log.error({ err, clientId: c.id }, 'health-summary: failed to load a real client health snapshot');
+        return { clientId: c.id, overallScore: null, computedAt: null, error: true };
+      }
     }));
     return { summaries };
   });

@@ -94,11 +94,14 @@ export class ConnectorService {
   /**
    * Get connector status for a client from database
    */
+  // Real, honest failure behavior (final_validation_test_1 fabrication-audit
+  // fix): previously swallowed any real DB error into a fabricated empty
+  // result, indistinguishable from "this client genuinely has zero
+  // connectors." A real failure now propagates to the platform's own safe
+  // global error handler instead.
   async getConnectors(clientId: string): Promise<any[]> {
-    try {
-      const res = await dbPool.query('SELECT id, provider, name, status, security_level, configuration, last_tested_at, last_test_duration_ms, last_test_mode, validation_steps, error_message, updated_at FROM oc_connectors WHERE client_id = $1 ORDER BY provider, name', [clientId]);
-      return res.rows;
-    } catch { return []; }
+    const res = await dbPool.query('SELECT id, provider, name, status, security_level, configuration, last_tested_at, last_test_duration_ms, last_test_mode, validation_steps, error_message, updated_at FROM oc_connectors WHERE client_id = $1 ORDER BY provider, name', [clientId]);
+    return res.rows;
   }
 
   /**
@@ -119,13 +122,11 @@ export class ConnectorService {
    * must present that honestly rather than inventing placeholder rows.
    */
   async getConnectionTests(clientId: string, limit = 50): Promise<any[]> {
-    try {
-      const res = await dbPool.query(
-        'SELECT id, provider, status, mode, duration_ms, steps, error_message, tested_at FROM oc_connection_tests WHERE client_id = $1 ORDER BY tested_at DESC LIMIT $2',
-        [clientId, limit],
-      );
-      return res.rows;
-    } catch { return []; }
+    const res = await dbPool.query(
+      'SELECT id, provider, status, mode, duration_ms, steps, error_message, tested_at FROM oc_connection_tests WHERE client_id = $1 ORDER BY tested_at DESC LIMIT $2',
+      [clientId, limit],
+    );
+    return res.rows;
   }
 
   /**

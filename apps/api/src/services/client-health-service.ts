@@ -94,14 +94,18 @@ export class ClientHealthService {
   /**
    * Get the most recent health snapshot for a client.
    */
+  // Real, honest failure behavior (final_validation_test_1 fabrication-audit
+  // fix): the legitimate "no snapshot yet" case (`res.rows[0] || null`) is
+  // unchanged; removed the outer catch that used to fabricate the identical
+  // `null` for a genuine query failure too — that now propagates to the
+  // platform's own safe global error handler instead of looking like a
+  // client with no health history.
   async getLatestSnapshot(clientId: string): Promise<any | null> {
-    try {
-      const res = await dbPool.query(
-        'SELECT * FROM oc_client_health_snapshots WHERE client_id = $1 ORDER BY computed_at DESC LIMIT 1',
-        [clientId]
-      );
-      return res.rows[0] || null;
-    } catch { return null; }
+    const res = await dbPool.query(
+      'SELECT * FROM oc_client_health_snapshots WHERE client_id = $1 ORDER BY computed_at DESC LIMIT 1',
+      [clientId]
+    );
+    return res.rows[0] || null;
   }
 
   // ─── DIMENSION CALCULATORS ──────────────────────────────────────────────────

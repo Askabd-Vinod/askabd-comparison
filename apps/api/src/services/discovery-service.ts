@@ -328,11 +328,12 @@ export class DiscoveryService {
   /**
    * Get discovery runs for a client
    */
+  // Real, honest failure behavior (final_validation_test_1 fabrication-audit
+  // fix): a real DB error no longer gets swallowed into a fabricated empty
+  // result — it propagates to the platform's own safe global error handler.
   async getDiscoveryRuns(clientId: string): Promise<any[]> {
-    try {
-      const res = await dbPool.query('SELECT * FROM oc_discovery_runs WHERE client_id = $1 ORDER BY created_at DESC LIMIT 10', [clientId]);
-      return res.rows;
-    } catch { return []; }
+    const res = await dbPool.query('SELECT * FROM oc_discovery_runs WHERE client_id = $1 ORDER BY created_at DESC LIMIT 10', [clientId]);
+    return res.rows;
   }
 
   /**
