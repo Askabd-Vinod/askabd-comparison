@@ -1,6 +1,7 @@
 import { CapabilityPlaceholder } from '../capability-placeholder';
 import { mockClients } from '../../../../lib/mock-clients';
 import { serviceCatalog } from '../../../../lib/service-catalog';
+import { DemoDataBanner } from '../../../../components/demo-data-banner';
 import { ContractsView } from './contracts-view';
 
 interface PageProps { params: Promise<{ clientId: string }> }
@@ -18,5 +19,5 @@ export default async function ClientContractsPage({ params }: PageProps) {
     { id: 'con-5', type: 'Support', title: 'Support Agreement', status: 'active', start: '2026-01-01', expiry: '2026-12-31', value: '24/7 L1-L3', version: '1.2', owner: 'ops@askabd.com', basis: 'L1-L3 support coverage. Business hours + on-call for critical. Includes 40 hours/month proactive.' },
   ];
 
-  return <ContractsView contracts={contracts} client={client} serviceCatalog={serviceCatalog} />;
+  return <><DemoDataBanner /><ContractsView contracts={contracts} client={client} serviceCatalog={serviceCatalog} /></>;
 }

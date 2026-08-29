@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { mockClients } from '../../../../lib/mock-clients';
 import { CapabilityPlaceholder } from '../capability-placeholder';
+import { DemoDataBanner } from '../../../../components/demo-data-banner';
 
 interface PageProps { params: Promise<{ clientId: string }> }
 
@@ -23,6 +24,7 @@ export default async function ClientInfrastructurePage({ params }: PageProps) {
 
   return (
     <div>
+      <DemoDataBanner />
       <h2 className="font-semibold text-lg mb-4">Infrastructure</h2>
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
         {items.map(item => (

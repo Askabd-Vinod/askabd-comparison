@@ -2,6 +2,7 @@ import { mockClients } from '../../../../lib/mock-clients';
 import { apiSafe } from '../../../../lib/api';
 import { DocumentsView } from './documents-view';
 import { DocumentGenerationView, type DocumentTemplate, type GeneratedDocument } from './document-generation-view';
+import { DemoDataBanner } from '../../../../components/demo-data-banner';
 
 interface PageProps { params: Promise<{ clientId: string }> }
 
@@ -30,5 +31,5 @@ export default async function ClientDocumentsPage({ params }: PageProps) {
     { id: 'doc-10', title: 'Invoice — July 2026', category: 'Invoices', status: 'published', updated: '2026-07-01', owner: 'hello@askabd.com', version: '1.0' },
   ];
 
-  return <DocumentsView documents={documents} clientId={clientId} clientName={client.name} />;
+  return <><DemoDataBanner /><DocumentsView documents={documents} clientId={clientId} clientName={client.name} /></>;
 }

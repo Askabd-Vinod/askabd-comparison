@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { mockClients } from '../../../../../lib/mock-clients';
 import { Breadcrumb } from '../../../../../components/breadcrumb';
+import { DemoDataBanner } from '../../../../../components/demo-data-banner';
 import { AIInsightsPanel } from '../../../../../components/ai-insights';
 import { MissingInfoPanel } from '../../../../../components/missing-info';
 import { statusColor } from '../../../../../components/status-badge';
@@ -21,6 +22,7 @@ export default async function ApplicationDetailPage({ params }: Props) {
 
   return (
     <div>
+      <DemoDataBanner />
       <Breadcrumb items={[
         { label: 'Dashboard', href: '/' },
         { label: 'Clients', href: '/clients' },

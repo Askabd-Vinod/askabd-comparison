@@ -2,6 +2,7 @@ import { CapabilityPlaceholder } from '../capability-placeholder';
 import Link from 'next/link';
 import { mockClients } from '../../../../lib/mock-clients';
 import { statusColor } from '../../../../components/status-badge';
+import { DemoDataBanner } from '../../../../components/demo-data-banner';
 
 interface PageProps { params: Promise<{ clientId: string }> }
 
@@ -29,6 +30,7 @@ export default async function ClientCapabilitiesPage({ params }: PageProps) {
 
   return (
     <div>
+      <DemoDataBanner />
       <h2 className="font-semibold text-lg mb-1">Business Capability Map</h2>
       <p className="text-xs text-gray-500 mb-1">Business capabilities, processes, owners, and supporting technology</p>
       <p className="text-[11px] text-gray-400 mb-6">Overall platform score: <span className="font-semibold text-gray-600">{client.platformScore}/100</span>. Per-capability maturity scoring is not yet available — see the <Link href={`/clients/${clientId}/readiness`} className="text-purple-600 hover:underline">Readiness</Link> page for the real, evidence-based breakdown.</p>

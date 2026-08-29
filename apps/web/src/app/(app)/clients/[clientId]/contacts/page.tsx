@@ -1,5 +1,6 @@
 import { mockClients } from '../../../../lib/mock-clients';
 import { apiSafe } from '../../../../lib/api';
+import { DemoDataBanner } from '../../../../components/demo-data-banner';
 import { ContactsManager, type Contact } from './contacts-manager';
 
 interface PageProps { params: Promise<{ clientId: string }> }
@@ -38,6 +39,7 @@ export default async function ClientContactsPage({ params }: PageProps) {
 
   return (
     <div>
+      <DemoDataBanner />
       <h2 className="font-semibold text-lg mb-1">Contacts & Escalation</h2>
       <p className="text-xs text-gray-500 mb-6">Client contacts, AskABD team, and escalation matrix</p>
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">

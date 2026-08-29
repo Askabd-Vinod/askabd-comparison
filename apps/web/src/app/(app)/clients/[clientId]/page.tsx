@@ -7,6 +7,7 @@ import { AIInsightsPanel } from '../../../components/ai-insights';
 import { MissingInfoPanel } from '../../../components/missing-info';
 import { Legend } from '../../../components/legend';
 import { KpiCard } from '../../../components/kpi-card';
+import { DemoDataBanner } from '../../../components/demo-data-banner';
 import { DynamicClientOverview } from './dynamic-overview';
 
 interface PageProps { params: Promise<{ clientId: string }> }
@@ -22,6 +23,7 @@ export default async function ClientOverviewPage({ params }: PageProps) {
 
   return (
     <div className="space-y-6">
+      <DemoDataBanner />
       <div className="grid lg:grid-cols-3 gap-6">
       <div className="lg:col-span-2 space-y-6">
         {/* Executive Summary */}

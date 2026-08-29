@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Breadcrumb } from '../../../../components/breadcrumb';
+import { DemoDataBanner } from '../../../../components/demo-data-banner';
 import { mockClients } from '../../../../lib/mock-clients';
 import { serviceCatalog } from '../../../../lib/service-catalog';
 import { logAuditEvent } from '../../../../lib/operations-api';
@@ -67,6 +68,7 @@ export default function EditClientPage() {
 
   return (
     <div className="max-w-[1200px] mx-auto px-4 py-6">
+      <DemoDataBanner />
       <Breadcrumb items={[{ label: 'Dashboard', href: '/' }, { label: 'Clients', href: '/clients' }, { label: client.name, href: `/clients/${clientId}` }, { label: 'Edit' }]} />
       <h1 className="text-xl font-bold text-gray-900 mb-6">Edit Client — {client.name}</h1>
 

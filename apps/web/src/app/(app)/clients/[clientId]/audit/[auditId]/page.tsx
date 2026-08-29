@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { mockClients } from '../../../../../lib/mock-clients';
 import { Breadcrumb } from '../../../../../components/breadcrumb';
+import { DemoDataBanner } from '../../../../../components/demo-data-banner';
 
 interface Props { params: Promise<{ clientId: string; auditId: string }> }
 
@@ -15,6 +16,7 @@ export default async function AuditDetailPage({ params }: Props) {
 
   return (
     <div>
+      <DemoDataBanner />
       <Breadcrumb items={[
         { label: 'Dashboard', href: '/' },
         { label: 'Clients', href: '/clients' },

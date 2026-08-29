@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { mockClients } from '../../../../../../lib/mock-clients';
 import { Breadcrumb } from '../../../../../../components/breadcrumb';
+import { DemoDataBanner } from '../../../../../../components/demo-data-banner';
 import { Legend } from '../../../../../../components/legend';
 import { AIInsightsPanel } from '../../../../../../components/ai-insights';
 import { seededVariance } from '../../../../../../lib/deterministic-variance';
@@ -24,6 +25,7 @@ export default async function ServerDetailPage({ params }: Props) {
 
   return (
     <div>
+      <DemoDataBanner />
       <Breadcrumb items={[
         { label: 'Dashboard', href: '/' },
         { label: 'Clients', href: '/clients' },
