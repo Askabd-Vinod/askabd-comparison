@@ -1,0 +1,59 @@
+{
+  "feature": "Playwright + Evidence Infrastructure (unauthenticated smoke test)",
+  "testSuite": "playwright_infrastructure_test_1",
+  "environment": "local dev",
+  "startedAt": "2026-08-29T12:22:52.450Z",
+  "finishedAt": "2026-08-29T12:23:10.420Z",
+  "browserName": "chromium",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "finalStatus": "PASS",
+  "total": 2,
+  "passed": 2,
+  "failed": 0,
+  "blocked": 0,
+  "steps": [
+    {
+      "id": "step-1",
+      "title": "Real browser navigates to the running app",
+      "expected": "Redirects to /staff/login (unauthenticated)",
+      "actual": "Landed on http://localhost:3001/staff/login",
+      "status": "PASS",
+      "evidence": "docs/evidence/playwright_infrastructure/playwright_infrastructure_test_1/playwright_infrastructure_test_1_01.png",
+      "notes": null,
+      "at": "2026-08-29T12:23:09.851Z"
+    },
+    {
+      "id": "step-2",
+      "title": "Real login page renders real content",
+      "expected": "A real heading is present",
+      "actual": "Heading text: \"AskABD Staff Sign In\"",
+      "status": "PASS",
+      "evidence": "docs/evidence/playwright_infrastructure/playwright_infrastructure_test_1/playwright_infrastructure_test_1_02.png",
+      "notes": null,
+      "at": "2026-08-29T12:23:10.044Z"
+    }
+  ],
+  "screenshots": [
+    {
+      "fileName": "playwright_infrastructure_test_1_01.png",
+      "relPath": "docs/evidence/playwright_infrastructure/playwright_infrastructure_test_1/playwright_infrastructure_test_1_01.png",
+      "description": "Real navigation to the running web app root (expected: redirect to staff login)",
+      "sizeBytes": 148463
+    },
+    {
+      "fileName": "playwright_infrastructure_test_1_02.png",
+      "relPath": "docs/evidence/playwright_infrastructure/playwright_infrastructure_test_1/playwright_infrastructure_test_1_02.png",
+      "description": "Real staff login page rendered",
+      "sizeBytes": 148804
+    }
+  ],
+  "findings": [
+    "Playwright + evidence-capture infrastructure confirmed working: real browser, real navigation, real screenshots physically verified on disk."
+  ],
+  "remaining": [
+    "Authenticated flows still require a real, user-exported staff session at scripts/playwright-evidence/.auth/staff-state.json (see export-session-instructions.md) — not yet present."
+  ]
+}
