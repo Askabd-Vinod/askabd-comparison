@@ -62,6 +62,7 @@ const tabs = [
   { label: 'Consulting', segment: '/consulting' },
   { label: 'Documents', segment: '/documents' },
   { label: 'Business Requirements', segment: '/business-requirements' },
+  { label: 'Clarifications', segment: '/clarifications' },
   { label: 'Comparisons', segment: '/comparisons' },
   { label: 'Traceability', segment: '/traceability' },
   { label: 'Contacts', segment: '/contacts' },
