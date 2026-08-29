@@ -997,4 +997,8 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   { method: 'POST', path: '/api/v1/oc/verification/runs/health-check', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/verification/runs/record-external-result', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/verification/regressions', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/verification/journeys', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/verification/journeys/:journeyId/run', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/verification/journeys/runs', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/verification/journeys/runs/:id', permissions: ['Admin.Access'] },
 ] as const;

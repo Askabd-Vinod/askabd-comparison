@@ -47,25 +47,40 @@ function Stat({ label, value, color }: { label: string; value: string | number; 
   return <div className="bg-white rounded-xl border p-3 text-center"><p className={`text-lg font-bold ${color || 'text-gray-900'}`}>{value}</p><p className="text-[9px] text-gray-500 uppercase">{label}</p></div>;
 }
 
+interface JourneyDef { id: string; name: string; implemented: boolean }
+interface JourneyRun { id: string; journeyId: string; journeyName: string; status: 'running' | 'passed' | 'failed' | 'blocked'; startedAt: string; cleanupPerformed: boolean }
+
+const JOURNEY_STATUS_META: Record<JourneyRun['status'], string> = {
+  passed: 'text-green-700 bg-green-50 border-green-200', failed: 'text-red-700 bg-red-50 border-red-200',
+  blocked: 'text-gray-500 bg-gray-100 border-gray-200', running: 'text-blue-700 bg-blue-50 border-blue-200',
+};
+
 export default function VerificationCenterPage() {
   const [services, setServices] = useState<ServiceEntry[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
+  const [journeyDefs, setJourneyDefs] = useState<JourneyDef[]>([]);
+  const [journeyRuns, setJourneyRuns] = useState<JourneyRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [running, setRunning] = useState(false);
   const [runErr, setRunErr] = useState<string | null>(null);
+  const [runningJourney, setRunningJourney] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      const [sRes, rRes] = await Promise.all([
+      const [sRes, rRes, jdRes, jrRes] = await Promise.all([
         staffFetch('/api/v1/oc/verification/services'),
         staffFetch('/api/v1/oc/verification/runs?limit=20'),
+        staffFetch('/api/v1/oc/verification/journeys'),
+        staffFetch('/api/v1/oc/verification/journeys/runs?limit=20'),
       ]);
       if (sRes.status === 401 || sRes.status === 403) { setError('You are not authorized to view the Verification Center.'); setLoading(false); return; }
       if (!sRes.ok || !rRes.ok) { setError('Unable to load verification data. The backend may be unavailable.'); setLoading(false); return; }
       setServices((await sRes.json()).services ?? []);
       setRuns((await rRes.json()).runs ?? []);
+      if (jdRes.ok) setJourneyDefs((await jdRes.json()).journeys ?? []);
+      if (jrRes.ok) setJourneyRuns((await jrRes.json()).runs ?? []);
     } catch (err) { setError(`Unable to reach AskABD API: ${(err as Error).message}`); }
     setLoading(false);
   }, []);
@@ -80,6 +95,16 @@ export default function VerificationCenterPage() {
       else { const b = await res.json().catch(() => ({})); setRunErr(b?.error?.message || 'Could not run the health check.'); }
     } catch (e) { setRunErr(`Could not reach AskABD: ${(e as Error).message}`); }
     setRunning(false);
+  }
+
+  async function runJourney(journeyId: string) {
+    setRunningJourney(journeyId); setRunErr(null);
+    try {
+      const res = await staffFetch(`/api/v1/oc/verification/journeys/${journeyId}/run`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+      if (res.ok) await load();
+      else { const b = await res.json().catch(() => ({})); setRunErr(b?.error?.message || 'Could not run this journey.'); }
+    } catch (e) { setRunErr(`Could not reach AskABD: ${(e as Error).message}`); }
+    setRunningJourney(null);
   }
 
   if (loading) return <div className="p-6 text-gray-400">Loading Verification Center...</div>;
@@ -141,6 +166,46 @@ export default function VerificationCenterPage() {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="bg-white rounded-xl border p-5 mt-4">
+        <h3 className="font-semibold text-sm mb-1">Business Journeys ({journeyDefs.length})</h3>
+        <p className="text-[10px] text-gray-400 mb-3">Real, end-to-end business validation — each run creates a real disposable client, exercises the real engine under test, asserts real DB/API/security/audit state, and performs verified cleanup. Journeys not yet implemented are honestly reported as blocked, never simulated.</p>
+        <div className="space-y-1.5">
+          {journeyDefs.map(j => (
+            <div key={j.id} className="border rounded-lg p-3 flex items-center justify-between gap-3">
+              <div className="min-w-0 flex items-center gap-2">
+                <span className="text-xs font-medium">{j.name}</span>
+                {!j.implemented && <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded border text-gray-500 bg-gray-50 border-gray-200 uppercase shrink-0">Not yet implemented</span>}
+              </div>
+              <Action
+                variant="secondary"
+                onClick={() => runJourney(j.id)}
+                loading={runningJourney === j.id}
+                className="!text-[10px] !py-1 !px-2.5 shrink-0"
+              >
+                {runningJourney === j.id ? 'Running…' : 'Run'}
+              </Action>
+            </div>
+          ))}
+        </div>
+
+        <h4 className="font-semibold text-xs text-gray-500 uppercase tracking-wide mt-5 mb-2">Recent Journey Runs</h4>
+        {journeyRuns.length === 0 ? (
+          <p className="text-xs text-gray-400">No journey runs yet — use a Run button above.</p>
+        ) : (
+          <div className="bg-white border rounded divide-y">
+            {journeyRuns.map(jr => (
+              <Link key={jr.id} href={`/platform/verification/journeys/${jr.id}`} className="flex items-center justify-between px-3 py-2.5 gap-3 hover:bg-gray-50 transition">
+                <div className="min-w-0">
+                  <span className="text-[11px] font-medium text-gray-700">{jr.journeyName}</span>
+                  <p className="text-[9px] text-gray-400">{new Date(jr.startedAt).toLocaleString('en-AU')} · cleanup {jr.cleanupPerformed ? 'verified' : 'n/a'}</p>
+                </div>
+                <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-md border uppercase shrink-0 ${JOURNEY_STATUS_META[jr.status]}`}>{jr.status}</span>
+              </Link>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="bg-white rounded-xl border p-5 mt-4">

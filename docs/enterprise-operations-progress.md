@@ -4333,13 +4333,30 @@ and its dedicated marketplace-audit and verification-service follow-ups:
   the remediation loop, the full 17-journey business-validation catalog,
   and release gates are disclosed as NOT built this pass, not stubbed.
 
-Full API regression across this entire day's work: **97 files / 999
+- **Business Journey Engine (Verification Service Priority 1)** — a real
+  extension of the v1 service (migration 069: `oc_verification_journey_runs`),
+  never a rebuild or a duplicate testing architecture. Registers all 17
+  directive-named business journeys; **3 are fully, deeply real**
+  (Client Onboarding, Report Generation, Workflow Execution) — each
+  creates a real disposable client, exercises the real engine under test,
+  asserts real DB/API/security/audit state via independent queries (never
+  trusting the journey's own self-report), and performs verified cleanup.
+  The other 14 are registered but honestly return `blocked` — never a
+  simulated pass. Found and fixed a real FK-ordering bug during this work
+  (cleanup was deleting the client before the journey row that referenced
+  it was persisted). Live-verified in the browser with the real staff
+  session: ran Client Onboarding for real from the new "Business Journeys"
+  UI section, confirmed a real `PASSED` result and a full, real result
+  detail page at `/platform/verification/journeys/[runId]`.
+
+Full API regression across this entire day's work: **98 files / 1005
 tests, all passing**. `main` re-verified unchanged before and after every
-one of the day's 15 commits. See `docs/evidence/security/risk_014_triage_test_4/`
+one of the day's commits. See `docs/evidence/security/risk_014_triage_test_4/`
 through `_6`, `docs/evidence/security/marketplace_rbac_audit_test_1/`,
 `docs/evidence/ui-integration/live_authenticated_verification_test_1/`,
-`docs/evidence/reports/pdf_download_honesty_test_1/`, and
-`docs/evidence/verification_service/verification_service_test_1/` for
+`docs/evidence/reports/pdf_download_honesty_test_1/`,
+`docs/evidence/verification_service/verification_service_test_1/`, and
+`docs/evidence/verification_service/business_journey_engine_test_1/` for
 full detail on each.
 
 ## Real client data on the system (protected, never modify without an
