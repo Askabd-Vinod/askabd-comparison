@@ -66,6 +66,7 @@ const tabs = [
   { label: 'Comparisons', segment: '/comparisons' },
   { label: 'Traceability', segment: '/traceability' },
   { label: 'API Discovery', segment: '/api-specs' },
+  { label: 'Dependencies', segment: '/dependencies' },
   { label: 'Contacts', segment: '/contacts' },
   { label: 'Notes', segment: '/notes' },
   { label: 'Tasks', segment: '/tasks' },
