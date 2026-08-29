@@ -50,6 +50,7 @@ const tabs = [
   { label: 'Financial', segment: '/financial' },
   { label: 'Payments', segment: '/payments' },
   { label: 'Reconciliation', segment: '/reconciliation' },
+  { label: 'Data Reconciliation', segment: '/data-reconciliation' },
   { label: 'Contracts', segment: '/contracts' },
   { label: 'Automation', segment: '/automation' },
   { label: 'Audit', segment: '/audit' },
