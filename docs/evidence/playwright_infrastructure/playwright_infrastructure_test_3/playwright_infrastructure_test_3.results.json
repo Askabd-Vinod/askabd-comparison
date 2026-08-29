@@ -1,0 +1,103 @@
+{
+  "feature": "Real, automated authenticated Playwright — dedicated test-staff account",
+  "testSuite": "playwright_infrastructure_test_3",
+  "environment": "local dev",
+  "startedAt": "2026-08-29T13:45:54.800Z",
+  "finishedAt": "2026-08-29T13:46:26.469Z",
+  "browserName": "chromium",
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  },
+  "finalStatus": "PASS",
+  "total": 6,
+  "passed": 6,
+  "failed": 0,
+  "blocked": 0,
+  "steps": [
+    {
+      "id": "step-1",
+      "title": "Real, automated login reaches a real authenticated view",
+      "expected": "Real \"Sign out\" control visible, no longer on /staff/login",
+      "actual": "Sign out visible: true; URL: http://localhost:3001/clients",
+      "status": "PASS",
+      "evidence": "docs/evidence/playwright_infrastructure/playwright_infrastructure_test_3/playwright_infrastructure_test_3_01.png",
+      "notes": null,
+      "at": "2026-08-29T13:46:09.407Z"
+    },
+    {
+      "id": "step-2",
+      "title": "Real navigation to the Verification Center",
+      "expected": "Real page heading \"Verification Center\"",
+      "actual": "Real heading: \"Verification Center\"",
+      "status": "PASS",
+      "evidence": "docs/evidence/playwright_infrastructure/playwright_infrastructure_test_3/playwright_infrastructure_test_3_02.png",
+      "notes": null,
+      "at": "2026-08-29T13:46:23.768Z"
+    },
+    {
+      "id": "step-3",
+      "title": "Real authenticated API request confirmed via network listener",
+      "expected": "GET .../oc/verification/services returns real HTTP 200 (would be 401 unauthenticated)",
+      "actual": "Real HTTP 200 from http://localhost:4200/api/v1/oc/verification/services",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-29T13:46:23.768Z"
+    },
+    {
+      "id": "step-4",
+      "title": "Real Service Catalog content rendered",
+      "expected": "Real \"Service Catalog\" text present",
+      "actual": "Confirmed present",
+      "status": "PASS",
+      "evidence": "docs/evidence/playwright_infrastructure/playwright_infrastructure_test_3/playwright_infrastructure_test_3_03.png",
+      "notes": null,
+      "at": "2026-08-29T13:46:24.463Z"
+    },
+    {
+      "id": "step-5",
+      "title": "Console errors during this real run",
+      "expected": "Zero new console errors",
+      "actual": "0 error(s): none",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-29T13:46:24.463Z"
+    },
+    {
+      "id": "step-6",
+      "title": "Network failures / 5xx during this real run",
+      "expected": "Zero",
+      "actual": "0 failure(s): none",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-29T13:46:24.463Z"
+    }
+  ],
+  "screenshots": [
+    {
+      "fileName": "playwright_infrastructure_test_3_01.png",
+      "relPath": "docs/evidence/playwright_infrastructure/playwright_infrastructure_test_3/playwright_infrastructure_test_3_01.png",
+      "description": "Real authenticated landing page after real, automated test-staff login",
+      "sizeBytes": 198533
+    },
+    {
+      "fileName": "playwright_infrastructure_test_3_02.png",
+      "relPath": "docs/evidence/playwright_infrastructure/playwright_infrastructure_test_3/playwright_infrastructure_test_3_02.png",
+      "description": "Real Verification Center page, reached via real authenticated navigation",
+      "sizeBytes": 605842
+    },
+    {
+      "fileName": "playwright_infrastructure_test_3_03.png",
+      "relPath": "docs/evidence/playwright_infrastructure/playwright_infrastructure_test_3/playwright_infrastructure_test_3_03.png",
+      "description": "Real Service Catalog rendered from the real authenticated API response",
+      "sizeBytes": 516283
+    }
+  ],
+  "findings": [
+    "Real, fully automated authenticated Playwright run succeeded end to end using the dedicated test-staff account — no manual session export required."
+  ],
+  "remaining": []
+}

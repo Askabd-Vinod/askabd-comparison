@@ -21,9 +21,9 @@ const CLIENT_NAME = `AskABD PW Playwright ${TEST_ID} ${Date.now().toString(36)}`
 
 async function main() {
   const browser = await chromium.launch({ headless: true });
-  let context;
+  let context, page;
   try {
-    context = await getAuthenticatedContextFromExport(browser);
+    ({ context, page } = await getAuthenticatedContextFromExport(browser));
   } catch (err) {
     console.error(`BLOCKED_EXTERNAL_AUTH: ${err.message}`);
     console.error('STATUS = EVIDENCE_BLOCKED — no PNG evidence produced, none fabricated.');
@@ -32,7 +32,6 @@ async function main() {
     return;
   }
 
-  const page = await context.newPage();
   const run = new EvidenceRun(TEST_ID, { feature: 'Universal Comparison Engine — database schema comparison', client: CLIENT_NAME });
   let clientId = null;
   let finalStatus = 'FAIL';

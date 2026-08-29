@@ -17,8 +17,7 @@ const run = new EvidenceRun('pipeline_smoke_test_1', {
 
 const browser = await chromium.launch({ headless: true });
 try {
-  const context = await getAuthenticatedContextFromExport(browser);
-  const page = await context.newPage();
+  const { context, page } = await getAuthenticatedContextFromExport(browser);
   await page.setViewportSize({ width: 1440, height: 900 });
 
   await page.goto(WEB_ORIGIN, { waitUntil: 'networkidle' });
