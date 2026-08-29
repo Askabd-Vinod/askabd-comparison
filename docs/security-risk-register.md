@@ -1107,6 +1107,45 @@ completion" principle.
     `getStaffSession()`, with the same retry-once-on-401-after-renewal
     policy `staffFetch` already uses — matching the established pattern,
     not a new one.
+- **Update (2026-08-29, `risk_014_triage_test_5`)**: real, first-class
+  live verification of the 6-route body-clientId-scoped
+  lifecycle/discovery/assessment group, which `risk_014_triage_test_3`'s
+  summary had described as "now confirmed safe" without an actual
+  dedicated test against these specific real routes (the existing
+  `tenant-access-body-query.test.ts` proves the generic mechanism against
+  dummy routes, not these ones) — investigated before trusting that
+  characterization at face value, per the standing "never say tests
+  passed without actually running them" discipline.
+  `apps/api/tests/risk-014-triage-test-5.test.ts`, 7/7 passing: a real
+  customer token with a foreign `clientId` in the body is denied
+  (`403`, `reasonCode: 'tenant_not_resolved'`) on all 6 real, registered
+  routes via `app.inject` against the actual `operationsCenterRoutes`;
+  unauthenticated denied (`401`) on all 6. **Confirmed genuinely safe —
+  not a gap.**
+  - **A real methodological pitfall found and disclosed while building
+    this test, not a security bug**: running the new test file via a bare
+    `npx vitest run <file> --root apps/api` from the monorepo root
+    (rather than `npm run test --workspace=apps/api`, or `vitest` invoked
+    with the process's own `cwd` actually set to `apps/api`) produced a
+    real `42P01: relation "client_identity_mapping" does not exist`
+    error on every case — at first glance indistinguishable from a
+    genuine, severe bug in the tenant-isolation enforcement layer itself.
+    Investigated before reporting it as one: a direct query confirmed the
+    real table exists in the real `comparison` database exactly as
+    expected; re-running the identical test with the working directory
+    correctly set to `apps/api` passed cleanly, 7/7. Root cause: this
+    repo's env-loading is `cwd`-sensitive, and the wrong invocation
+    silently connected to a different (likely default-local) Postgres
+    instance with no AskABD schema at all, rather than failing loudly —
+    a real test-tooling fragility, disclosed here so a future pass
+    doesn't mistake this specific error message for a real finding
+    without checking working-directory first.
+  - The remaining 22-route catalog/reference group from the original
+    46-candidate audit remains as `risk_014_triage_test_3` left it
+    (individually investigated and judged genuinely global reference/
+    config data, not per-client sensitive data) — not re-verified with a
+    dedicated live test this pass; a reasonable candidate for the same
+    treatment in a future triage pass.
 
 ---
 
