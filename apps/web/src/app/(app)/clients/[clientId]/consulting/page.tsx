@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { mockClients } from '../../../../lib/mock-clients';
 import { AIInsightsPanel } from '../../../../components/ai-insights';
 import { MissingInfoPanel } from '../../../../components/missing-info';
-import { DemoDataBanner } from '../../../../components/demo-data-banner';
 
 interface PageProps { params: Promise<{ clientId: string }> }
 
@@ -30,7 +29,6 @@ export default async function ClientConsultingPage({ params }: PageProps) {
 
   return (
     <div>
-      <DemoDataBanner />
       <h2 className="font-semibold text-lg mb-1">Consulting Workspace</h2>
       <p className="text-xs text-gray-500 mb-6">Discovery, opportunities, recommendations, and deliverables for {client.name}</p>
 

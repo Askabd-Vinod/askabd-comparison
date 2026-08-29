@@ -186,52 +186,63 @@ silently skipped.
 | 78 | Dependency Analysis Engine | **Real, new (2026-08-24, `dependency_analysis_test_1`)** — `dependency-analysis-engine.ts`: deliberately NOT a new engine with its own link storage — a dependency IS a real `traceability_links` row (`link_type='depends_on'`, migration 041, already valid in that table's own CHECK constraint, unused by any consumer until this pass). Reuses `TraceabilityEngine.link()`/`unlink()` unmodified for link creation. Adds only what `TraceabilityEngine`'s existing `getForwardChain`/`getBackwardChain` genuinely lack: **real, explicit cycle detection** (the existing `walk()`'s own cycle GUARD silently truncates a real circular dependency rather than reporting it — this engine's `detectCycles` returns the actual real cycle path when one exists, proven live with a genuine A→B→A circular `depends_on` chain) and a **real, `depends_on`-scoped impact summary** (real transitive dependent/dependency counts, never a fabricated risk score, proven live against a real 3-node chain). Real object-level ownership verified on BOTH ends of every link against a real, honest per-entity-type allowlist (`risk`/`gaps`/`change_record`/`deployment`/`requirement`) — an unlisted entity type is refused, never silently trusted. **A real bug found and fixed by this pass's own tests**: the first cycle-path implementation used a buggy second query to re-derive the path, returning a truncated 1-element result; fixed by returning the real path directly from the same recursive query that found the cycle | Real staff UI (`clients/[clientId]/dependencies` tab, `dependency_analysis_ui_test_1`, 2026-08-29 Phase 3 sweep) — deliberately entity-picker-driven, not a list page (matches the real route shape exactly — no list-all-links endpoint exists); real cyclePath rendered verbatim when a cycle exists, real dependent/dependency counts and paths; live-verified 2026-08-29 with a genuine, already-active staff session (`live_authenticated_verification_test_1`) — real rendering/data-fetch confirmed against a real client, no console errors; full mutation-path/cross-browser coverage still open | Enforced — staff-only Admin.Access; every method re-verifies real object-level ownership | `dependency-analysis-test-1.test.ts` 12 (new) | Not reached live (`BLOCKED_EXTERNAL_AUTH`) | N/A | `dependency_analysis_test_1` | PASS_WITH_RISKS | UI fast-follow delivered 2026-08-29 — entity pickers scoped to the same real allowlist as the engine; ownership-verifiable entity types remain limited to that allowlist rather than every possible entity in the platform, real and disclosed, still open; `docs/evidence/dependency_analysis/dependency_analysis_test_1/dependency_analysis_test_1.md`, `docs/evidence/ui-integration/dependency_analysis_ui_test_1/` |
 | 79 | Environment Registration Engine | Real, `oc_lifecycle` stage | Real (Lifecycle journey) | Enforced | Not independently tested | **Live — reached/advanced through this stage in all 3 passes** (2 via disclosed fixture shortcut, 1 organically) | N/A | 3x live passes | PASS_WITH_RISKS | The stage's own real form fields never filled organically through the UI this session |
 | 80 | Connector Management Engine | Real, `oc_client_database_connections`. **Corrected this pass (`connector_test_1`)** — a real, exploitable object-level-authorization (IDOR) gap: `update`/`remove`/`test` looked up a connection by its opaque `id` ALONE, no `client_id` check anywhere, and their routes carry no `:clientId` URL segment at all so tenant-access.ts never even applied. One client's real DB connection — host/port/username, and via `password_ref` the actual secret — could be read, silently repointed to an attacker-controlled host, or deleted by anyone who knew its opaque id, regardless of which client they were authorized for. Fixed with an explicit ownership check at the service layer (`DatabaseConnectionOwnershipError` → `404`), proven live: a real attempted cross-client repoint against a real connection was blocked and the connection's real `host` confirmed genuinely unchanged afterward. Also fixed: 3 more `connector-service.ts` routes (`POST /oc/connectors/test`, `POST /oc/connectors/save`, `DELETE /oc/connectors/:id`) had no RBAC rule at all; `maskSecrets()` applied defense-in-depth to that service's persisted/returned error text (no live exploit path found — hardening, not a confirmed leak). **Fast-follow, same day**: real TLS support (migration 056, `ssl_mode` disable/require/verify-full) — proven live to genuinely negotiate TLS 1.3, genuinely fail closed when TLS is required but unavailable, and genuinely validate certificate chain + hostname (a real node-postgres hostname-verification gotcha found and correctly handled: `rejectUnauthorized:true` alone does NOT verify hostname without explicit `servername`). Real SSRF protection (`network-security-policy.ts`) wired into every connector's shared `checkPort()` and the GitHub connector's `fetch()` calls (via a new `safeFetch` with real per-redirect-hop validation) — blocks private/loopback/link-local/metadata ranges (loopback allowed only outside `NODE_ENV==='production'`), validates every DNS-resolved address (closing rebinding), real mocked-DNS-rebinding and real-HTTP-server redirect proofs included | Real `DatabaseConnectionsManager` — **live-reconfirmed during `connector_test_1`**: create/test/edit/delete all work correctly end-to-end (real PostgreSQL "Connected" status, 6 real protocol steps, correct SECURITY PROFILE panel integration). A fabricated, unconditional UI claim ("All connections use encrypted channels. Credentials stored using AES-256-GCM.") shown on this exact stage was found and corrected. **New SSL Mode / CA-certificate UI controls added same-day (fast-follow) but NOT yet live-verified** — the staff Browser-pane session genuinely expired before that check could run; honestly `BLOCKED_EXTERNAL_AUTH` for that one specific UI check, not fabricated; `tsc --noEmit` clean | **Corrected this pass** — was NOT actually fully enforced (see object-level-authorization finding); now real ownership verification backs the existing Admin.Access/Secure-Connectivity/Technology-Adapter-Registry gates. TLS and SSRF gaps (found same pass) also now resolved — see Known Gaps | Covered by #33/#55's suites + `connector-test-1.test.ts` (19 tests: 6 real cross-client IDOR proofs, 3 RBAC-gap proofs, 10 real TLS/SSRF end-to-end proofs against real Postgres) + `network-security-policy.test.ts` (new, 9 tests incl. a real DNS-rebinding mock proof and a real HTTP-server redirect-SSRF proof) — 659/659 full API regression | **Live — real PostgreSQL connections added/tested/compared; a real `oracle`-typed connection also created live and honestly refused at comparison time; `connector_test_1` proved a real cross-client attack attempt against a real connection is blocked and the target genuinely unchanged. TLS/SSRF fast-follow's own new UI controls NOT yet live-clicked (session expired) — backend proven via 19 automated tests against real infrastructure instead** | N/A | `comparison_test_1`, `technology_adapter_test_1`, `connector_test_1`, `connector_test_1_tls_ssrf_fastfollow` | **PASS_WITH_RISKS** | Row creation exercised for postgresql + oracle; no non-Postgres connector has real connectivity-testing support. **RISK-002 (no TLS) and RISK-003 (no SSRF protection) — found in `connector_test_1`, RESOLVED same day as their own fast-follow** (RISK-003 kept `MITIGATED` for one real, disclosed, narrow residual gap: the raw-TCP `checkPort` paths validate-then-connect as two separate calls, a real if narrow DNS-rebinding race window remains there specifically — the HTTP/redirect path does not have this gap). Full tracking: `docs/security-risk-register.md`. New SSL-mode/CA-cert UI controls not yet live-clicked (session expired, honestly disclosed, not fabricated) |
+| 81 | Comparison Marketplace Engine | Real, `merchant`/`brand`/`item_price`/`offer`/`review` (root `prisma/schema.prisma`, distinct from the `apps/api` Prisma schema) — registered under `/api/v1/merchants/*`/`/api/v1/admin/brands/*` etc., not `/oc/**`, so `tenant-access.ts`'s `pathPrefix: '/api/v1/oc/'` genuinely does not apply here; only `rules.ts` + `defaultPolicy:'authenticated'` protect it. **Full 12-dimension audit performed 2026-08-29** (`marketplace_rbac_audit_test_1`, 28 real HTTP-layer tests, real Prisma fixtures with verified cleanup) covering unauthenticated/customer/staff/cross-client actors against merchant/brand/catalog/pricing/offer/review routes | Not yet surfaced in any real staff or client UI — API-only, zero real frontend consumers today (confirmed via a repo-wide route-reference search) | **4 CONFIRMED GAPS, documented not silently fixed**: `merchant.tenant_id` is fully caller-supplied at registration with zero verification against the caller's real, verified org — the same architectural root cause as RISK-017 (no `marketplace_identity_mapping` bridge analogous to the Operations Centre's own `client_identity_mapping`); merchant verification-record and branch-ownership checks are similarly caller-trusted | `marketplace-rbac-audit-test-1.test.ts` 28 (new, 2026-08-29) | Not reached live (no UI exists to click through — `BLOCKED_EXTERNAL_AUTH` moot here since there is no authenticated UI surface at all) | N/A | `marketplace_rbac_audit_test_1` | PASS_WITH_RISKS | Real, disclosed, unresolved: the tenant-trust gap (RISK-017) — zero real frontend consumers today caps the practical severity, but the gap is real and unfixed; `docs/security-risk-register.md` RISK-016/RISK-017, `docs/evidence/security/marketplace_rbac_audit_test_1/` |
+| 82 | Verification & Validation Automation Service | **Real, new (2026-08-29, `verification_service_test_1` + `business_journey_engine_test_1`)** — a real AskABD platform capability, not a script or a duplicate testing architecture: migration 068 (`oc_verification_services`/`oc_verification_runs`/`oc_verification_checks`) + migration 069 (`oc_verification_journey_runs`). Real 17-entry service catalog seeded from this session's own actual engines; real L1-L4 deep health check (real `fetch` against real running API/identity endpoints, real safe-identifier-guarded `SELECT count(*)` DB checks); real GO/NO_GO/GO_WITH_RISKS/BLOCKED computation from real check-status aggregation; real regression-result recording from the existing Vitest suite (deliberately does not spawn a duplicate copy of it); real `BusinessJourneyEngine` registering all 17 directive-named business journeys, 3 fully real end-to-end (Client Onboarding, Report Generation, Workflow Execution — each creates/exercises/asserts/cleans up real data with independent re-verification), the other 14 honestly `blocked`, never simulated | Real staff UI at `/platform/verification` — service catalog, one-click deep health check, run history, run detail; extended 2026-08-29 with a "Business Journeys" section (registry + Run buttons + run history) and a journey-run detail page (`/platform/verification/journeys/[runId]`) rendering every real field (preconditions/steps/API/DB/security/audit/cleanup/evidence) | Enforced — all 11 routes `Admin.Access`-gated | `verification-service-test-1.test.ts` 11 + `business-journey-engine-test-1.test.ts` 6 (new) — 98 files / 1005 tests full API regression | **Live — deep health check run for real (17 checks, 12 passed, 0 failed, 5 honest warnings, GO_WITH_RISKS) with the real staff session; Client Onboarding journey run for real from the new UI, confirmed real PASSED result and full real detail-page rendering (401 RBAC denial, real audit entry, verified cleanup)** | N/A | `verification_service_test_1`, `business_journey_engine_test_1` | **PASS_WITH_RISKS** | Only 3/17 journeys fully implemented; no scheduling/notifications/auto-repair loop yet (later priorities of the same directive); Playwright orchestration remains `BLOCKED_EXTERNAL_AUTH` by design (no credentials extracted/persisted); `docs/evidence/verification_service/verification_service_test_1/`, `docs/evidence/verification_service/business_journey_engine_test_1/` |
 
 ---
 
 ## Summary counts (honest, as of this update)
 
 Taken by directly, mechanically counting the actual Status column of
-every row in this file (re-run this count fresh each pass rather than
-hand-adjusting prior numbers — see `document_generation_test_1`'s own
-note on why the narrative "(was N)" style was retired).
+every row in this file — re-run this count fresh each pass rather than
+hand-adjusting prior numbers (see `document_generation_test_1`'s own
+note on why the narrative "(was N)" style was retired). **Re-run
+2026-08-29 (Final Master Completion Directive) via a small script parsing
+every `| N |`-prefixed row's own Status column, not carried forward by
+hand** — the prior "21/16/26/15/2" figures were themselves stale (dating
+to before rows #81/#82 — Comparison Marketplace, Verification &
+Validation Automation Service — were added, and before several other
+rows' statuses were corrected in later passes).
 
-- **PASS**: 21 engines (row #33, Universal Comparison Engine — extended
-  with the real, dynamic, environment-aware status/detail layer
-  (`bidirectional_comparison_ui_test_1`), then this pass corrected a real
-  defect in that same layer: severity had been left/right-position
-  dependent (`missing`=red, `extra`=orange) rather than purely semantic —
-  fixed to a pure function of classification, proven identical in both
-  directions for all 8 real statuses (`bidirectional_comparison_test_1`);
-  status label unchanged)
-- **PASS_WITH_RISKS**: 16 engines (Configuration Comparison Engine, row
-  #35 — extended with the real Approved Baseline / Environment Override /
-  Intentional Difference / Approved Exception classification layer,
-  `configuration_baseline_test_1`, the dynamic environment-aware status/
-  detail layer, `bidirectional_comparison_ui_test_1`, and this pass's own
-  semantic-severity correction, `bidirectional_comparison_test_1` —
-  remains capped at `PASS_WITH_RISKS` per the AUTHENTICATED PLAYWRIGHT
-  EVIDENCE RULE; status label unchanged, only the row's own detail was
-  enriched)
-- **IMPLEMENTED** (real, not yet live-Playwright-verified): 26 engines
-- **NOT_STARTED**: 15 engines
-- **BLOCKED_EXTERNAL_DEPENDENCY**: 2 engines (VPS Connectivity, Bastion/Private Network) — both genuinely require real client infrastructure this sandbox cannot provide, not fabricated as done and not silently skipped (VPN Connectivity's own live-tunnel portion is a related, PASS_WITH_RISKS-status row — see its own Known Gaps note)
-- **`BLOCKED_EXTERNAL_AUTH`** (new status, adopted this pass): not yet
-  used as a row's own overall Status (every affected row is still
-  correctly `PASS_WITH_RISKS`/`IMPLEMENTED` per the rule's own capping
-  instruction) — it appears instead as the honest per-column diagnostic
-  for the Playwright-evidence dimension specifically, on every row whose
-  primary verification this pass was authenticated UI (currently:
-  Configuration Comparison Engine, including its new baseline/exception
-  classification layer). Real Playwright PNG evidence resumes
-  automatically for these once the user's session export exists.
-- Engines pre-dating this session and not independently re-verified: 9 (marked `IMPLEMENTED` with an explicit note, never assumed working)
+- **Total engine/capability rows**: 82
+- **PASS**: 19 engines (18 exact `PASS` + 1 `PASS (as scoped)` — Evidence
+  Engine, row #20, a deliberate architecture decision not a gap, see its
+  own Known Gaps note)
+- **PASS_WITH_RISKS**: 33 engines — genuinely real and working, with at
+  least one disclosed, real limitation each (see each row's own Known
+  Gaps column; never a placeholder status)
+- **IMPLEMENTED** (real, not yet live-Playwright/UI-verified, or
+  pre-dating this session and not independently re-confirmed): 28
+  engines
+- **BLOCKED_EXTERNAL_DEPENDENCY**: 2 engines (VPS Connectivity, Bastion/
+  Private Network) — both genuinely require real client infrastructure
+  this sandbox cannot provide, not fabricated as done and not silently
+  skipped
+- **`NOT_STARTED`**: 0 rows carry this literal status today — every named
+  capability this session has audited has at least a real, working
+  backend implementation (`IMPLEMENTED` or better). This does **not**
+  mean the platform has zero gaps — see `docs/enterprise-feature-gap
+  -register.md` for real, disclosed missing features that were never
+  promoted to a numbered engine row (e.g. per-client demo-page real-data
+  wiring, PDF/DOCX export, 14 of 17 business journeys) and
+  `docs/security-risk-register.md` for open security risks.
+- **`BLOCKED_EXTERNAL_AUTH`**: not used as any row's own overall Status
+  (every affected row is capped at `PASS_WITH_RISKS`/`IMPLEMENTED` per
+  the AUTHENTICATED PLAYWRIGHT EVIDENCE RULE) — it appears as the honest
+  per-column diagnostic for the Playwright-evidence dimension on every
+  row whose primary verification was authenticated UI/API instead. Real
+  Playwright orchestration remains blocked platform-wide because no
+  staff credential was ever extracted or persisted for it, per this
+  session's own standing, explicit prohibition on doing so — this is a
+  deliberate safety constraint, not an oversight.
 
 **The platform is NOT complete.** Per the Final Program Gate: not all
 required engines are `PASS`, not all required Playwright flows are `PASS`,
 `FULL_END_TO_END_CLIENT_TEST_1` has not been run. This file exists
 precisely so that fact stays visible and current rather than getting lost
-in narrative progress notes.
+in narrative progress notes. See
+`docs/final-askabd-production-readiness.md` for the full, final
+production-readiness synthesis across this entire engagement.
 
 ## Update discipline
 

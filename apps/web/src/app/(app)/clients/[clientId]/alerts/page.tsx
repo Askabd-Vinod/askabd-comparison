@@ -1,7 +1,6 @@
 import { CapabilityPlaceholder } from '../capability-placeholder';
 import Link from 'next/link';
 import { mockClients } from '../../../../lib/mock-clients';
-import { DemoDataBanner } from '../../../../components/demo-data-banner';
 
 interface PageProps { params: Promise<{ clientId: string }> }
 
@@ -19,7 +18,6 @@ export default async function ClientAlertsPage({ params }: PageProps) {
 
   return (
     <div>
-      <DemoDataBanner />
       <div className="flex items-center gap-4 mb-4">
         <h2 className="font-semibold text-lg">Alerts ({client.alerts.length})</h2>
         {critical.length > 0 && <span className="text-xs text-red-600 font-medium">{critical.length} Critical</span>}

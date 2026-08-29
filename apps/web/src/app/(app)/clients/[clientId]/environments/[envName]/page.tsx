@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { mockClients } from '../../../../../lib/mock-clients';
 import { Breadcrumb } from '../../../../../components/breadcrumb';
-import { DemoDataBanner } from '../../../../../components/demo-data-banner';
 import { statusColor } from '../../../../../components/status-badge';
 import { AIInsightsPanel } from '../../../../../components/ai-insights';
 import { Legend } from '../../../../../components/legend';
@@ -23,7 +22,6 @@ export default async function EnvironmentDetailPage({ params }: Props) {
 
   return (
     <div>
-      <DemoDataBanner />
       <Breadcrumb items={[
         { label: 'Dashboard', href: '/' },
         { label: 'Clients', href: '/clients' },

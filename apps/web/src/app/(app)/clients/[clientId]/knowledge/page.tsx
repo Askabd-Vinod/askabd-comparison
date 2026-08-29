@@ -1,7 +1,6 @@
 import { CapabilityPlaceholder } from '../capability-placeholder';
 import Link from 'next/link';
 import { mockClients } from '../../../../lib/mock-clients';
-import { DemoDataBanner } from '../../../../components/demo-data-banner';
 
 interface PageProps { params: Promise<{ clientId: string }> }
 
@@ -25,7 +24,6 @@ export default async function ClientKnowledgePage({ params }: PageProps) {
 
   return (
     <div>
-      <DemoDataBanner />
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="font-semibold text-lg">Knowledge Base</h2>

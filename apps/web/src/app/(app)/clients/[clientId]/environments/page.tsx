@@ -2,7 +2,6 @@ import { CapabilityPlaceholder } from '../capability-placeholder';
 import Link from 'next/link';
 import { mockClients } from '../../../../lib/mock-clients';
 import { statusColor } from '../../../../components/status-badge';
-import { DemoDataBanner } from '../../../../components/demo-data-banner';
 import { HealthStatus } from '../../../../lib/types';
 
 interface PageProps { params: Promise<{ clientId: string }> }
@@ -14,7 +13,6 @@ export default async function ClientEnvironmentsPage({ params }: PageProps) {
 
   return (
     <div>
-      <DemoDataBanner />
       <h2 className="font-semibold text-lg mb-4">Environments</h2>
       <div className="grid md:grid-cols-3 gap-4">
         {(['development', 'staging', 'production'] as const).map(envKey => {

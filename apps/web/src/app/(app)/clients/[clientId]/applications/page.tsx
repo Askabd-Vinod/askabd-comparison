@@ -2,7 +2,6 @@ import { CapabilityPlaceholder } from '../capability-placeholder';
 import Link from 'next/link';
 import { mockClients } from '../../../../lib/mock-clients';
 import { statusColor } from '../../../../components/status-badge';
-import { DemoDataBanner } from '../../../../components/demo-data-banner';
 import { seededUnit } from '../../../../lib/deterministic-variance';
 
 interface PageProps { params: Promise<{ clientId: string }> }
@@ -28,7 +27,6 @@ export default async function ClientApplicationsPage({ params }: PageProps) {
 
   return (
     <div>
-      <DemoDataBanner />
       <div className="flex items-center justify-between mb-4">
         <h2 className="font-semibold text-lg">Applications ({apps.length})</h2>
       </div>

@@ -1,7 +1,6 @@
 import { CapabilityPlaceholder } from '../capability-placeholder';
 import { mockClients } from '../../../../lib/mock-clients';
 import { UsageView } from './usage-view';
-import { DemoDataBanner } from '../../../../components/demo-data-banner';
 
 interface PageProps { params: Promise<{ clientId: string }> }
 
@@ -23,5 +22,5 @@ export default async function ClientUsagePage({ params }: PageProps) {
   const weekly = { apiCalls: daily.apiCalls * 7, transactions: daily.transactions * 7, users: Math.round(daily.users * 1.5), sessions: daily.sessions * 7, bandwidth: daily.bandwidth * 7, storage: daily.storage };
   const monthly = { apiCalls: daily.apiCalls * 30, transactions: daily.transactions * 30, users: Math.round(daily.users * 2), sessions: daily.sessions * 30, bandwidth: daily.bandwidth * 30, storage: daily.storage };
 
-  return <><DemoDataBanner /><UsageView daily={daily} weekly={weekly} monthly={monthly} clientName={client.name} clientId={clientId} /></>;
+  return <UsageView daily={daily} weekly={weekly} monthly={monthly} clientName={client.name} clientId={clientId} />;
 }

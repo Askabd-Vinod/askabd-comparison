@@ -4,7 +4,6 @@ import { mockClients } from '../../../../lib/mock-clients';
 import { apiSafe } from '../../../../lib/api';
 import { serviceCatalog } from '../../../../lib/service-catalog';
 import { connectorCatalog } from '../../../../lib/connectors';
-import { DemoDataBanner } from '../../../../components/demo-data-banner';
 
 interface PageProps { params: Promise<{ clientId: string }> }
 
@@ -18,7 +17,6 @@ export default async function ClientSettingsPage({ params }: PageProps) {
 
   return (
     <div>
-      <DemoDataBanner />
       <h2 className="font-semibold text-lg mb-1">Client Administration</h2>
       <p className="text-xs text-gray-500 mb-6">Lifecycle management, platform toggles, service configuration, and security — Super Admin: hello@askabd.com</p>
 

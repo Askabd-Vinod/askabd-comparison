@@ -3,7 +3,6 @@ import { mockClients } from '../../../../lib/mock-clients';
 import { statusColor } from '../../../../components/status-badge';
 import { HealthStatus } from '../../../../lib/types';
 import { Legend } from '../../../../components/legend';
-import { DemoDataBanner } from '../../../../components/demo-data-banner';
 import { CapabilityPlaceholder } from '../capability-placeholder';
 
 interface PageProps { params: Promise<{ clientId: string }> }
@@ -16,7 +15,6 @@ export default async function ClientMonitoringPage({ params }: PageProps) {
 
   return (
     <div>
-      <DemoDataBanner />
       <div className="flex items-center justify-between mb-4">
         <h2 className="font-semibold text-lg">Live Monitoring</h2>
         <div className="flex items-center gap-4">

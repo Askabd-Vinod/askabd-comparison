@@ -1,105 +1,83 @@
-# demo_data_disclosure_test_1 — closing an undisclosed-fabrication gap (Phase 35, Final Master Completion Directive)
+# demo_data_disclosure_test_1 — investigated, found already correctly disclosed, self-corrected (Phase 35, Final Master Completion Directive)
 
 **Directive**: "ASKABD — FINAL MASTER COMPLETION, VERIFICATION & PRODUCTION
 READINESS DIRECTIVE", Phase 35 ("No Fabrication") and Phase 18 ("UI/UX
 Master Audit — misleading labels").
 **Date**: 2026-08-29 · **Branch**: `feature/reliability-hardening`.
 
-## What was found
+## What happened (including a real mistake, corrected before commit stood)
 
 A repository-wide mechanical sweep for `mockClients` usage (Phase 35's own
 explicit instruction) found 39 files importing the fabricated sample-client
-dataset (`apps/web/src/app/lib/mock-clients.ts`, 8 hand-written demo
-companies with fake financials, timestamps, and metrics). A pre-existing,
-already-correct disclosure pattern exists for this exact situation
-(`<DemoDataBanner />`, added in an earlier pass — see its own doc comment:
-*"an audit of this page found every headline number computed from
-fabricated data with no indication to the viewer... the honest fix is to
-say so plainly"*) and was already applied to every TOP-LEVEL aggregate
-dashboard (`governance`, `intelligence`, `monitoring`, etc.) — but **24 of
-the 25 client-scoped demo pages under `clients/[clientId]/*` had never
-received it**, despite rendering from the exact same fabricated dataset.
+dataset. A grep for the existing `<DemoDataBanner />` disclosure component
+found 24 of the 25 client-scoped pages under `clients/[clientId]/*` with
+**no direct import of it in the page file itself**, and — without first
+checking the shared layout those pages render inside — this was initially
+treated as a real, undisclosed-fabrication gap. `<DemoDataBanner />` was
+added directly to all 24 page files and committed (`046d8f4`).
 
-## Why this matters
+**This was wrong, and was caught and reverted in the same pass.** Reading
+`clients/[clientId]/layout.tsx` (the shared layout wrapping every page
+under this route) showed it already renders `<DemoDataBanner />`
+unconditionally for `isDemoClient` on both of its own branches (lines 110
+and 158) — meaning every one of the 24 pages already displayed the
+disclosure, automatically, before this pass touched anything. Adding a
+second, page-level banner would have produced a real UI regression: two
+identical "Sample data" banners stacked on every demo-client page. This
+exact fact was also already correctly recorded in
+`docs/enterprise-feature-gap-register.md`'s own 2026-08-29 entry ("the '15
+of 32 lack DemoDataBanner' claim is stale... every real `CapabilityPlaceholder`
+consumer already carries the disclosure automatically via the shared
+layout") — a register entry that should have been read before concluding
+the gap was real and unaddressed.
 
-Each of these 24 pages only ever renders its mock branch for one of the 8
-hardcoded demo client IDs (`meridian-financial`, `nexus-healthcare`, etc.)
-— real, database-backed clients (UUID ids, created via the real onboarding
-wizard) always take the separate, real-data branch (confirmed by reading
-every file's own `if (!client) return <RealComponent/>` / `<CapabilityPlaceholder/>`
-routing logic — no ID collision is possible between an 8-item hardcoded
-slug list and a generated UUID). **So this was never a risk of a real
-client's numbers being replaced by fake ones** — but it was a real,
-undisclosed honesty gap: anyone viewing one of the 8 demo clients' Alerts,
-Applications, Automation, Capabilities, Consulting, Contacts, Contracts,
-Documents, Edit, Environments, Infrastructure, Knowledge, Monitoring,
-Overview, Performance, Settings, Support, Timeline, or Usage page saw
-entirely fabricated figures with zero indication, while the platform's own
-top-level dashboards for the identical dataset already disclosed it. This
-is exactly the inconsistency Phase 35 exists to catch.
+**Corrected**: all 24 files were reverted to their pre-edit state via
+`git checkout <prior-commit> -- <files>` before being committed again,
+restoring the single, correct, layout-level disclosure with no
+duplication. `tsc --noEmit` and a full `next build` were re-run clean
+after the revert.
 
-## Fix
+## Why this is recorded rather than quietly dropped
 
-Added `<DemoDataBanner />` (the existing, unmodified, already-live
-component) as the first rendered element in the mock/demo branch of all 24
-files:
+This session's own standing discipline is to investigate and correct wrong
+prior conclusions rather than let them stand (see, for example,
+`risk_014_triage_test_6`'s correction of `risk_014_triage_test_3`'s own
+wrong `GET /oc/workflow/rules` claim). The same standard applies to a
+mistake made *within* this pass, not just to mistakes inherited from
+earlier ones — this file exists so the investigation, the incorrect
+initial fix, and its correction are all visible rather than only the
+final, correct state.
 
-`page.tsx` (client overview), `alerts/page.tsx`, `alerts/[alertId]/page.tsx`,
-`applications/page.tsx`, `applications/[appId]/page.tsx`,
-`audit/[auditId]/page.tsx`, `automation/page.tsx`, `capabilities/page.tsx`,
-`consulting/page.tsx`, `contacts/page.tsx`, `contracts/page.tsx`,
-`documents/page.tsx`, `edit/page.tsx`, `environments/page.tsx`,
-`environments/[envName]/page.tsx`, `infrastructure/page.tsx`,
-`infrastructure/servers/[serverId]/page.tsx`, `knowledge/page.tsx`,
-`monitoring/page.tsx`, `performance/page.tsx`, `settings/page.tsx`,
-`support/page.tsx`, `timeline/page.tsx`, `usage/page.tsx`.
+## What is actually true, confirmed
 
-`search/page.tsx` was deliberately left unchanged — it already labels each
-individual search result `source: 'real' | 'demo'` inline, a finer-grained
-and more accurate disclosure than a page-level banner would be (a banner
-would incorrectly imply the whole page is demo data, when results are
-genuinely hybrid).
+- Every `clients/[clientId]/*` page's demo/mock branch is disclosed via
+  the shared layout's `<DemoDataBanner />` — no per-page fix was needed
+  or applied.
+- `search/page.tsx` independently already carries a finer-grained,
+  per-result `real`/`demo` label (correctly not using the page-level
+  banner).
+- Real, database-backed clients (UUID ids) never take the mock branch of
+  any of these pages — confirmed by reading each file's own
+  `if (!client) return <CapabilityPlaceholder/>` / real-branch routing
+  logic; no ID collision is possible between the 8 hardcoded demo slugs
+  (`meridian-financial`, etc.) and a generated UUID.
+- The one genuinely fixed disclosure gap from the prior 2026-08-29 pass
+  (`apps/web/src/app/(app)/services/page.tsx`, the top-level Platform
+  Services catalog) remains fixed and is unaffected by this pass.
 
-For the 3 files whose demo branch returns a single child component
-directly (`contracts`, `documents`, `usage` — `return <XView .../>`), the
-banner was added as a sibling via a fragment (`return <><DemoDataBanner /><XView .../></>;`)
-rather than modifying the child component itself.
+## Verification after the revert
 
-## Verification
+- `tsc --noEmit` clean on `apps/web`.
+- `next build` succeeded (45 routes, same clean result as before the
+  incorrect edit).
+- `git status` confirms all 24 files match their pre-edit committed state
+  exactly (byte-for-byte revert via `git checkout <commit> -- <paths>`,
+  not a manual re-edit).
+- `main` independently re-verified unchanged at `b63f797` throughout.
 
-- `tsc --noEmit` clean on `apps/web` after all 24 edits.
-- **Full production build succeeded** (`next build`): all 45 route groups
-  compiled and generated without error, including the new
-  `/platform/verification/journeys/[runId]` route from this same pass —
-  first real production-build verification this session (previously only
-  `tsc --noEmit` had been run, not a full build).
-- Mechanical re-check: `grep -rL "DemoDataBanner" <files-importing-mockClients>`
-  now returns exactly one file (`search/page.tsx`, deliberately excluded
-  per above) — zero undisclosed demo-data pages remain.
-- Live browser click-through of a demo client page was attempted but the
-  staff session (found already active earlier this session) had expired
-  by this point — `BLOCKED_EXTERNAL_AUTH`, honestly disclosed, not
-  fabricated. The component itself is not new — it is already proven live
-  and working on every top-level dashboard page (see prior evidence docs).
-  Confidence is high (successful build + identical, already-proven
-  component + identical insertion pattern used 24 times) but this specific
-  rollout's own live rendering is not independently re-confirmed this
-  pass.
-- API (`localhost:4200`) and Identity (`localhost:3100`) dev servers were
-  found stopped after the build (unrelated background process
-  cycling, not caused by these edits) — restarted and re-verified healthy
-  (`{"status":"ok",...,"database":"connected"}` and `{"status":"ok",...}`
-  respectively) before this evidence doc was finalized. `localhost:3001`
-  (web) remained healthy throughout.
+## Net effect on the repository
 
-## Scope note
-
-This fix addresses the disclosure gap, not the underlying architecture —
-the client-scoped demo pages remain backed by static fabricated data by
-design (they are illustrative "what the platform looks like" pages for 8
-named sample companies, never real client data). Wiring all 24 to real
-per-client aggregation APIs the way `deployments/page.tsx`,
-`contacts/page.tsx`, and `documents/page.tsx`'s real branches already are
-remains a large, separate body of work, tracked honestly in
-`docs/enterprise-feature-gap-register.md` rather than silently implied
-complete by this pass.
+None — this pass makes no functional change to the 24 client-scoped
+pages. Its value is the negative result itself (confirming the existing
+layout-level disclosure is complete and correct, closing the question
+Phase 35 raised) plus this record of the self-correction.

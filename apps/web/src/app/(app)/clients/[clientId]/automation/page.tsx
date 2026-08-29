@@ -1,7 +1,6 @@
 import { CapabilityPlaceholder } from '../capability-placeholder';
 import Link from 'next/link';
 import { mockClients } from '../../../../lib/mock-clients';
-import { DemoDataBanner } from '../../../../components/demo-data-banner';
 import { AIInsightsPanel } from '../../../../components/ai-insights';
 import { SolutionRecommendation, Solution } from '../../../../components/solution-recommendation';
 
@@ -33,7 +32,6 @@ export default async function ClientAutomationPage({ params }: PageProps) {
 
   return (
     <div>
-      <DemoDataBanner />
       <h2 className="font-semibold text-lg mb-1">Intelligent Auto-Resolution</h2>
       <p className="text-xs text-gray-500 mb-6">AI-powered detection, analysis, and approved automated remediation</p>
 

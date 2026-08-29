@@ -3,7 +3,6 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { mockClients } from '../../../../../lib/mock-clients';
 import { Breadcrumb } from '../../../../../components/breadcrumb';
-import { DemoDataBanner } from '../../../../../components/demo-data-banner';
 import { Timeline, TimelineEvent } from '../../../../../components/timeline';
 import { AIInsightsPanel } from '../../../../../components/ai-insights';
 import { SolutionRecommendation, Solution } from '../../../../../components/solution-recommendation';
@@ -40,7 +39,6 @@ export default async function AlertDetailPage({ params }: Props) {
 
   return (
     <div>
-      <DemoDataBanner />
       <Breadcrumb items={[
         { label: 'Dashboard', href: '/' },
         { label: 'Clients', href: '/clients' },
