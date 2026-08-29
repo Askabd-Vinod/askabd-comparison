@@ -1,0 +1,67 @@
+{
+  "feature": "Verification Center — responsive layout at 375/768/1440px",
+  "testSuite": "responsive_test_1",
+  "environment": "local dev",
+  "startedAt": "2026-08-29T14:14:30.828Z",
+  "finishedAt": "2026-08-29T14:14:43.714Z",
+  "browserName": "chromium",
+  "finalStatus": "PASS",
+  "total": 3,
+  "passed": 3,
+  "failed": 0,
+  "blocked": 0,
+  "steps": [
+    {
+      "id": "resp-mobile",
+      "title": "Real layout at 375px (mobile)",
+      "expected": "Heading visible, no horizontal page overflow",
+      "actual": "Heading visible: true; horizontal overflow: false",
+      "status": "PASS",
+      "evidence": "docs/evidence/final_product_validation/verification/responsive_test_1/responsive_test_1_01.png",
+      "notes": null,
+      "at": "2026-08-29T14:14:41.318Z"
+    },
+    {
+      "id": "resp-tablet",
+      "title": "Real layout at 768px (tablet)",
+      "expected": "Heading visible, no horizontal page overflow",
+      "actual": "Heading visible: true; horizontal overflow: false",
+      "status": "PASS",
+      "evidence": "docs/evidence/final_product_validation/verification/responsive_test_1/responsive_test_1_02.png",
+      "notes": null,
+      "at": "2026-08-29T14:14:42.403Z"
+    },
+    {
+      "id": "resp-desktop",
+      "title": "Real layout at 1440px (desktop)",
+      "expected": "Heading visible, no horizontal page overflow",
+      "actual": "Heading visible: true; horizontal overflow: false",
+      "status": "PASS",
+      "evidence": "docs/evidence/final_product_validation/verification/responsive_test_1/responsive_test_1_03.png",
+      "notes": null,
+      "at": "2026-08-29T14:14:43.447Z"
+    }
+  ],
+  "screenshots": [
+    {
+      "fileName": "responsive_test_1_01.png",
+      "relPath": "docs/evidence/final_product_validation/verification/responsive_test_1/responsive_test_1_01.png",
+      "description": "Verification Center at mobile (375x812)",
+      "sizeBytes": 460021
+    },
+    {
+      "fileName": "responsive_test_1_02.png",
+      "relPath": "docs/evidence/final_product_validation/verification/responsive_test_1/responsive_test_1_02.png",
+      "description": "Verification Center at tablet (768x1024)",
+      "sizeBytes": 501807
+    },
+    {
+      "fileName": "responsive_test_1_03.png",
+      "relPath": "docs/evidence/final_product_validation/verification/responsive_test_1/responsive_test_1_03.png",
+      "description": "Verification Center at desktop (1440x900)",
+      "sizeBytes": 573121
+    }
+  ],
+  "findings": [],
+  "remaining": []
+}
