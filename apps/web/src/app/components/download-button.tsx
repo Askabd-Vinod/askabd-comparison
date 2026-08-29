@@ -17,11 +17,29 @@ interface DownloadButtonProps {
 /**
  * Universal download button that generates and downloads files.
  * Logs every download to audit trail for evidence.
+ *
+ * REAL BUG FOUND AND FIXED (2026-08-29, master directive's "physically
+ * test downloaded files" requirement): every one of this component's 9
+ * real consumers requesting `format="pdf"` downloaded a file literally
+ * named `*.pdf` whose actual bytes were plain text — a real PDF viewer
+ * (Preview, Acrobat, a browser's built-in viewer) would refuse to open it
+ * or show a "damaged file" error, since a `.pdf` extension is a promise
+ * about the byte format, not just a label. No PDF-generation library
+ * exists anywhere in this project (confirmed by grep across both
+ * `package.json` files) — adding one is a genuine, separate feature
+ * decision, not a one-line fix. Until that exists, the honest fix
+ * (matching this platform's own "PDF/HTML honestly not implemented, use
+ * what's real" precedent already established for Executive Reporting) is
+ * to stop claiming the file is a PDF: it now downloads as the real `.txt`
+ * it always was, and the default button label (several call sites render
+ * no custom `children` at all) no longer claims "PDF" either.
  */
 export function DownloadButton({ fileName, format, entityType, entityId, entityName, clientName, data, className, children }: DownloadButtonProps) {
+  const realFormat = format === 'pdf' ? 'txt' : format === 'excel' ? 'xlsx' : format;
+
   function handleDownload() {
     const timestamp = new Date().toISOString().split('T')[0];
-    const fullFileName = `${fileName.replace(/\s+/g, '_')}_${timestamp}.${format === 'excel' ? 'xlsx' : format}`;
+    const fullFileName = `${fileName.replace(/\s+/g, '_')}_${timestamp}.${realFormat}`;
 
     // Generate content based on format
     let content: string;
@@ -35,7 +53,10 @@ export function DownloadButton({ fileName, format, entityType, entityId, entityN
       content = generateCSV(fileName, data);
       mimeType = 'application/vnd.ms-excel';
     } else {
-      // PDF — generate text content (in production, use a PDF library)
+      // "pdf" format — no real PDF library exists in this project (see the
+      // component doc comment above); generate real, honestly-labeled
+      // plain-text report content instead of a file that lies about its
+      // own format.
       content = generatePDFText(fileName, clientName, data);
       mimeType = 'text/plain';
     }
@@ -79,7 +100,7 @@ export function DownloadButton({ fileName, format, entityType, entityId, entityN
 
   return (
     <button onClick={handleDownload} className={className || defaultClass}>
-      {children || format.toUpperCase()}
+      {children || realFormat.toUpperCase()}
     </button>
   );
 }
