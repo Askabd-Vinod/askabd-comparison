@@ -1419,7 +1419,7 @@ completion" principle.
 
 ---
 
-## RISK-017 — the comparison-marketplace's `user_id`/`reviewerId` fields trust the client, with no real identity-mapping bridge to fix it against
+## RISK-017 — the comparison-marketplace's `user_id`/`reviewerId`/`tenantId`/merchant-ownership fields all trust the client, with no real identity-mapping bridge to fix any of it against
 
 - **Status**: `OPEN` — a real, confirmed IDOR, deliberately NOT
   shallow-patched (see below for why a naive fix would itself be wrong)
@@ -1488,6 +1488,71 @@ completion" principle.
   express the missing ownership check) — a documentation test, not a
   fix, so its presence in the passing suite must not be read as "this
   is resolved."
+- **Update (2026-08-29, `marketplace_rbac_audit_test_1`, master
+  directive's dedicated marketplace-audit pass)**: a full, fresh
+  mechanical RBAC + cross-tenant audit of the entire real
+  `merchant-brand-routes.ts`/`price-routes.ts`/`review-routes.ts` surface
+  (28 real routes, confirmed by a mechanical `server.<method>(` sweep of
+  all 3 files — not assumed from prior notes), with real HTTP-layer
+  `app.inject` tests and real Prisma fixtures, not read-only code review.
+  **The same root cause this entry already names — no real identity
+  -mapping bridge — is confirmed to reach further than previously
+  disclosed**, into `merchant.tenant_id` itself, not just `comparison
+  .user_id`/`review.user_id`:
+  - `merchant.register()`'s `tenantId` input is caller-supplied with zero
+    verification against the caller's own real, verified org — live
+    -proven: an authenticated identity whose real org is `seller-org-a`
+    successfully registered a new merchant claiming `tenantId:
+    'seller-org-b'`, and the row was persisted exactly as claimed.
+  - `POST /merchants/:id/verification` and `POST /merchants/:id/branches`
+    have zero ownership check on `:id` at all (confirmed already by
+    reading the handler in `risk_014_triage_test_3`'s disclosure; now
+    additionally live-proven with real fixtures) — an authenticated
+    identity from `seller-org-a` successfully submitted verification
+    documents AND added a branch to a real merchant genuinely owned by
+    `seller-org-b`, both persisted.
+  - **What IS already correctly protected, confirmed not to have
+    regressed**: `POST /admin/merchants/:id/{approve,suspend,reactivate}`,
+    `POST /admin/verifications/:id/review`, `POST/PUT/archive/restore
+    /admin/brands*`, and `GET /admin/reviews/pending` +
+    `POST /admin/reviews/:id/moderate` all correctly deny a real,
+    unrelated authenticated identity (`403`) and correctly allow a real
+    admin token through — these are genuinely centralized-authority
+    actions (AskABD-as-platform-operator approving a seller, not a seller
+    self-certifying), a different shape from the ownership-scoped gaps
+    above, and remain correctly `Admin.Access`/`Merchant.Approve`-gated.
+  - **Genuinely public-shaped read routes, confirmed intentional, not a
+    gap**: `GET /items/:itemId/{prices,offers,reviews}*` have no explicit
+    rule (fall to `defaultPolicy: 'authenticated'`) — live-proven this
+    still requires SOME real authenticated identity (`401` with none),
+    but any authenticated identity of any role can browse them, matching
+    a real shopper-facing marketplace's own expected shape (prices/reviews
+    are meant to be visible to any logged-in shopper, not a per-tenant
+    secret) — not the same class of problem as the ownership gaps above.
+  - **A separate, smaller, real inconsistency found**: `POST /reviews`
+    and `POST /reviews/:id/helpful` have no explicit rule at all (not
+    even `authenticatedOnly`), unlike every other write route in this
+    surface — falls to the same `defaultPolicy: 'authenticated'`, so
+    still requires a real token, but is a real inconsistency in how this
+    surface's rules were written, not itself a security hole.
+  - `apps/api/tests/marketplace-rbac-audit-test-1.test.ts`, 28/28 passing
+    — including 4 tests explicitly marked `CONFIRMED GAP` that assert the
+    CURRENT (undesirable) behavior on purpose, so a future real fix
+    (the `marketplace_identity_mapping` bridge already called for below)
+    will fail them loudly and require a deliberate update, rather than a
+    fix silently going unnoticed. Real fixtures created via the live
+    Prisma client, real cleanup verified via a direct post-run query
+    (zero orphaned test merchants remained).
+  - **Not fixed this pass, for the same reason already stated above**:
+    the real fix remains the same `marketplace_identity_mapping` bridge,
+    now confirmed to need to cover `merchant`/`merchant_verification`/
+    `merchant_branch` ownership in addition to `comparison`/`review`
+    attribution — a single, real, correctly-scoped feature, not two
+    separate fixes. Re-confirmed this pass, via a fresh grep, that this
+    entire marketplace surface still has zero real frontend consumers in
+    `apps/web` — the "no real consumer to break, not the highest-value
+    security work available" reasoning still holds. See
+    `docs/evidence/security/marketplace_rbac_audit_test_1/`.
 
 ---
 
