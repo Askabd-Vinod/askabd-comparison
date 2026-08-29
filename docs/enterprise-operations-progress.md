@@ -4179,6 +4179,111 @@ on.
   `migration_test_1`, row #43 — nothing to click through yet)
 - See `docs/evidence/uat/uat_test_1/uat_test_1.md` for the full report
 
+## 2026-08-29 — Phase 3 UI integration sweep: all 11 prior-session engines now have a real staff UI
+
+Per the "ASKABD ENTERPRISE OPERATIONS — INTEGRATION + COMPLETION PHASE" /
+master autonomous directive's Phase 3 mandate. A mechanical grep confirmed
+zero web UI files referenced any of the 11 engines built in the prior
+session's build phase (`risk-engine.ts`, `change-management-engine.ts`,
+`uat-service.ts`, `release-readiness-service.ts`, `data-mapping-engine.ts`,
+`data-reconciliation-engine.ts`, `requirements-clarification-engine.ts`,
+`executive-reporting-engine.ts`, `api-discovery-engine.ts`,
+`dependency-analysis-engine.ts`, `deployment-service.ts`) — every one was
+`IMPLEMENTED` in the coverage matrix but reachable only via direct HTTP.
+Deployment already had a real UI from an earlier milestone; the other 10
+did not. All 10 built this pass, one at a time, each following the
+canonical multi-record UI pattern (expandable rows, Stat strip, `+ Add`
+row), each verified via a clean `tsc --noEmit`, a clean unauthenticated
+`/staff/login` redirect in a fresh browser tab, and a dedicated evidence
+doc + commit:
+
+- Risk Register (`clients/[clientId]/risks`) — **replaced** a real,
+  already-honest pre-existing page (health-score-derived weaknesses) after
+  verifying the data wasn't lost (superset already shown on Scorecard) and
+  that `consulting/page.tsx` already linked to this tab as "Risk Register",
+  anticipating exactly this.
+- Change Management (`.../changes`) — new tab; risk/deployment linkage via
+  live pickers into the client's own real records, never a free-typed id.
+- UAT (`.../uat`) — new tab, staff-management surface only by design
+  (execution/sign-off-request stay client-portal-only, matching the real
+  route split); test-case picker sourced from the real Testing Engine.
+- Release Readiness (`.../release-readiness`) — new tab, verified distinct
+  from the pre-existing health-score "Readiness" tab before adding; real
+  GO/NO-GO banner never client-computed.
+- Data Mapping (`.../data-mappings`) — new tab; two-level hierarchy (sets →
+  fields), per-mapping-type shape hints mirroring server validation.
+- Data Reconciliation (`.../data-reconciliation`) — new tab, verified
+  distinct from the pre-existing financial/payment "Reconciliation" tab;
+  the engine's honest `EXTERNAL DEPENDENCY` non-Postgres disclosure
+  rendered as-is, never hidden.
+- Requirements Clarification (`.../clarifications`) — new tab next to
+  Business Requirements; client's answer rendered read-only, verbatim.
+- Executive Reporting (`.../executive-reports`) — new tab, verified
+  distinct from the pre-existing operational "Reports" tab; honest
+  `insufficient_evidence` dimension status rendered identically to the
+  others, never defaulted to a false "healthy"; Markdown export via blob.
+- API Discovery (`.../api-specs`) — new tab; live-endpoint validation kept
+  explicit opt-in in the UI too (Validate button only appears once staff
+  has clicked Authorize, mirroring `LiveValidationNotAuthorizedError`).
+- Dependency Analysis (`.../dependencies`) — new tab, deliberately
+  entity-picker-driven rather than a list page (no list-all-links endpoint
+  exists in the real API — confirmed before designing).
+
+RBAC was already fully correct for all 10 (`rules.ts`, all `Admin.Access`)
+— zero RBAC changes needed this pass, only UI.
+
+**Full regression after the sweep**: API test suite **92 files / 932
+tests, all passing** (unchanged from baseline — this pass touched only
+`apps/web`, no backend code). `tsc --noEmit` clean. `next build` succeeded
+cleanly for all 44 routes including all 10 new pages (real bundle sizes
+listed). No lint run — `apps/web` has never had an ESLint config
+committed (`next lint` prompts interactively for one); this is a
+pre-existing gap, not introduced this pass, and was not resolved
+unilaterally since choosing a lint ruleset is a real team decision.
+
+**Two real environment incidents this pass, both root-caused and
+recovered with real, non-destructive, project-configured tooling — never
+a fake/temporary server**:
+1. A full-stack outage at the start of this pass — all 4 dev-infra
+   containers (`comparison-postgres`, `identity-postgres`,
+   `identity-redis`, `mailpit`) and all 3 app processes (web/api/identity)
+   were down, root-caused to a host-level Docker Desktop/WSL2 restart (all
+   containers exited together, same timestamp, same code). Recovered via
+   `docker start` (non-destructive) + the real root `launch.json`; both
+   protected clients confirmed unchanged via direct DB query before
+   resuming. See `docs/evidence/environment/local_environment_test_2/`.
+2. The regression pass's own `next build` step corrupted the dev server's
+   shared `.next` cache — the exact same failure signature previously
+   documented in `local_environment_test_1` (`Cannot find module
+   './4787.js'`). Recovered the same proven way (stop → delete `.next` →
+   restart via the real `web` launch config). A stale already-open browser
+   tab briefly showed the same error after recovery — investigated and
+   correctly dismissed as a cached artifact once a genuinely fresh tab
+   confirmed zero errors, rather than reported as a new failure. See
+   `docs/evidence/environment/local_environment_test_3/`.
+
+**Coverage matrix updated**: all 10 rows' UI column and closing notes
+corrected from "Not yet surfaced in a dedicated UI (API-only this pass)"
+to the real page/tab, evidence doc, and remaining honest caveat (still
+`IMPLEMENTED`, not `PASS` — no authenticated session was available at any
+point this pass to exercise any of the 10 pages' interactive behavior
+end-to-end; `staff-state.json` re-checked and confirmed absent multiple
+times throughout).
+
+**What remains genuinely open, not silently closed**: the UAT/
+Requirements-Clarification client-portal sides (client executes/answers
+via their own portal — out of scope for this staff-side sweep); PDF/HTML
+export for Executive Reporting (Markdown only, no library exists); API
+Discovery's OpenAPI3/Swagger2-only ingestion (no gateway/Postman format
+support); Dependency Analysis's 5-entity-type ownership allowlist (real,
+honest, not exhaustive); and, unchanged from every prior pass, live
+authenticated Playwright evidence for all 10 new pages the moment
+`staff-state.json` becomes available.
+
+See `docs/evidence/ui-integration/*_ui_test_1/` (10 evidence docs, one per
+engine) and `docs/eoc-feature-coverage-matrix.md` rows #14, #21, #38, #50,
+#51, #62, #71, #74, #75, #78 for full detail.
+
 ## Real client data on the system (protected, never modify without an
 explicit, scoped test)
 

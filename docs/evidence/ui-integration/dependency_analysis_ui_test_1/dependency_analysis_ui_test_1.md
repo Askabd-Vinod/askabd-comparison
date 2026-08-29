@@ -31,17 +31,18 @@ change needed.
 - Live browser (fresh tab) navigation to `/clients/verification-probe-000/dependencies`: clean 307 to `/staff/login`, zero console errors.
 - **Limitation, unchanged and honestly disclosed**: no staff credentials available — the authenticated flow (picking two real entities, creating a link, running cycle/impact analysis) could not be exercised live. Correctness rests on an exact contract match against `dependency-analysis-routes.ts` / `dependency-analysis-engine.ts`, a clean `tsc` build, and the confirmed-clean unauthenticated redirect. Playwright remains `BLOCKED_EXTERNAL_AUTH`.
 
-## Status: 11 of 11 engines wired — Phase 3 engine-integration sweep complete
+## Status: 10 of 10 previously-UI-less engines wired — Phase 3 engine-integration sweep complete
 
 Risk, Change Management, UAT, Release Readiness, Data Mapping, Data
 Reconciliation, Requirements Clarification, Executive Reporting, API
 Discovery, Dependency Analysis — all now have a real staff UI, each
 verified via a clean `tsc` build and a clean unauthenticated-redirect
 browser check, none using fabricated data or a bypassed RBAC/ownership
-check. (Deployment already had a real UI from an earlier milestone and was
-not counted among these 11.)
+check. Together with Deployment (real UI from an earlier milestone, never
+lacking one — not part of this 10-page sweep), this closes the UI gap for
+all 11 engines built in the prior session's engine-build phase.
 
-**What this sweep does NOT claim**: none of these 11 pages have been
+**What this sweep does NOT claim**: none of these 10 pages have been
 exercised through a real authenticated staff session — `staff-state.json`
 never existed at any point across this entire pass, so every interactive
 flow (create/mutate/transition button, form submission, live validation)
