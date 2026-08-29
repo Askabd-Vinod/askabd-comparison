@@ -29,6 +29,7 @@ const tabs = [
   { label: 'Recommendations', segment: '/recommendations' },
   { label: 'Transformations', segment: '/transformations' },
   { label: 'Migrations', segment: '/migrations' },
+  { label: 'Data Mapping', segment: '/data-mappings' },
   { label: 'Testing', segment: '/testing' },
   { label: 'UAT', segment: '/uat' },
   { label: 'Compliance', segment: '/compliance' },
