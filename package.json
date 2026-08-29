@@ -11,6 +11,7 @@
     "health": "node scripts/health.mjs",
     "playwright:setup-staff": "npm exec -w apps/api -- tsx --env-file=.env scripts/setup-playwright-test-staff.ts",
     "playwright:smoke": "node scripts/playwright-evidence/authenticated-smoke-test-1.mjs",
+    "validate:e2e": "npm run playwright:setup-staff && npm run playwright:smoke",
     "build": "npm run build --workspaces",
     "test": "npm run test --workspaces",
     "lint": "npm run lint --workspaces"
