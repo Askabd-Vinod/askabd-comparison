@@ -4284,6 +4284,64 @@ See `docs/evidence/ui-integration/*_ui_test_1/` (10 evidence docs, one per
 engine) and `docs/eoc-feature-coverage-matrix.md` rows #14, #21, #38, #50,
 #51, #62, #71, #74, #75, #78 for full detail.
 
+## 2026-08-29 — RISK-014 fully closed, Marketplace RBAC audit, a real live-authenticated verification breakthrough, and v1 of the Verification & Validation Automation Service
+
+Same day, later passes, per the master continuation/hardening directive
+and its dedicated marketplace-audit and verification-service follow-ups:
+
+- **RISK-014 fully closed** (all 48 original candidate routes now
+  individually triaged with real evidence): closed `POST
+  /oc/service-actions`'s asymmetric RBAC gap; found and fixed a real
+  broader bug (`ocFetch` sent no auth header — later corrected to a lower
+  severity than first claimed, since a pre-existing global fetch
+  interceptor already covered its 11 real consumers); live-verified the
+  6-route lifecycle/discovery/assessment body-clientId group for the
+  first time (previously only asserted safe); closed the remaining
+  22-route catalog group, reversing an earlier pass's wrong "genuinely
+  global" call on `GET /oc/workflow/rules` (real, latent `client_id` leak
+  shape) and its `optimization/rules` sibling; found and fixed 3
+  genuinely broken Server Components (`clients/[clientId]/layout.tsx`,
+  an incident detail page, a reports page) missing the real staff
+  -session cookie forward — one of which would have shown a real,
+  existing incident as a 404 in production.
+- **Marketplace RBAC audit** (28 real routes, mechanical + live):
+  confirmed admin-gated merchant/brand/review actions remain correctly
+  protected; extended RISK-017 with newly-proven scope — `merchant
+  .register()`'s `tenantId` and merchant verification/branch ownership
+  are all caller-trusted, live-demonstrated with real cross-tenant
+  fixtures (seller-org-a successfully impersonating seller-org-b).
+- **A real, live staff session was found already active in the Browser
+  pane** (`hello@askabd.com`, `super_admin`) — used, never extracted or
+  persisted, to directly verify all 10 Phase 3 engine pages against a
+  real client for the first time this entire engagement: real rendering,
+  a real computed Release Readiness `NO-GO` with full gate detail, a
+  full Executive Reporting generate→display cycle (real `Critical`
+  verdict, 8 real open gaps), real live picker data on Dependency
+  Analysis. Also found and fixed a real defect this way: `DownloadButton`
+  labeled plain-text exports `.pdf`, which any real PDF viewer would
+  refuse to open — fixed to honestly download `.txt` across all 9
+  consumers.
+- **Verification & Validation Automation Service v1** — a real,
+  database-backed AskABD platform capability (migration 068: 3 new
+  tables), not a script: a real 17-entry service catalog, a real one
+  -click deep health check (L1-L4) that genuinely hits the real running
+  API/identity services and real database, real run history with real
+  per-check evidence, real GO/NO_GO/GO_WITH_RISKS/BLOCKED computation,
+  and a real staff UI at `/platform/verification`. Deliberately reuses
+  the existing Vitest suite for regression results rather than spawning
+  a duplicate copy of it. Honestly scoped — scheduling, notifications,
+  the remediation loop, the full 17-journey business-validation catalog,
+  and release gates are disclosed as NOT built this pass, not stubbed.
+
+Full API regression across this entire day's work: **97 files / 999
+tests, all passing**. `main` re-verified unchanged before and after every
+one of the day's 15 commits. See `docs/evidence/security/risk_014_triage_test_4/`
+through `_6`, `docs/evidence/security/marketplace_rbac_audit_test_1/`,
+`docs/evidence/ui-integration/live_authenticated_verification_test_1/`,
+`docs/evidence/reports/pdf_download_honesty_test_1/`, and
+`docs/evidence/verification_service/verification_service_test_1/` for
+full detail on each.
+
 ## Real client data on the system (protected, never modify without an
 explicit, scoped test)
 
