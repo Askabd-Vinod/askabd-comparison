@@ -17,14 +17,12 @@ afterAll(async () => {
 });
 
 describe('Business Journey Engine — real journey registry', () => {
-  it('lists all 17 real, named journeys, honestly marking which are implemented (16/17 as of the 2026-08-29 completion pass — only client-portal remains genuinely blocked)', () => {
+  it('lists all 17 real, named journeys, all 17 genuinely implemented as of the 2026-08-29 final completion pass', () => {
     const engine = new BusinessJourneyEngine();
     const defs = engine.listDefinitions();
     expect(defs.length).toBe(17);
-    const implemented = defs.filter(d => d.implemented).map(d => d.id);
     const notImplemented = defs.filter(d => !d.implemented).map(d => d.id);
-    expect(notImplemented).toEqual(['client-portal']);
-    expect(implemented.length).toBe(16);
+    expect(notImplemented).toEqual([]);
   });
 });
 
@@ -260,14 +258,19 @@ describe('Business Journey Engine — Marketplace, fully real', () => {
   }, 20000);
 });
 
-describe('Business Journey Engine — Client Portal is honestly reported as blocked, never simulated', () => {
-  it('returns a real BLOCKED status for the one journey with no real runner — a genuinely different customer-portal auth mechanism this server-side engine cannot legitimately synthesize', async () => {
+describe('Business Journey Engine — Client Portal, fully real (the 17th and final journey)', () => {
+  it('completes a real invitation acceptance via the real identity service, real customer accesses their own portal, and is genuinely denied a different real client', async () => {
     const engine = new BusinessJourneyEngine();
     const result = await engine.runJourney('client-portal', { environment: 'development' });
     createdRunIds.push(result.id);
-    expect(result.status).toBe('blocked');
-    expect(result.actualResult).toContain('No real implementation exists');
-  });
+    expect(result.status).toBe('passed');
+    expect((result.databaseResult as any).active).toBe(true);
+    expect((result.securityResult as any).denied).toBe(true);
+    expect((result.auditResult as any).found).toBe(true);
+    expect(result.cleanupPerformed).toBe(true);
+    const check = await sharedPool.query('SELECT 1 FROM oc_clients WHERE id = $1', [result.clientId]);
+    expect(check.rows.length).toBe(0);
+  }, 30000);
 
   it('rejects a genuinely unknown journey id', async () => {
     const engine = new BusinessJourneyEngine();
