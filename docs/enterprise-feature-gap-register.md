@@ -175,6 +175,67 @@ to match the Operations Center product is a brand/business-strategy decision, no
 fix — consistent with this session's established pattern of stopping at genuine business-judgment
 forks rather than inventing a new company narrative unilaterally overnight.
 
+## Update (2026-08-29, master continuation/hardening directive) — mock/demo audit re-run from scratch; two register entries found stale (already closed), one real gap found and fixed
+
+Per the directive's explicit §36 "Mock/Demo Client Audit" and §49 "Known
+Open Areas" (DemoDataBanner consistency, hardcoded readiness/testing/
+roadmap content), re-derived this register's own "15 of 32" and "9 files"
+claims from scratch — both turned out to be **stale**, not current fact:
+
+- **The "15 of 32 `CapabilityPlaceholder` consumers still lack
+  `DemoDataBanner`" claim is stale.** `clients/[clientId]/layout.tsx`
+  already renders `<DemoDataBanner />` unconditionally for every
+  `isDemoClient` page (both the "client found" and "client not found"
+  branches, confirmed at lines 115/163) — meaning every one of the (now
+  25, not 32) real `CapabilityPlaceholder` consumers already carries the
+  disclosure automatically via the shared layout, with zero per-page
+  wiring needed. The layout's own code comment attributes this fix to
+  "the final adversarial audit" (an earlier session milestone, exact date
+  not recorded in that comment) — the "15 of 32" register note tracked
+  per-page imports of the component, not what actually renders on screen,
+  and was never corrected once the layout-level fix superseded it.
+- **The "9 files reading the fabricated `deployments` field, none fixed"
+  claim is also stale.** Re-checked all 9 named files
+  (`applications/[appId]`, `environments/[envName]`, `knowledge`,
+  `reports` both variants, `timeline`, `governance`, `reports/[reportId]`,
+  `search`) — 8 of 9 already carry an explicit `<DemoDataBanner />` (the
+  client-scoped ones via the layout, the platform-wide `governance`/
+  `reports`/`reports/[reportId]` ones via their own direct import,
+  confirmed by reading each file). `search/page.tsx` is correctly
+  different, not missing anything — its own real, deliberate per-result
+  `"Sample"` badge is a MORE precise disclosure than a page-level banner
+  would be, since search mixes real and demo results in one list.
+- **A genuinely fresh, complete mechanical sweep** (every file importing
+  from `mock-clients.ts`, not just the 9/32 previously named, cross-
+  checked against either the client-layout's automatic banner or the
+  file's own explicit `<DemoDataBanner />`) found exactly **one real,
+  previously-undisclosed gap**: `apps/web/src/app/(app)/services/page.tsx`
+  (the top-level Platform Services catalog) reads `platformServices` from
+  `mock-clients.ts` — 18 hardcoded services with fabricated `status`
+  (17 of 18 unconditionally `'healthy'`), `version`, and `clientCount`
+  fields, presented with no disclosure at all, while its own detail page
+  (`services/[serviceId]/page.tsx`) already had one — a real, narrow
+  inconsistency. **Fixed this pass**: added the same `<DemoDataBanner />`
+  the detail page already uses, plus a comment pointing at the real, live
+  alternative (`/platform/services`, `GET /oc/platform/services`) for
+  anyone who lands here looking for actual platform health.
+- **The readiness/testing/roadmap hardcoded-math P1 finding, re-assessed
+  against the directive's own stated bar**: §36 requires demo content to
+  be "labeled clearly," not necessarily rewritten. All three pages
+  (`readiness/page.tsx`, `testing/page.tsx`, `roadmap/page.tsx`) are under
+  `clients/[clientId]/`, so all three already carry the same automatic,
+  prominent, explicit disclosure ("Sample data. The figures on this
+  screen illustrate the platform using representative demo clients, not
+  live records.") on every load for the ~20 static demo clients they
+  apply to — and never render for a real client (which gets the honest
+  `CapabilityPlaceholder` fallback instead, unchanged since the P0 fix).
+  Given that bar is already met, and given a rewrite of illustrative
+  demo-only arithmetic has zero real-customer benefit (confirmed no real
+  client can ever reach this branch), this finding is downgraded from
+  "open, needs a real decision" to **closed by disclosure** — not
+  silently dropped, recorded here with the reasoning so a future pass
+  doesn't have to re-derive it.
+
 ## Confirmed still accurate from prior milestones (re-verified, not re-derived from scratch)
 
 - Identity contract, tenant isolation, connection validation, service governance, commercial
