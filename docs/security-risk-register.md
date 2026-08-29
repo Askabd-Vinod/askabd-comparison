@@ -743,12 +743,14 @@ completion" principle.
   confirmed live, not by reading alone). `OPEN, low severity, disclosed`
   for 1 (`POST /oc/incidents` with clientId omitted — creates an
   unattributed `client_id: NULL` record, a data-hygiene issue, not a
-  tenant leak). `OPEN, untriaged` for 1 newly-identified item of a
-  different shape (`POST /oc/service-actions` — opaque `entityId`
-  ownership, no `clientId` concept exists on this route at all).
-  `OPEN, fully untriaged` for the remaining 35 (each still needs
-  individual investigation — some are very likely legitimate, see
-  below — none blindly fixed).
+  tenant leak). `RESOLVED` (2026-08-29, `risk_014_triage_test_4`) for the
+  1 item of a different shape that was `OPEN, untriaged` here
+  (`POST /oc/service-actions` — opaque `entityId` ownership, no
+  `clientId` concept exists on this route at all; see that update below).
+  **This summary paragraph is the ORIGINAL 2026-08-24 count and has not
+  been kept in sync with every later individual-triage update below it —
+  read the dated updates below (test_2/test_3/test_4) for the current,
+  accurate remaining-untriaged count rather than the "35" figure here.**
 - **Severity**: High for the 14 resolved routes (real financial
   investment/savings/ROI data, real cross-client problem/gap/technology
   patterns, real resource allocation, real full client directory/audit
@@ -1072,6 +1074,39 @@ completion" principle.
     /rules` (read-only rule definitions, no client data) investigated
     and left deliberately ungated — genuinely global config, the same
     reasoning already applied to `GET /oc/capabilities`.
+- **Update (2026-08-29, `risk_014_triage_test_4`)**: closed the
+  deliberately-left-OPEN `POST /oc/service-actions` item from
+  `risk_014_triage_test_1`. **RESOLVED**: real `Admin.Access` rule added
+  (matching its already-gated `GET /oc/service-actions/:entityId`
+  sibling), live-proven with `risk-014-triage-test-4.test.ts`, 4/4 passing
+  (customer 403, unauthenticated 401, staff unaffected, GET sibling
+  re-confirmed still gated). `recordServiceAction()` has zero
+  entity-existence/ownership check on its caller-supplied
+  `entityType`/`entityId` (no FK exists) — confirmed via grep this route's
+  only real callers are staff `(app)` pages, never the customer
+  `(portal)`, so gating it breaks no live capability. See
+  `docs/evidence/security/risk_014_triage_test_4/`.
+  - **A second, broader, real finding from the same investigation**:
+    tracing this route's actual frontend caller (`service-controls.tsx` →
+    `recordServiceAction` in `apps/web/src/app/lib/operations-api.ts`)
+    found `ocFetch` — the shared fetch wrapper for **17 exported
+    functions**, imported by **11 real staff files** (client onboarding,
+    edit, lifecycle, contracts, dynamic client overview, verify,
+    remediation, file upload/download) — sent **no Authorization header
+    at all**. The API's real auth middleware only reads
+    `request.headers.authorization`, no cookie fallback. Invisible in
+    local dev only because of `devBypass` (no `JWKS_URL` configured); in
+    production (real JWT verification active, this platform's own
+    documented posture) every one of these 17 functions would 401 for
+    every staff user — a real reliability break across 11 real
+    pages/components, not merely a security-shaped gap. Same root cause
+    `lib/staff-session.ts`'s own doc comment already documents for Server
+    Components' `apiSafe()` — this is that bug class's previously
+    -unfound client-side sibling, in a different file. **FIXED**:
+    `ocFetch` now attaches the real staff session's bearer token via
+    `getStaffSession()`, with the same retry-once-on-401-after-renewal
+    policy `staffFetch` already uses — matching the established pattern,
+    not a new one.
 
 ---
 

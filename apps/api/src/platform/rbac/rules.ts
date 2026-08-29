@@ -510,6 +510,18 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   // search — getServiceActions/getTransformation/getMetric have no caller in the
   // frontend), so gating them breaks no live capability.
   { method: 'GET', path: '/api/v1/oc/service-actions/:entityId', permissions: ['Admin.Access'] },
+  // RISK-014 triage (2026-08-29): the sibling write route had NO rule at all —
+  // recordServiceAction() performs zero entity-existence or ownership check on its
+  // caller-supplied entityType/entityId (oc_service_actions has no FK to any real
+  // entity table), so with only defaultPolicy:'authenticated' any authenticated
+  // identity — a real customer token included — could POST an arbitrary
+  // entityType/entityId/actor/previousState/newState, injecting a fabricated
+  // service-state audit entry against ANY client or entity id, real or invented.
+  // Confirmed via grep this route's only real callers are staff (app) pages
+  // (applications/services/clients list pages via ServiceControlsInline) — never
+  // the customer (portal) — so gating it the same as its already-Admin.Access-gated
+  // GET sibling breaks no live capability.
+  { method: 'POST', path: '/api/v1/oc/service-actions', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/transformations/:id', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/optimization/metrics/:metricId', permissions: ['Admin.Access'] },
 

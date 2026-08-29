@@ -1,16 +1,47 @@
 /**
  * Operations Center API client.
  * All actions go through the API which persists to the database for evidence.
+ *
+ * REAL BUG FOUND AND FIXED (2026-08-29, RISK-014 triage continuation):
+ * `ocFetch` sent NO Authorization header at all — every one of this file's
+ * 17 exported functions (used by 11 real staff pages/components: client
+ * onboarding, edit, lifecycle, contracts, the dynamic client overview,
+ * verify, remediation, file upload/download) was calling the real API
+ * completely unauthenticated. This was invisible in local dev because the
+ * API's `devBypass` (no `JWKS_URL` configured) treats every unauthenticated
+ * request as a synthetic admin identity — the exact same root cause
+ * `lib/staff-session.ts`'s own doc comment already documents for Server
+ * Components' `apiSafe()` calls. This is that same bug class's client-side
+ * sibling, in a different file, found independently this pass while
+ * investigating a related RBAC gap on `/oc/service-actions`. The moment
+ * real JWT verification is active (`JWKS_URL` configured, matching this
+ * platform's own documented security posture), every one of these calls
+ * would 401 for every staff user — not a security leak, a production
+ * reliability break. Fixed the same way `staffFetch` already does: attach
+ * the real staff session's bearer token, and retry once on a genuine 401
+ * after a token renewal attempt.
  */
+import { getStaffSession, refreshStaffSession } from './staff-session';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4200';
 const OC_PREFIX = `${API}/api/v1/oc`;
 
 async function ocFetch<T>(path: string, opts?: RequestInit): Promise<T> {
-  const res = await fetch(`${OC_PREFIX}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...(opts?.headers || {}) },
-    ...opts,
-  });
+  const session = getStaffSession();
+  const headers = new Headers({ 'Content-Type': 'application/json', ...(opts?.headers || {}) });
+  if (session) headers.set('Authorization', `Bearer ${session.accessToken}`);
+
+  let res = await fetch(`${OC_PREFIX}${path}`, { ...opts, headers });
+
+  if (res.status === 401 && session) {
+    const renewed = await refreshStaffSession();
+    if (renewed) {
+      const retryHeaders = new Headers({ 'Content-Type': 'application/json', ...(opts?.headers || {}) });
+      retryHeaders.set('Authorization', `Bearer ${renewed.accessToken}`);
+      res = await fetch(`${OC_PREFIX}${path}`, { ...opts, headers: retryHeaders });
+    }
+  }
+
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body?.error?.message || `API error: ${res.status}`);
