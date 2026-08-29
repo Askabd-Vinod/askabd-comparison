@@ -17,6 +17,7 @@ const navItems = [
   { href: '/platform/commercial', label: 'Commercial' },
   { href: '/platform/workflows', label: 'Workflows' },
   { href: '/platform/production-readiness', label: 'Readiness' },
+  { href: '/platform/verification', label: 'Verification' },
 ];
 
 export function NavBar() {

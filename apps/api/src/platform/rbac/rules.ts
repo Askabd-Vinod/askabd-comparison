@@ -985,4 +985,16 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   { method: 'GET', path: '/api/v1/oc/events/stream/:clientId', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/events/:clientId', permissions: ['Admin.Access'] },
   { method: 'GET', path: '/api/v1/oc/jira/links/:clientId', permissions: ['Admin.Access'] },
+
+  // ─── Verification & Validation Automation Service (2026-08-29) ──────────────
+  // Real service catalog, run history, and deep health checks over the
+  // platform's own real engines — staff-only, same precedent as every other
+  // internal-operations surface.
+  { method: 'GET', path: '/api/v1/oc/verification/services', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/verification/services/:id', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/verification/runs', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/verification/runs/:id', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/verification/runs/health-check', permissions: ['Admin.Access'] },
+  { method: 'POST', path: '/api/v1/oc/verification/runs/record-external-result', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/verification/regressions', permissions: ['Admin.Access'] },
 ] as const;
