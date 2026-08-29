@@ -73,6 +73,7 @@ const tabs = [
   { label: 'Activity', segment: '/activity' },
   { label: 'Timeline', segment: '/timeline' },
   { label: 'Reports', segment: '/reports' },
+  { label: 'Executive Report', segment: '/executive-reports' },
   { label: 'Settings', segment: '/settings' },
   { label: 'Support', segment: '/support' },
 ];
