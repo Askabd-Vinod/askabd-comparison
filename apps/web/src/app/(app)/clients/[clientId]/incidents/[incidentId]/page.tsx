@@ -6,8 +6,7 @@ import { Timeline, TimelineEvent } from '../../../../../components/timeline';
 import { AIInsightsPanel } from '../../../../../components/ai-insights';
 import { SolutionRecommendation, Solution } from '../../../../../components/solution-recommendation';
 import { RemediationPanel, RemediationPlan } from '../../../../../components/remediation-panel';
-
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4200';
+import { apiSafe } from '../../../../../lib/api';
 
 interface Props { params: Promise<{ clientId: string; incidentId: string }> }
 
@@ -27,44 +26,47 @@ export default async function IncidentDetailPage({ params }: Props) {
  * clients" AI insight — only fields the real record actually has.
  */
 async function RealIncidentDetail({ clientId, incidentId }: { clientId: string; incidentId: string }) {
-  let incident: any = null;
-  try {
-    const res = await fetch(`${API}/api/v1/oc/incidents/${incidentId}`, { cache: 'no-store' });
-    if (res.ok) incident = (await res.json()).incident;
-  } catch { /* API unreachable — honest 404 below, never a fabricated incident */ }
+  // REAL BUG FOUND AND FIXED (2026-08-29, RISK-014 triage continuation): all
+  // 3 calls below were raw, unauthenticated fetch() against real,
+  // Admin.Access-gated routes — the same bug class lib/api.ts's own doc
+  // comment documents fixing across "57 Server Components", but this file
+  // was missed. In production (real JWT verification), the incident fetch
+  // would 401, `incident` would stay null, and this page would show a
+  // genuinely real, existing incident as `notFound()` — actively misleading,
+  // not just degraded. Fixed by switching to apiSafe(), which carries the
+  // real staff-session cookie forward.
+  const incidentData = await apiSafe<{ incident?: any }>(`/api/v1/oc/incidents/${incidentId}`, {});
+  const incident = incidentData.incident ?? null;
   if (!incident || incident.client_id !== clientId) notFound();
 
   let clientName = clientId;
-  try {
-    const cRes = await fetch(`${API}/api/v1/oc/clients/${clientId}`, { cache: 'no-store' });
-    if (cRes.ok) { const c = (await cRes.json()).client; if (c?.name) clientName = c.name; }
-  } catch { /* header already shows the real ID as a fallback */ }
+  {
+    const clientData = await apiSafe<{ client?: { name?: string } }>(`/api/v1/oc/clients/${clientId}`, {});
+    if (clientData.client?.name) clientName = clientData.client.name;
+  }
 
   // Real, atomic find-or-create — one request, no race between "check" and "create"
   // (a real duplicate-remediation bug was found and fixed here during live browser
   // verification of this exact page — see findOrCreateRemediation in
   // operations-center-service.ts for the full explanation).
-  let remediation: any = null;
-  try {
-    const res = await fetch(`${API}/api/v1/oc/remediations/find-or-create`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        incidentId: incident.id, clientId, title: `Remediate: ${incident.title}`,
-        description: incident.description || '', grade: incident.severity === 'critical' ? 'expedited' : 'standard',
-        fixImmediate: 'To be determined by the assigned engineer', fixPermanent: incident.root_cause || 'Pending root cause analysis',
-        impactAnalysis: { affectedServices: incident.affected_service ? [incident.affected_service] : [], affectedEnvironments: [incident.environment || 'production'], riskLevel: incident.severity, downtime: 'Not yet estimated', clientImpact: 'Not yet assessed', dataRisk: 'Not yet assessed', rollbackTime: 'Not yet estimated', dependencies: [], sideEffects: [] },
-        steps: [
-          { id: 'step-1', label: 'Confirm root cause', description: 'Verify the actual cause before applying a fix', status: 'pending' },
-          { id: 'step-2', label: 'Apply fix', description: 'Apply the agreed remediation', status: 'pending' },
-          { id: 'step-3', label: 'Verify resolution', description: 'Confirm the incident is genuinely resolved', status: 'pending' },
-        ],
-        validationCriteria: ['Incident no longer reproducible', 'No new related alerts'],
-        rollbackPlan: 'Revert the applied change if verification fails',
-        owner: incident.assigned_to || 'unassigned',
-      }),
-    });
-    if (res.ok) remediation = (await res.json()).remediation;
-  } catch { /* remediation stays null — panel omitted below, never fabricated */ }
+  const remediationData = await apiSafe<{ remediation?: any }>('/api/v1/oc/remediations/find-or-create', {}, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      incidentId: incident.id, clientId, title: `Remediate: ${incident.title}`,
+      description: incident.description || '', grade: incident.severity === 'critical' ? 'expedited' : 'standard',
+      fixImmediate: 'To be determined by the assigned engineer', fixPermanent: incident.root_cause || 'Pending root cause analysis',
+      impactAnalysis: { affectedServices: incident.affected_service ? [incident.affected_service] : [], affectedEnvironments: [incident.environment || 'production'], riskLevel: incident.severity, downtime: 'Not yet estimated', clientImpact: 'Not yet assessed', dataRisk: 'Not yet assessed', rollbackTime: 'Not yet estimated', dependencies: [], sideEffects: [] },
+      steps: [
+        { id: 'step-1', label: 'Confirm root cause', description: 'Verify the actual cause before applying a fix', status: 'pending' },
+        { id: 'step-2', label: 'Apply fix', description: 'Apply the agreed remediation', status: 'pending' },
+        { id: 'step-3', label: 'Verify resolution', description: 'Confirm the incident is genuinely resolved', status: 'pending' },
+      ],
+      validationCriteria: ['Incident no longer reproducible', 'No new related alerts'],
+      rollbackPlan: 'Revert the applied change if verification fails',
+      owner: incident.assigned_to || 'unassigned',
+    }),
+  });
+  const remediation = remediationData.remediation ?? null;
 
   const timeline: TimelineEvent[] = [
     { timestamp: incident.detected_at, title: 'Incident detected', type: 'incident', description: incident.title },

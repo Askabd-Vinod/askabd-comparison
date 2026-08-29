@@ -340,14 +340,35 @@ export const COMPARISON_API_RULES: readonly RouteRule[] = [
   // platform's own automation-rule definitions — any authenticated identity
   // could create arbitrary rules or disable real ones (e.g. escalation/
   // notification automation), an integrity risk distinct from read exposure.
-  // GET /oc/workflow/rules (read-only rule DEFINITIONS, no client data) is
-  // deliberately left ungated — same reasoning as GET /oc/capabilities and
-  // GET /oc/compliance/frameworks below: genuinely global reference/config
-  // data, not per-client. Confirmed via grep that only the staff-only
-  // `(app)/platform/workflows/page.tsx` calls any of these three.
+  // CORRECTION (RISK-014 triage, 2026-08-29): GET /oc/workflow/rules was
+  // PREVIOUSLY left deliberately ungated here on the claim "read-only rule
+  // definitions, no client data ... genuinely global reference/config
+  // data." That claim was checked against the real schema this pass and
+  // found WRONG: oc_workflow_rules genuinely HAS a client_id column
+  // (createRule() accepts and inserts it) and getRules() has no
+  // client-scoping option at all — a real, latent unscoped-aggregate-leak
+  // shape, the same as the already-fixed GET /oc/workflow/executions,
+  // simply not yet exploitable with real data today (0 of the real rows
+  // currently have client_id set — verified via a direct query, not
+  // assumed). The moment a real per-client rule is created — a feature
+  // the schema explicitly supports — this route would start leaking it to
+  // any authenticated identity with zero warning. GET /oc/optimization
+  // /rules has the identical shape (oc_optimization_rules also has a real,
+  // currently-unused client_id column) and is fixed alongside it.
+  // GET /oc/capabilities* and GET /oc/compliance/* were independently
+  // re-verified this same pass (their backing tables genuinely have no
+  // client_id column anywhere in the query chain) and remain correctly
+  // ungated — the "genuinely global" reasoning holds for THOSE, just not
+  // for workflow/optimization rules.
   { method: 'GET', path: '/api/v1/oc/workflow/executions', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/workflow/rules', permissions: ['Admin.Access'] },
   { method: 'POST', path: '/api/v1/oc/workflow/rules', permissions: ['Admin.Access'] },
   { method: 'PATCH', path: '/api/v1/oc/workflow/rules/:ruleId/toggle', permissions: ['Admin.Access'] },
+  { method: 'GET', path: '/api/v1/oc/optimization/rules', permissions: ['Admin.Access'] },
+  // POST /oc/optimization/rules had no rule at all either — same unprotected
+  // -write integrity risk as POST /oc/workflow/rules above (any authenticated
+  // identity could create arbitrary optimization rules).
+  { method: 'POST', path: '/api/v1/oc/optimization/rules', permissions: ['Admin.Access'] },
 
   // ─── Client invitations — admin-only management ─────────────────────────────
   // Creating/listing/resending/revoking an invitation is how a real identity AND a

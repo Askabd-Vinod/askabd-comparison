@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { mockClients } from '../../../../lib/mock-clients';
-
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4200';
+import { apiSafe } from '../../../../lib/api';
 
 interface PageProps { params: Promise<{ clientId: string }> }
 
@@ -21,16 +20,18 @@ export default async function ClientReportsPage({ params }: PageProps) {
  * capability) rather than implying a download that doesn't happen.
  */
 async function RealReports({ clientId }: { clientId: string }) {
+  // REAL BUG FOUND AND FIXED (2026-08-29, RISK-014 triage continuation): raw,
+  // unauthenticated fetch() against 4 real, Admin.Access-gated routes — the
+  // same bug class lib/api.ts's own doc comment documents fixing across "57
+  // Server Components", missed here. In production this silently showed
+  // "0, not ok" for every real client — a false, auth-failure-shaped zero
+  // indistinguishable from genuine emptiness, contradicting this page's own
+  // "Real counts from this client's own records" claim. Fixed via apiSafe().
   async function safeCount(path: string): Promise<{ count: number; ok: boolean }> {
-    try {
-      const res = await fetch(`${API}${path}`, { cache: 'no-store' });
-      if (!res.ok) return { count: 0, ok: false };
-      const data = await res.json();
-      const arr = data.incidents || data.defects || data.migrations || data.remediations || [];
-      return { count: Array.isArray(arr) ? arr.length : 0, ok: true };
-    } catch {
-      return { count: 0, ok: false };
-    }
+    const data = await apiSafe<Record<string, unknown>>(path, null as unknown as Record<string, unknown>);
+    if (data === null) return { count: 0, ok: false };
+    const arr = data.incidents || data.defects || data.migrations || data.remediations || [];
+    return { count: Array.isArray(arr) ? arr.length : 0, ok: true };
   }
 
   const [incidents, defects, migrations, remediations] = await Promise.all([

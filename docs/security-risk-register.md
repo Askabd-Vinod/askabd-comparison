@@ -1097,16 +1097,28 @@ completion" principle.
     `request.headers.authorization`, no cookie fallback. Invisible in
     local dev only because of `devBypass` (no `JWKS_URL` configured); in
     production (real JWT verification active, this platform's own
-    documented posture) every one of these 17 functions would 401 for
-    every staff user — a real reliability break across 11 real
-    pages/components, not merely a security-shaped gap. Same root cause
-    `lib/staff-session.ts`'s own doc comment already documents for Server
-    Components' `apiSafe()` — this is that bug class's previously
-    -unfound client-side sibling, in a different file. **FIXED**:
-    `ocFetch` now attaches the real staff session's bearer token via
-    `getStaffSession()`, with the same retry-once-on-401-after-renewal
-    policy `staffFetch` already uses — matching the established pattern,
-    not a new one.
+    documented posture) this would have been a real gap. **Severity
+    correction (2026-08-29, made while investigating `risk_014_triage
+    _test_6`): this was less severe than first characterized.** All 11
+    consumer files were re-checked and are genuinely `'use client'`
+    components rendered under `(app)/**` — meaning `staff-auth-guard.tsx`'s
+    pre-existing, ALREADY-INSTALLED global `window.fetch` interceptor
+    (installed once from the root `(app)/layout.tsx`, matching any request
+    whose URL `startsWith(API)` while a guarded path is active) already
+    attached the real Authorization header to every one of `ocFetch`'s
+    calls before this fix was ever written. The `ocFetch` fix itself is
+    not wrong — it adds real defense-in-depth (correct behavior even if
+    the interceptor somehow isn't installed yet, e.g. a very early race)
+    and matches `staffFetch`'s established pattern — but the original
+    claim that these 11 files were actively broken/would 401 in production
+    was **overstated**; they were very likely already working correctly
+    via the interceptor. Disclosed plainly rather than left standing,
+    matching this register's own established self-correction precedent
+    (e.g. the "451 routes, only 2 more candidates" correction above). The
+    GENUINELY new, real, confirmed-broken bugs from this same investigative
+    thread are the 3 Server Components found in `risk_014_triage_test_6`
+    below — those have no client-side interceptor available at all (no
+    `window` object server-side), so were never protected by it.
 - **Update (2026-08-29, `risk_014_triage_test_5`)**: real, first-class
   live verification of the 6-route body-clientId-scoped
   lifecycle/discovery/assessment group, which `risk_014_triage_test_3`'s
@@ -1146,6 +1158,94 @@ completion" principle.
     config data, not per-client sensitive data) — not re-verified with a
     dedicated live test this pass; a reasonable candidate for the same
     treatment in a future triage pass.
+- **Update (2026-08-29, `risk_014_triage_test_6`)**: completed the
+  dedicated live verification of the remaining 22-route catalog/reference
+  group (2 of the 22 were already fixed in `test_3`). Read the real schema
+  for every remaining table via direct query, not assumed:
+  - **2 real, confirmed, previously-undisclosed gaps — FIXED**: `GET
+    /oc/workflow/rules` (`test_3`'s own explicit "genuinely global
+    reference/config data" decision was WRONG — `oc_workflow_rules`
+    genuinely has a `client_id` column, `createRule()` inserts it,
+    `getRules()` has no client-scoping option — the same unscoped
+    -aggregate-leak shape as the already-fixed `GET /oc/workflow
+    /executions`; not yet exploitable with real data, 0 of 8 real rows
+    currently have `client_id` set, but latent) and `GET /oc/optimization
+    /rules` (identical shape — `oc_optimization_rules` also has a real,
+    currently-unused `client_id` column). `POST /oc/optimization/rules`
+    also had NO rule at all (its sibling `POST /oc/workflow/rules`
+    already did) — fixed alongside. All 3 gated `Admin.Access`, live
+    -proven with `risk-014-triage-test-6.test.ts`, 17/17 passing. The
+    superseded assertion in `risk-014-triage-test-3.test.ts` (which
+    explicitly expected `GET /oc/workflow/rules` to stay reachable) was
+    corrected to assert the new, right behavior instead of deleted, so
+    the history of the wrong claim remains visible in the test file
+    itself.
+  - **Confirmed genuinely safe, via real schema checks (not assumption)**:
+    the full `GET /oc/capabilities*` family (7 routes — `oc_capabilities`
+    has no `client_id`), `GET /oc/scheduler/jobs` (real table name is
+    `oc_scheduled_jobs`, not `oc_scheduler_jobs` as the original candidate
+    list implied — no `client_id`), the `GET /oc/compliance/*` family (4
+    routes — `oc_compliance_frameworks`/`oc_compliance_controls`/the real
+    backing table `oc_control_mappings`, none have `client_id`), `GET
+    /oc/service-bundles*` (2 routes — `oc_service_bundles`, no
+    `client_id`), `GET /oc/client-services/definitions` (static in-memory,
+    no args at all). Re-confirmed live in the same test file (17/17)
+    rather than left as an unverified assertion.
+  - **`GET /oc/jira/config` deliberately NOT re-gated** — re-read the
+    existing 2026-08-24 decision before touching anything: already an
+    independently investigated, deliberate, disclosed, accepted-risk call
+    (real token genuinely masked; only `baseUrl`/`authEmail` visible) —
+    not re-litigated without new evidence, per this session's own
+    "don't redo settled work" discipline.
+  - **`POST /oc/jira/issues` live-verified for the first time**: its own
+    code comment claimed it's "already enforced by tenant-access" (real
+    `clientId` in the body) — proven rather than trusted:
+    `risk-014-triage-test-6.test.ts` shows a real customer token with a
+    foreign `clientId` denied (`403`, `tenant_not_resolved`).
+  - **A separate, real, more severe finding from the same investigative
+    thread — 3 genuinely broken Server Components, FIXED**: while
+    confirming `platform/workflows/page.tsx` (the real caller of `GET
+    /oc/workflow/rules`) still worked after the RBAC fix, found it uses
+    raw, unauthenticated `fetch()` — safe, because it is a client
+    component covered by the pre-existing global interceptor (see the
+    `test_4` correction above) — which prompted a full, clean mechanical
+    sweep of the ENTIRE `apps/web/src/app` tree for Server Components
+    (`async function`, no `'use client'`) making the same raw-fetch
+    mistake against real, Admin.Access-gated `/oc/**` routes, where NO
+    client-side interceptor can ever help (no `window` object exists
+    server-side). Found and fixed 3 real, genuinely broken instances,
+    each independently confirmed via direct grep to have no other real
+    Server Component bug of the same shape remaining in the tree:
+    - `clients/[clientId]/layout.tsx` — the single most universally
+      -relied-upon Server Component in the whole client workspace
+      (wraps every client-scoped page, including all 10 Phase 3 engine
+      pages). All 3 of its real fetch calls (`GET /oc/clients/:id`, `GET
+      /oc/lifecycle/:clientId`, `GET /oc/clients/:id/health-score`) target
+      real `Admin.Access`-gated routes with no auth header — in
+      production this would silently degrade every real client's page to
+      the "minimal layout" fallback (no name/header/status/lifecycle
+      strip/health score), invisible in dev only because of `devBypass`.
+    - `clients/[clientId]/incidents/[incidentId]/page.tsx` — worse than
+      degraded: a genuinely real, existing incident would render as
+      `notFound()` (a real 404) once its own unauthenticated `GET
+      /oc/incidents/:id` 401'd, actively misleading rather than merely
+      incomplete. Also fixed a real duplicate/redundant client-name fetch
+      and the real, atomic `POST /oc/remediations/find-or-create` write.
+    - `clients/[clientId]/reports/page.tsx` — its own `safeCount()` helper
+      already had honest-looking `{ count: 0, ok: false }` failure
+      handling, but a pure auth failure was indistinguishable from
+      genuine emptiness, contradicting the page's own "Real counts from
+      this client's own records" claim.
+    All 3 fixed by switching to `apiSafe()` (`lib/api.ts`), the exact
+    fix `lib/api.ts`'s own doc comment already documents applying to "57
+    Server Components" — these 3 were missed in that earlier rollout.
+    `tsc --noEmit` clean on `apps/web`. No automated test exists for
+    Next.js Server Component rendering in this repo (none did before
+    either); verified instead via a genuine, already-active real staff
+    session found live in the Browser pane — see
+    `docs/evidence/ui-integration/live_authenticated_verification_test_1/`
+    for the full, real, authenticated verification this enabled across
+    all 10 Phase 3 engine pages, not just these 3 fixes.
 
 ---
 

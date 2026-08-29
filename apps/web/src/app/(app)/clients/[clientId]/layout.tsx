@@ -7,8 +7,7 @@ import { DemoDataBanner } from '../../../components/demo-data-banner';
 import { ClientSearchBox } from '../../../components/client-search-box';
 import { mockClients } from '../../../lib/mock-clients';
 import type { LifecycleStatus } from '../../../lib/onboarding-lifecycle';
-
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4200';
+import { apiSafe } from '../../../lib/api';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -55,28 +54,29 @@ export default async function ClientLayout({ children, params }: LayoutProps) {
   // for real client data.
   const isDemoClient = mockClients.some((c) => c.id === clientId);
 
-  let client: RealClient | null = null;
-  try {
-    const res = await fetch(`${API}/api/v1/oc/clients/${clientId}`, { cache: 'no-store' });
-    if (res.ok) {
-      const data = await res.json();
-      client = data.client ?? null;
-    }
-  } catch {
-    // API unreachable — fall through to the minimal header below, honestly, not fabricated.
-  }
+  // REAL BUG FOUND AND FIXED (2026-08-29, RISK-014 triage continuation): these
+  // 3 calls were raw, unauthenticated fetch() — the exact same bug class
+  // lib/api.ts's own doc comment already documents fixing across "57 Server
+  // Components" (staff-token cookie -> Authorization header), but this
+  // specific file — arguably the single most universally-relied-upon Server
+  // Component in the whole client workspace, wrapping every client-scoped
+  // page including every engine page built this session — was never actually
+  // migrated to use it. All 3 target routes are real, Admin.Access-gated
+  // routes (GET /oc/clients/:id, GET /oc/lifecycle/:clientId, GET /oc/clients
+  // /:id/health-score); in production (real JWT verification, no devBypass)
+  // every one of these would 401, silently degrading every real client's
+  // page to the "minimal layout" fallback below — invisible in local dev only
+  // because of devBypass. Fixed by switching to apiSafe(), which already
+  // carries the real staff-session cookie forward.
+  const clientData = await apiSafe<{ client?: RealClient }>(`/api/v1/oc/clients/${clientId}`, {});
+  const client: RealClient | null = clientData.client ?? null;
 
   // Real lifecycle status — same source of truth PhaseHeader (Overview) and the
   // full Lifecycle page already use. Best-effort: absence just hides the strip.
   let lifecycleStatus: LifecycleStatus | null = null;
-  try {
-    const lcRes = await fetch(`${API}/api/v1/oc/lifecycle/${clientId}`, { cache: 'no-store' });
-    if (lcRes.ok) {
-      const lcData = await lcRes.json();
-      if (lcData.initialized && lcData.status) lifecycleStatus = lcData.status as LifecycleStatus;
-    }
-  } catch {
-    // API unreachable — the phase nav simply won't render.
+  {
+    const lcData = await apiSafe<{ initialized?: boolean; status?: LifecycleStatus }>(`/api/v1/oc/lifecycle/${clientId}`, {});
+    if (lcData.initialized && lcData.status) lifecycleStatus = lcData.status;
   }
 
   // Found during the final QA/UAT pass: the header used to show `client.platform_score`
@@ -89,14 +89,9 @@ export default async function ClientLayout({ children, params }: LayoutProps) {
   // static number with the real one closes the gap and makes this header agree with
   // Readiness/Scorecard instead of showing a third, unrelated number next to them.
   let healthScore: number | null = null;
-  try {
-    const hsRes = await fetch(`${API}/api/v1/oc/clients/${clientId}/health-score`, { cache: 'no-store' });
-    if (hsRes.ok) {
-      const hsData = await hsRes.json();
-      if (typeof hsData.overallScore === 'number') healthScore = hsData.overallScore;
-    }
-  } catch {
-    // API unreachable — the tile simply won't render, never a stale/fabricated number.
+  {
+    const hsData = await apiSafe<{ overallScore?: number }>(`/api/v1/oc/clients/${clientId}/health-score`, {});
+    if (typeof hsData.overallScore === 'number') healthScore = hsData.overallScore;
   }
 
   if (!client) {

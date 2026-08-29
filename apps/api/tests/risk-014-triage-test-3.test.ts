@@ -109,10 +109,18 @@ describe('RISK-014 triage pass 3 — platform/commercial + workflow executions/r
     expect(r2.statusCode).not.toBe(401);
   });
 
-  it('GET /oc/workflow/rules (read-only rule definitions) is deliberately still reachable to any authenticated identity — not a client-data leak, matching the GET /oc/capabilities precedent', async () => {
+  // CORRECTED (risk_014_triage_test_6, 2026-08-29): this test previously
+  // asserted GET /oc/workflow/rules was deliberately left reachable to any
+  // authenticated identity — that decision was checked against the real
+  // schema and found wrong (oc_workflow_rules genuinely has a client_id
+  // column; see risk-014-triage-test-6.test.ts and the security register's
+  // RISK-014 entry for the full correction). The route is now correctly
+  // Admin.Access-gated; this test now asserts the corrected behavior
+  // instead of the superseded one, rather than deleting the history.
+  it('GET /oc/workflow/rules is now correctly gated (corrected from an earlier, wrong "deliberately public" claim — see risk_014_triage_test_6)', async () => {
     const app = await buildApp();
     const token = await customerToken();
     const res = await app.inject({ method: 'GET', url: '/api/v1/oc/workflow/rules', headers: { authorization: `Bearer ${token}` } });
-    expect(res.statusCode).not.toBe(403);
+    expect(res.statusCode).toBe(403);
   });
 });
