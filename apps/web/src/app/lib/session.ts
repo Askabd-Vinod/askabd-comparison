@@ -217,7 +217,22 @@ export async function refreshSession(): Promise<Session | null> {
         body: JSON.stringify({ refreshToken: current.refreshToken, sessionId: current.sessionId }),
       });
       if (!res.ok) {
-        clearSession();
+        // Real bug found and fixed (Batch 3 Playwright coverage
+        // completion, 2026-08-30): ANY non-ok response — including a
+        // transient 5xx — used to evict the session outright, identical
+        // to a definitive 401/403 rejection. Reproduced live via a real
+        // identity-service error: `TokenService.refresh`'s own Postgres
+        // pool connection was terminated unexpectedly mid-request
+        // (`pg-pool`'s real "Connection terminated due to connection
+        // timeout" error) — a genuine, transient infrastructure hiccup,
+        // not an invalid or expired refresh token. The refresh token was
+        // never actually rejected; evicting the session over it forced a
+        // full re-login for no real reason. Only a real 401/403 (the
+        // token itself was genuinely rejected) is a terminal failure now
+        // — any other non-ok status is treated the same as the network-
+        // exception case below: a transient blip, session kept in place,
+        // next renewal attempt tries again.
+        if (res.status === 401 || res.status === 403) clearSession();
         return null;
       }
       const body = await res.json() as { accessToken: string; refreshToken: string };

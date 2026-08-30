@@ -99,15 +99,20 @@ export async function getAuthenticatedContext(browser) {
  * real EdDSA-signed session from the real, running identity service.
  */
 const TEST_STAFF_CREDENTIALS_PATH = path.join(AUTH_DIR, 'test-staff-credentials.json');
+// Batch 3 (RBAC matrix) addition — a second, real, dedicated test-staff
+// account with the `auditor` role (no Admin.Access), provisioned by
+// setup-playwright-test-staff-auditor.ts, for a real, independently
+// provable RBAC-denial case alongside the existing super_admin account.
+const TEST_STAFF_AUDITOR_CREDENTIALS_PATH = path.join(AUTH_DIR, 'test-staff-auditor-credentials.json');
 
-export async function getAuthenticatedContextViaTestStaffLogin(browser) {
-  if (!fs.existsSync(TEST_STAFF_CREDENTIALS_PATH)) {
+export async function getAuthenticatedContextViaTestStaffLogin(browser, credentialsPath = TEST_STAFF_CREDENTIALS_PATH) {
+  if (!fs.existsSync(credentialsPath)) {
     throw new Error(
-      `No dedicated test-staff credentials found at ${TEST_STAFF_CREDENTIALS_PATH}. ` +
+      `No dedicated test-staff credentials found at ${credentialsPath}. ` +
       `Run: cd apps/api && npx tsx --env-file=.env scripts/setup-playwright-test-staff.ts`,
     );
   }
-  const creds = JSON.parse(fs.readFileSync(TEST_STAFF_CREDENTIALS_PATH, 'utf8'));
+  const creds = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
 
   const context = await browser.newContext();
   const page = await context.newPage();
@@ -164,4 +169,4 @@ export async function getAuthenticatedContextViaTestStaffLogin(browser) {
   return { context, page };
 }
 
-export { EXPORT_PATH, WEB_ORIGIN, TEST_STAFF_CREDENTIALS_PATH };
+export { EXPORT_PATH, WEB_ORIGIN, TEST_STAFF_CREDENTIALS_PATH, TEST_STAFF_AUDITOR_CREDENTIALS_PATH };

@@ -254,13 +254,20 @@ in narrative progress notes. See
 `docs/final-askabd-production-readiness.md` for the full, final
 production-readiness synthesis across this entire engagement, and
 `docs/final-validation/final-playwright-product-coverage.md` (2026-08-30,
-Batch 1) and `docs/final-validation/final-playwright-product-coverage-batch2.md`
-(2026-08-30, Batch 2) for a real, mechanically-derived inventory of all
+Batch 1), `docs/final-validation/final-playwright-product-coverage-batch2.md`
+(2026-08-30, Batch 2), and
+`docs/final-validation/final-playwright-product-coverage-batch3.md`
+(2026-08-30, Batch 3) for a real, mechanically-derived inventory of all
 124 user-facing routes plus an ongoing page-by-page Playwright coverage
-push — 35/124 routes now have fresh Playwright evidence (Class A) after
-Batches 1-2; 4 more batches genuinely remain. Batch 2 also found, fixed,
-and re-verified live a real migration-engine defect (a `GENERATED
-ALWAYS` column data-copy failure) — see that report for detail.
+push — 50/124 routes now have fresh Playwright evidence (Class A) after
+Batches 1-3; 3 more batches genuinely remain. Batch 2 found, fixed, and
+re-verified live a real migration-engine defect (a `GENERATED ALWAYS`
+column data-copy failure). Batch 3 found, root-caused, fixed, and
+regression-tested a real session-eviction defect (a transient identity-
+service DB-connection failure was being treated as a definitive
+credential rejection, evicting valid sessions) and proved a real,
+two-tier RBAC matrix (super_admin/auditor) for the first time this
+engagement — see each report for detail.
 
 ## Update discipline
 

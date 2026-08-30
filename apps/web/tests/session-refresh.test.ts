@@ -133,6 +133,47 @@ describe('session.ts — renewal architecture', () => {
     expect(getSession()).toBeNull(); // session was cleared, not left in a stale, half-valid state
   });
 
+  it('a transient 5xx from /tokens/refresh does NOT clear the session (real bug found and fixed, Batch 3 2026-08-30)', async () => {
+    // Real, live-reproduced defect: askabd-identity's TokenService.refresh
+    // hit a genuine, transient Postgres connection-pool failure ("Connection
+    // terminated due to connection timeout") and returned a real 500 — the
+    // refresh token itself was never rejected, but the OLD code treated any
+    // non-ok response (including this one) exactly like a definitive 401/403
+    // rejection, evicting a perfectly valid session over an infrastructure
+    // hiccup. Only a real 401/403 may clear the session now.
+    const { setSession, refreshSession, getSession } = await import('../src/app/lib/session');
+    const original = { accessToken: 'still-valid-token', refreshToken: 'still-valid-refresh', sessionId: 'sess_1', orgContext: 'org-1', expiresAt: Date.now() + 5_000 };
+    setSession(original);
+
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/tokens/refresh')) {
+        return new Response(JSON.stringify({ error: { message: 'Connection terminated due to connection timeout' } }), { status: 500 });
+      }
+      throw new Error('unexpected');
+    }) as any;
+
+    const result = await refreshSession();
+    expect(result).toBeNull(); // this specific attempt honestly failed
+    expect(getSession()).not.toBeNull(); // but the session survives — a later retry can still succeed
+    expect(getSession()!.accessToken).toBe('still-valid-token'); // untouched, not partially cleared
+  });
+
+  it('a real 401/403 from /tokens/refresh DOES clear the session (genuine rejection, not a transient error)', async () => {
+    const { setSession, refreshSession, getSession } = await import('../src/app/lib/session');
+    setSession({ accessToken: 'dead-token', refreshToken: 'dead-refresh', sessionId: 'sess_1', orgContext: 'org-1', expiresAt: Date.now() + 5_000 });
+
+    global.fetch = vi.fn(async (url: string) => {
+      if (url.includes('/tokens/refresh')) {
+        return new Response(JSON.stringify({ error: { code: 'token_expired' } }), { status: 401 });
+      }
+      throw new Error('unexpected');
+    }) as any;
+
+    const result = await refreshSession();
+    expect(result).toBeNull();
+    expect(getSession()).toBeNull(); // a genuine rejection still clears the session, unlike the 5xx case above
+  });
+
   it('refreshSession deduplicates concurrent callers into exactly ONE network request', async () => {
     const { setSession, refreshSession } = await import('../src/app/lib/session');
     setSession({ accessToken: 'old-token', refreshToken: 'old-refresh', sessionId: 'sess_1', orgContext: 'org-1', expiresAt: Date.now() + 5_000 });

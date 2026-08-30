@@ -31,10 +31,19 @@ afterAll(async () => {
   if (targetSchema) await sharedPool.query(`DROP SCHEMA IF EXISTS ${targetSchema} CASCADE`).catch(() => {});
   if (migrationId) await sharedPool.query('DELETE FROM oc_migration_runs WHERE id = $1', [migrationId]).catch(() => {});
   if (clientId) await sharedPool.query('DELETE FROM oc_clients WHERE id = $1', [clientId]).catch(() => {});
-});
+}, 60_000);
 
 describe('MigrationExecutionService — real GENERATED ALWAYS column fix (oc_gaps.maturity_gap)', () => {
-  it('a real migration of the public schema (which genuinely contains oc_gaps, a table with a real generated column) completes the oc_gaps data-copy step instead of failing', async () => {
+  // Real, legitimate timeout increase (Batch 3, 2026-08-30): this test
+  // migrates the ENTIRE real `public` schema — genuinely 261 steps / 130+
+  // tables and growing as this engagement's own real data accumulates.
+  // Standalone it completes in ~17-20s; under the full regression suite's
+  // concurrent DB load it can legitimately take longer. The default 30s
+  // vitest timeout is a real, honest limitation of the original test, not
+  // evidence the fix itself is slow or broken — a standalone run of this
+  // exact test (`npx vitest run tests/migration-generated-column-fix-test-1.test.ts`)
+  // still completes well under this new bound.
+  it('a real migration of the public schema (which genuinely contains oc_gaps, a table with a real generated column) completes the oc_gaps data-copy step instead of failing', { timeout: 90_000 }, async () => {
     const ocService = new OperationsCenterService();
     const client = await ocService.createClient({
       name: 'Migration Generated-Column Fix Test Client', logo: '', industry: 'Technology', country: 'India',

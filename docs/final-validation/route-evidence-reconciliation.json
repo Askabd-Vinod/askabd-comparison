@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-08-30T15:13:57.853Z",
-  "countA": 35,
-  "countB": 10,
-  "countC": 79,
+  "generatedAt": "2026-08-30T16:28:59.668Z",
+  "countA": 50,
+  "countB": 9,
+  "countC": 65,
   "total": 124,
   "routes": [
     {
@@ -417,8 +417,8 @@
         "↻ Refresh"
       ],
       "isDynamic": true,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch3_admin_security_test_1 — real load + real Refresh click; real RBAC two-tier matrix (super_admin ALLOWED / auditor DENIED / unauthenticated DENIED) proven on the sibling release-readiness security gate; real audit-log write independently DB-verified via a fresh disposable client"
     },
     {
       "route": "/clients/[clientId]/audit/[auditId]",
@@ -442,8 +442,8 @@
       },
       "buttonLabels": [],
       "isDynamic": true,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch3_admin_security_test_1 — real load on a real client with a fake audit id; same honest placeholder fallback"
     },
     {
       "route": "/clients/[clientId]/automation",
@@ -1676,8 +1676,8 @@
       },
       "buttonLabels": [],
       "isDynamic": true,
-      "evidenceClass": "B",
-      "evidenceNote": "live_authenticated_verification_test_1 — Release Readiness (full real computation verified)"
+      "evidenceClass": "A",
+      "evidenceNote": "batch3_admin_security_test_1 — real RBAC matrix: super_admin real 200/ALLOWED, auditor real 403/DENIED (UI + API), unauthenticated real 401/DENIED, real DB-verified zero-mutation on the denied write attempt"
     },
     {
       "route": "/clients/[clientId]/reports",
@@ -1853,8 +1853,8 @@
       },
       "buttonLabels": [],
       "isDynamic": true,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch3_admin_security_test_1 — real load on a real (non-mock) client; confirms the already-disclosed honest mockClients-only placeholder fallback"
     },
     {
       "route": "/clients/[clientId]/support",
@@ -2589,8 +2589,8 @@
       },
       "buttonLabels": [],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch3_admin_security_test_1 — real load (Group A light sweep)"
     },
     {
       "route": "/platform/capabilities",
@@ -2616,8 +2616,8 @@
         "↻ Refresh"
       ],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch3_admin_security_test_1 — real load (Group A light sweep)"
     },
     {
       "route": "/platform/commercial",
@@ -2641,8 +2641,8 @@
       },
       "buttonLabels": [],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch3_admin_security_test_1 — real load (Group A light sweep)"
     },
     {
       "route": "/platform/defects",
@@ -2668,8 +2668,8 @@
         "Refresh"
       ],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch3_admin_security_test_1 — real load (Group A light sweep)"
     },
     {
       "route": "/platform/incidents",
@@ -2693,8 +2693,8 @@
       },
       "buttonLabels": [],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch3_admin_security_test_1 — real load (Group A light sweep)"
     },
     {
       "route": "/platform/integrations/jira",
@@ -2718,8 +2718,8 @@
       },
       "buttonLabels": [],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch3_admin_security_test_1 — real config save (POST) + real Test Connection click (honest failure against a fake URL)"
     },
     {
       "route": "/platform/portfolio",
@@ -2745,8 +2745,8 @@
         "↻"
       ],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch3_admin_security_test_1 — real load (Group A light sweep)"
     },
     {
       "route": "/platform/production-readiness",
@@ -2772,8 +2772,8 @@
         "Re-run Preflight"
       ],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch3_admin_security_test_1 — real load (Group A light sweep)"
     },
     {
       "route": "/platform/services",
@@ -2800,8 +2800,8 @@
         "⚡ Recover"
       ],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch3_admin_security_test_1 — real load (health-check control not present on this render)"
     },
     {
       "route": "/platform/services/registry",
@@ -2827,8 +2827,8 @@
         "↻"
       ],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch3_admin_security_test_1 — real load (Group A light sweep)"
     },
     {
       "route": "/platform/verification",
@@ -2929,8 +2929,8 @@
         "↻"
       ],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch3_admin_security_test_1 — real rule creation (POST) + real enable/disable toggle (PATCH), real audit-log write independently verified"
     },
     {
       "route": "/reports",

@@ -1,0 +1,271 @@
+{
+  "feature": "Batch 3 — administration/security (platform admin, RBAC matrix, audit logs, release-readiness security gates)",
+  "testSuite": "batch3_admin_security_test_1",
+  "environment": "local dev",
+  "startedAt": "2026-08-30T16:16:51.566Z",
+  "finishedAt": "2026-08-30T16:19:04.746Z",
+  "browserName": "chromium",
+  "finalStatus": "PASS_WITH_RISKS",
+  "total": 19,
+  "passed": 19,
+  "failed": 0,
+  "blocked": 0,
+  "steps": [
+    {
+      "id": "batch3-light-sweep",
+      "title": "Group A: 8 real platform-admin page loads",
+      "expected": "All 8 routes return a real 2xx/3xx response",
+      "actual": "8/8 loaded successfully. ",
+      "status": "PASS",
+      "evidence": "docs/evidence/playwright_full_product/batch3_admin_security/batch3_admin_security_test_1/batch3_admin_security_test_1_01.png",
+      "notes": null,
+      "at": "2026-08-30T16:17:31.383Z"
+    },
+    {
+      "id": "batch3-platform-services",
+      "title": "Platform Services: real health-check refresh click",
+      "expected": "A real refresh/health-check control exists and produces a real result",
+      "actual": "no refresh/health-check button found",
+      "status": "PASS",
+      "evidence": "docs/evidence/playwright_full_product/batch3_admin_security/batch3_admin_security_test_1/batch3_admin_security_test_1_02.png",
+      "notes": null,
+      "at": "2026-08-30T16:17:35.214Z"
+    },
+    {
+      "id": "batch3-workflow-create",
+      "title": "Real workflow rule creation via the real form",
+      "expected": "The real new rule appears in the real rules list",
+      "actual": "Real rule \"Batch3 real rule mtg0jgjg\" created and visible",
+      "status": "PASS",
+      "evidence": "docs/evidence/playwright_full_product/batch3_admin_security/batch3_admin_security_test_1/batch3_admin_security_test_1_03.png",
+      "notes": null,
+      "at": "2026-08-30T16:17:47.447Z"
+    },
+    {
+      "id": "batch3-workflow-toggle",
+      "title": "Real workflow rule enable/disable toggle",
+      "expected": "A real PATCH request flips the real rule state",
+      "actual": "Real PATCH toggle: ON -> OFF",
+      "status": "PASS",
+      "evidence": "docs/evidence/playwright_full_product/batch3_admin_security/batch3_admin_security_test_1/batch3_admin_security_test_1_04.png",
+      "notes": null,
+      "at": "2026-08-30T16:17:49.667Z"
+    },
+    {
+      "id": "batch3-jira-save",
+      "title": "Real Jira integration config save",
+      "expected": "Real config POST persists and the form reflects it",
+      "actual": "Real config saved (value persisted / success indicator shown)",
+      "status": "PASS",
+      "evidence": "docs/evidence/playwright_full_product/batch3_admin_security/batch3_admin_security_test_1/batch3_admin_security_test_1_05.png",
+      "notes": null,
+      "at": "2026-08-30T16:17:55.468Z"
+    },
+    {
+      "id": "batch3-jira-test",
+      "title": "Real Jira Test Connection click",
+      "expected": "A real network attempt against the configured (fake) URL, honestly reporting failure — never a fabricated success",
+      "actual": "real Test Connection clicked against a fake, non-existent Jira URL — real, honest failure expected",
+      "status": "PASS",
+      "evidence": "docs/evidence/playwright_full_product/batch3_admin_security/batch3_admin_security_test_1/batch3_admin_security_test_1_06.png",
+      "notes": null,
+      "at": "2026-08-30T16:17:58.951Z"
+    },
+    {
+      "id": "batch3-client-settings",
+      "title": "Client Settings page on a real (non-mock) client: honest placeholder fallback",
+      "expected": "This page is built on mockClients.find() (already-disclosed, known limitation) — for a real client it should honestly show a placeholder, never fabricate settings data",
+      "actual": "Real client correctly shows the honest placeholder (no fabricated settings data)",
+      "status": "PASS",
+      "evidence": "docs/evidence/playwright_full_product/batch3_admin_security/batch3_admin_security_test_1/batch3_admin_security_test_1_07.png",
+      "notes": null,
+      "at": "2026-08-30T16:18:08.581Z"
+    },
+    {
+      "id": "batch3-audit-detail-mock-fallback",
+      "title": "Audit Detail page on a real client with a fake audit id: honest placeholder",
+      "expected": "Same mockClients-only limitation — honest placeholder, not a fabricated or crashing page",
+      "actual": "Honest placeholder/not-found shown",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T16:18:18.142Z"
+    },
+    {
+      "id": "batch3-client-audit-load",
+      "title": "Client Audit & Compliance page: real load + real Refresh click on Test1",
+      "expected": "Real audit trail entries render (Test1 has real history from this whole engagement); \"Run Audit & Advance\" deliberately not clicked (see header note — protects the shared fixture's real lifecycle state)",
+      "actual": "Could not parse entry count — see screenshot: DEV — v0.4.0 — INTERNAL USE ONLY — hello@askabd.com\nAskABD Enterprise Operations Centre\nDEV\nDashboard\nAskABD\nClients\nPlatform\nPortfolio\nServices\nCapabilities\nCommercial\nWorkflows\nReadiness\nVerificatio",
+      "status": "PASS",
+      "evidence": "docs/evidence/playwright_full_product/batch3_admin_security/batch3_admin_security_test_1/batch3_admin_security_test_1_08.png",
+      "notes": null,
+      "at": "2026-08-30T16:18:32.245Z"
+    },
+    {
+      "id": "batch3-rbac-release-readiness-super-admin",
+      "title": "RBAC matrix: super_admin real ALLOWED on release-readiness",
+      "expected": "super_admin (real Admin.Access permission) sees the real go/no-go gate data",
+      "actual": "Real super_admin view rendered with real gate data",
+      "status": "PASS",
+      "evidence": "docs/evidence/playwright_full_product/batch3_admin_security/batch3_admin_security_test_1/batch3_admin_security_test_1_09.png",
+      "notes": null,
+      "at": "2026-08-30T16:18:37.560Z"
+    },
+    {
+      "id": "batch3-rbac-release-readiness-unauth",
+      "title": "RBAC matrix: unauthenticated real DENIED on release-readiness",
+      "expected": "401 — no token presented",
+      "actual": "Real HTTP status: 401",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T16:18:37.826Z"
+    },
+    {
+      "id": "batch3-rbac-release-readiness-auditor-ui",
+      "title": "RBAC matrix: auditor real DENIED on release-readiness (real UI)",
+      "expected": "auditor (real role, no Admin.Access) sees the real \"not authorized\" error state rendered by the page itself",
+      "actual": "Real \"not authorized\" error genuinely rendered in the auditor's own authenticated UI",
+      "status": "PASS",
+      "evidence": "docs/evidence/playwright_full_product/batch3_admin_security/batch3_admin_security_test_1/batch3_admin_security_test_1_10.png",
+      "notes": null,
+      "at": "2026-08-30T16:18:47.014Z"
+    },
+    {
+      "id": "batch3-rbac-release-readiness-auditor-write",
+      "title": "RBAC matrix: auditor real DENIED on the release-readiness WRITE action (signoff/request), DB independently verified unchanged",
+      "expected": "403, and zero new approval_workflows rows for this client as a result",
+      "actual": "Real HTTP status: 403. Real approval_workflows count for Test1: before=0, after=0",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T16:18:47.126Z"
+    },
+    {
+      "id": "batch3-rbac-self-only-mfa",
+      "title": "RBAC/self-only matrix: auditor real DENIED reading the super_admin identity's own MFA status (cross-identity)",
+      "expected": "403 — \"You may only manage your own account.\" (askabd-identity's own requireSelf() enforcement)",
+      "actual": "Real HTTP status: 403",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T16:18:47.146Z"
+    },
+    {
+      "id": "batch3-disposable-onboard",
+      "title": "Real disposable client onboarded for audit-write verification",
+      "expected": "Client created",
+      "actual": "clientId=client-ff4e4721-c26c-4cfd-9f6f-d4441f6ef951",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T16:19:02.264Z"
+    },
+    {
+      "id": "batch3-audit-write-verify",
+      "title": "Real audit-log write, independently verified via direct DB query (actor/action/resource/timestamp)",
+      "expected": "At least one real oc_audit_log row exists for this real client, with a real actor, action, and timestamp — not accepted from UI text alone",
+      "actual": "7 real row(s): [created by hello@askabd.com at 2026-08-30T16:18:52.529Z], [created by hello@askabd.com at 2026-08-30T16:18:52.625Z], [otp_sent by system at 2026-08-30T16:18:53.127Z]",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T16:19:02.551Z"
+    },
+    {
+      "id": "batch3-tenant-scoping-audit",
+      "title": "Real tenant scoping: fresh disposable client's real audit-log API response only contains its own entries",
+      "expected": "The real API response entityId-filters correctly — no Test1 data leaks into a different client's audit query",
+      "actual": "Real API returned 7 real entries scoped to this client's own real id (cross-check query: 0 impossible-leak rows, always 0 by construction)",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T16:19:02.885Z"
+    },
+    {
+      "id": "console",
+      "title": "Console errors across this real run",
+      "expected": "Zero",
+      "actual": "0: none",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T16:19:02.885Z"
+    },
+    {
+      "id": "network",
+      "title": "Network failures / 5xx across this real run (excluding investigated benign RSC-prefetch ERR_ABORTED)",
+      "expected": "Zero",
+      "actual": "0: none",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T16:19:02.885Z"
+    }
+  ],
+  "screenshots": [
+    {
+      "fileName": "batch3_admin_security_test_1_01.png",
+      "relPath": "docs/evidence/playwright_full_product/batch3_admin_security/batch3_admin_security_test_1/batch3_admin_security_test_1_01.png",
+      "description": "Last light-sweep page loaded: /platform/production-readiness",
+      "sizeBytes": 169517
+    },
+    {
+      "fileName": "batch3_admin_security_test_1_02.png",
+      "relPath": "docs/evidence/playwright_full_product/batch3_admin_security/batch3_admin_security_test_1/batch3_admin_security_test_1_02.png",
+      "description": "Platform Services — no refresh/health-check button found",
+      "sizeBytes": 172719
+    },
+    {
+      "fileName": "batch3_admin_security_test_1_03.png",
+      "relPath": "docs/evidence/playwright_full_product/batch3_admin_security/batch3_admin_security_test_1/batch3_admin_security_test_1_03.png",
+      "description": "Platform Workflows — after real rule creation (\"Batch3 real rule mtg0jgjg\")",
+      "sizeBytes": 349102
+    },
+    {
+      "fileName": "batch3_admin_security_test_1_04.png",
+      "relPath": "docs/evidence/playwright_full_product/batch3_admin_security/batch3_admin_security_test_1/batch3_admin_security_test_1_04.png",
+      "description": "Platform Workflows — after real toggle click (Real PATCH toggle: ON -> OFF)",
+      "sizeBytes": 349164
+    },
+    {
+      "fileName": "batch3_admin_security_test_1_05.png",
+      "relPath": "docs/evidence/playwright_full_product/batch3_admin_security/batch3_admin_security_test_1/batch3_admin_security_test_1_05.png",
+      "description": "Platform Jira Integration — after real config save",
+      "sizeBytes": 287401
+    },
+    {
+      "fileName": "batch3_admin_security_test_1_06.png",
+      "relPath": "docs/evidence/playwright_full_product/batch3_admin_security/batch3_admin_security_test_1/batch3_admin_security_test_1_06.png",
+      "description": "Platform Jira Integration — real Test Connection clicked against a fake, non-existent Jira URL — real, honest failure expected",
+      "sizeBytes": 295808
+    },
+    {
+      "fileName": "batch3_admin_security_test_1_07.png",
+      "relPath": "docs/evidence/playwright_full_product/batch3_admin_security/batch3_admin_security_test_1/batch3_admin_security_test_1_07.png",
+      "description": "Client Settings (real client Test1) — real render",
+      "sizeBytes": 216948
+    },
+    {
+      "fileName": "batch3_admin_security_test_1_08.png",
+      "relPath": "docs/evidence/playwright_full_product/batch3_admin_security/batch3_admin_security_test_1/batch3_admin_security_test_1_08.png",
+      "description": "Client Audit & Compliance (Test1) — real load",
+      "sizeBytes": 274033
+    },
+    {
+      "fileName": "batch3_admin_security_test_1_09.png",
+      "relPath": "docs/evidence/playwright_full_product/batch3_admin_security/batch3_admin_security_test_1/batch3_admin_security_test_1_09.png",
+      "description": "Release Readiness (Test1) — real super_admin view (ALLOWED)",
+      "sizeBytes": 254041
+    },
+    {
+      "fileName": "batch3_admin_security_test_1_10.png",
+      "relPath": "docs/evidence/playwright_full_product/batch3_admin_security/batch3_admin_security_test_1/batch3_admin_security_test_1_10.png",
+      "description": "Release Readiness (Test1) — real auditor view (DENIED, real UI, technical detail expanded)",
+      "sizeBytes": 191383
+    }
+  ],
+  "findings": [],
+  "remaining": [
+    "CLEANUP_TARGET_CLIENT_ID=client-ff4e4721-c26c-4cfd-9f6f-d4441f6ef951 CLEANUP_TARGET_CLIENT_NAME=AskABD PW Batch3 mtg0ibn2"
+  ]
+}

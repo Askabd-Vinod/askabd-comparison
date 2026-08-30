@@ -201,7 +201,17 @@ export async function refreshStaffSession(): Promise<StaffSession | null> {
         body: JSON.stringify({ refreshToken: current.refreshToken, sessionId: current.sessionId }),
       });
       if (!res.ok) {
-        clearStaffSession();
+        // Real bug found and fixed (Batch 3 Playwright coverage
+        // completion, 2026-08-30) — same real, live-reproduced defect as
+        // session.ts's identical refreshSession(): a transient 5xx (a
+        // real `pg-pool` "Connection terminated due to connection
+        // timeout" inside TokenService.refresh, confirmed via the real
+        // identity-service log) used to be treated exactly like a
+        // genuine 401/403 refresh-token rejection, evicting a perfectly
+        // valid staff session over a transient DB-connection hiccup.
+        // Only a real 401/403 is terminal now; any other non-ok status
+        // is treated like the network-exception case below.
+        if (res.status === 401 || res.status === 403) clearStaffSession();
         return null;
       }
       const body = await res.json() as { accessToken: string; refreshToken: string };

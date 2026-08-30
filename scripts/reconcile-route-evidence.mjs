@@ -65,6 +65,22 @@ const CLASS_A = {
   '/account/security': 'batch2_staff_operations_test_1 — real render verified; MFA enrollment deliberately not submitted (protects the shared test-staff auth fixture)',
   '/search': 'batch2_staff_operations_test_1 — real query, real results verified against the API',
   '/welcome': 'batch2_staff_operations_test_1 — real accordion expand, real UI state change verified',
+  // Batch 3 — administration/security (2026-08-30)
+  '/platform': 'batch3_admin_security_test_1 — real load (Group A light sweep)',
+  '/platform/capabilities': 'batch3_admin_security_test_1 — real load (Group A light sweep)',
+  '/platform/commercial': 'batch3_admin_security_test_1 — real load (Group A light sweep)',
+  '/platform/defects': 'batch3_admin_security_test_1 — real load (Group A light sweep)',
+  '/platform/incidents': 'batch3_admin_security_test_1 — real load (Group A light sweep)',
+  '/platform/portfolio': 'batch3_admin_security_test_1 — real load (Group A light sweep)',
+  '/platform/services/registry': 'batch3_admin_security_test_1 — real load (Group A light sweep)',
+  '/platform/production-readiness': 'batch3_admin_security_test_1 — real load (Group A light sweep)',
+  '/platform/services': 'batch3_admin_security_test_1 — real load (health-check control not present on this render)',
+  '/platform/workflows': 'batch3_admin_security_test_1 — real rule creation (POST) + real enable/disable toggle (PATCH), real audit-log write independently verified',
+  '/platform/integrations/jira': 'batch3_admin_security_test_1 — real config save (POST) + real Test Connection click (honest failure against a fake URL)',
+  '/clients/[clientId]/settings': 'batch3_admin_security_test_1 — real load on a real (non-mock) client; confirms the already-disclosed honest mockClients-only placeholder fallback',
+  '/clients/[clientId]/audit/[auditId]': 'batch3_admin_security_test_1 — real load on a real client with a fake audit id; same honest placeholder fallback',
+  '/clients/[clientId]/audit': 'batch3_admin_security_test_1 — real load + real Refresh click; real RBAC two-tier matrix (super_admin ALLOWED / auditor DENIED / unauthenticated DENIED) proven on the sibling release-readiness security gate; real audit-log write independently DB-verified via a fresh disposable client',
+  '/clients/[clientId]/release-readiness': 'batch3_admin_security_test_1 — real RBAC matrix: super_admin real 200/ALLOWED, auditor real 403/DENIED (UI + API), unauthenticated real 401/DENIED, real DB-verified zero-mutation on the denied write attempt',
 };
 
 // Class B — real, live, authenticated Browser-pane verification (not
