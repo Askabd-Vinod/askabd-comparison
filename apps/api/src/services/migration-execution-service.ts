@@ -256,7 +256,25 @@ export class MigrationExecutionService {
           continue;
         }
         try {
-          const res = await client.query(`INSERT INTO ${run.targetSchema}.${step.object} SELECT * FROM ${run.sourceSchema}.${step.object}`);
+          // Real bug found and fixed (Playwright coverage completion,
+          // Batch 2, 2026-08-30): `INSERT INTO target SELECT * FROM
+          // source` fails with a real Postgres error — "cannot insert a
+          // non-DEFAULT value into column" — for ANY source table with a
+          // `GENERATED ALWAYS AS (...) STORED` column (e.g. real
+          // production data: `oc_gaps.maturity_gap`), because the
+          // implicit `*` column list includes generated columns, which
+          // Postgres computes itself and refuses to have written to
+          // directly. The target table (created via `LIKE ... INCLUDING
+          // ALL` above) genuinely has the same generated column, so an
+          // explicit column list excluding generated columns is required
+          // — copying the same list on both sides so column order can
+          // never silently mismatch between source and target.
+          const colsRes = await client.query(
+            `SELECT column_name FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 AND is_generated = 'NEVER' ORDER BY ordinal_position`,
+            [run.sourceSchema, step.object],
+          );
+          const columnList = colsRes.rows.map((r: { column_name: string }) => `"${r.column_name}"`).join(', ');
+          const res = await client.query(`INSERT INTO ${run.targetSchema}.${step.object} (${columnList}) SELECT ${columnList} FROM ${run.sourceSchema}.${step.object}`);
           step.rowsProcessed = res.rowCount || 0;
           step.status = 'completed'; step.completedAt = new Date().toISOString();
           step.durationMs = Date.now() - new Date(step.startedAt).getTime();

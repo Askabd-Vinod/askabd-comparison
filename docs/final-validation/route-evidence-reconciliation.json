@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-08-30T13:32:18.034Z",
-  "countA": 8,
+  "generatedAt": "2026-08-30T15:13:57.853Z",
+  "countA": 35,
   "countB": 10,
-  "countC": 106,
+  "countC": 79,
   "total": 124,
   "routes": [
     {
@@ -28,8 +28,8 @@
       },
       "buttonLabels": [],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch2_staff_operations_test_1 — real load (Group A light sweep)"
     },
     {
       "route": "/accept-invitation",
@@ -79,8 +79,8 @@
       },
       "buttonLabels": [],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch2_staff_operations_test_1 — real render verified; MFA enrollment deliberately not submitted (protects the shared test-staff auth fixture)"
     },
     {
       "route": "/applications",
@@ -104,8 +104,8 @@
       },
       "buttonLabels": [],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch2_staff_operations_test_1 — real load (Group A light sweep)"
     },
     {
       "route": "/client-portal/[clientId]",
@@ -182,8 +182,8 @@
       },
       "buttonLabels": [],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch2_staff_operations_test_1 — real load (Group A light sweep)"
     },
     {
       "route": "/clients/[clientId]",
@@ -2109,8 +2109,8 @@
       },
       "buttonLabels": [],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch2_staff_operations_test_1 — real load (Group A light sweep)"
     },
     {
       "route": "/engineering",
@@ -2135,8 +2135,8 @@
       },
       "buttonLabels": [],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch2_staff_operations_test_1 — real load (Group A light sweep)"
     },
     {
       "route": "/engineering/[defectId]",
@@ -2161,8 +2161,8 @@
       },
       "buttonLabels": [],
       "isDynamic": true,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch2_staff_operations_test_1 — real load + real download button click, real file captured"
     },
     {
       "route": "/engineering/knowledge",
@@ -2186,8 +2186,8 @@
       },
       "buttonLabels": [],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch2_staff_operations_test_1 — real load (Group A light sweep)"
     },
     {
       "route": "/engineering/reports",
@@ -2212,8 +2212,8 @@
       },
       "buttonLabels": [],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch2_staff_operations_test_1 — real load + real download button click, real file captured"
     },
     {
       "route": "/forgot-password",
@@ -2262,8 +2262,8 @@
       },
       "buttonLabels": [],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch2_staff_operations_test_1 — real load (Group A light sweep)"
     },
     {
       "route": "/incidents",
@@ -2287,8 +2287,8 @@
       },
       "buttonLabels": [],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch2_staff_operations_test_1 — real load (Group A light sweep)"
     },
     {
       "route": "/infrastructure",
@@ -2312,8 +2312,8 @@
       },
       "buttonLabels": [],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch2_staff_operations_test_1 — real load (Group A light sweep)"
     },
     {
       "route": "/intelligence",
@@ -2337,8 +2337,8 @@
       },
       "buttonLabels": [],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch2_staff_operations_test_1 — real load (Group A light sweep)"
     },
     {
       "route": "/intelligence/catalog",
@@ -2362,8 +2362,8 @@
       },
       "buttonLabels": [],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch2_staff_operations_test_1 — real load + real link click into a catalog detail page"
     },
     {
       "route": "/intelligence/catalog/[serviceId]",
@@ -2387,8 +2387,8 @@
       },
       "buttonLabels": [],
       "isDynamic": true,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch2_staff_operations_test_1 — real load via real link click from /intelligence/catalog"
     },
     {
       "route": "/intelligence/debt",
@@ -2412,8 +2412,8 @@
       },
       "buttonLabels": [],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch2_staff_operations_test_1 — real load (Group A light sweep)"
     },
     {
       "route": "/intelligence/proposals",
@@ -2437,8 +2437,8 @@
       },
       "buttonLabels": [],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch2_staff_operations_test_1 — real load (Group A light sweep)"
     },
     {
       "route": "/login",
@@ -2488,8 +2488,8 @@
       },
       "buttonLabels": [],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch2_staff_operations_test_1 — real load (Group A light sweep)"
     },
     {
       "route": "/migrations/[migrationId]",
@@ -2514,8 +2514,8 @@
       },
       "buttonLabels": [],
       "isDynamic": true,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch2_staff_operations_test_1 — real full lifecycle: Dry Run, Execute (real-time polling observed), Validate, Rollback (DB-verified), Download Report — found and fixed a real defect (GENERATED ALWAYS column) live via this exact click"
     },
     {
       "route": "/migrations/new",
@@ -2539,8 +2539,8 @@
       },
       "buttonLabels": [],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch2_staff_operations_test_1 — real form: client select + Create Migration Plan, real navigation to detail page"
     },
     {
       "route": "/monitoring",
@@ -2564,8 +2564,8 @@
       },
       "buttonLabels": [],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch2_staff_operations_test_1 — real load (Group A light sweep)"
     },
     {
       "route": "/platform",
@@ -2955,8 +2955,8 @@
       },
       "buttonLabels": [],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch2_staff_operations_test_1 — real load (Group A light sweep)"
     },
     {
       "route": "/reports/[reportId]",
@@ -2980,8 +2980,8 @@
       },
       "buttonLabels": [],
       "isDynamic": true,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch2_staff_operations_test_1 — real Export PDF click, real file captured (already-disclosed mock/demo data)"
     },
     {
       "route": "/reset-password",
@@ -3030,8 +3030,8 @@
       },
       "buttonLabels": [],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch2_staff_operations_test_1 — real query, real results verified against the API"
     },
     {
       "route": "/services",
@@ -3055,8 +3055,8 @@
       },
       "buttonLabels": [],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch2_staff_operations_test_1 — real load (Group A light sweep)"
     },
     {
       "route": "/services/[serviceId]",
@@ -3105,8 +3105,8 @@
       },
       "buttonLabels": [],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch2_staff_operations_test_1 — real load (Group A light sweep)"
     },
     {
       "route": "/staff/login",
@@ -3182,8 +3182,8 @@
       },
       "buttonLabels": [],
       "isDynamic": false,
-      "evidenceClass": "C",
-      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+      "evidenceClass": "A",
+      "evidenceNote": "batch2_staff_operations_test_1 — real accordion expand, real UI state change verified"
     }
   ]
 }

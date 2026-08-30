@@ -253,10 +253,14 @@ precisely so that fact stays visible and current rather than getting lost
 in narrative progress notes. See
 `docs/final-askabd-production-readiness.md` for the full, final
 production-readiness synthesis across this entire engagement, and
-`docs/final-validation/final-playwright-product-coverage.md` (2026-08-30)
-for a real, mechanically-derived inventory of all 124 user-facing routes
-plus Batch 1 of a full page-by-page Playwright coverage push (6 pages
-freshly validated; 5 more batches genuinely remain).
+`docs/final-validation/final-playwright-product-coverage.md` (2026-08-30,
+Batch 1) and `docs/final-validation/final-playwright-product-coverage-batch2.md`
+(2026-08-30, Batch 2) for a real, mechanically-derived inventory of all
+124 user-facing routes plus an ongoing page-by-page Playwright coverage
+push — 35/124 routes now have fresh Playwright evidence (Class A) after
+Batches 1-2; 4 more batches genuinely remain. Batch 2 also found, fixed,
+and re-verified live a real migration-engine defect (a `GENERATED
+ALWAYS` column data-copy failure) — see that report for detail.
 
 ## Update discipline
 

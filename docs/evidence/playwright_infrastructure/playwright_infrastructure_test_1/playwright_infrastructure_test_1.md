@@ -2,15 +2,15 @@
 **Feature**: Real, automated authenticated Playwright — dedicated test-staff account
 **Client**: N/A
 **Environment**: local dev · **Browser**: chromium · **Viewport**: 1280x720
-**Started**: 2026-08-30T13:47:22.645Z · **Finished**: 2026-08-30T13:47:43.305Z
+**Started**: 2026-08-30T15:15:42.536Z · **Finished**: 2026-08-30T15:16:23.147Z
 ## Screenshots (physically verified: exists, size > 0, real PNG signature)
-- `docs/evidence/playwright_infrastructure/playwright_infrastructure_test_1/playwright_infrastructure_test_1_01.png` (217549 bytes) — Real authenticated landing page after real, automated test-staff login
+- `docs/evidence/playwright_infrastructure/playwright_infrastructure_test_1/playwright_infrastructure_test_1_01.png` (235738 bytes) — Real authenticated landing page after real, automated test-staff login
 - `docs/evidence/playwright_infrastructure/playwright_infrastructure_test_1/playwright_infrastructure_test_1_02.png` (537648 bytes) — Real Verification Center page, reached via real authenticated navigation
 - `docs/evidence/playwright_infrastructure/playwright_infrastructure_test_1/playwright_infrastructure_test_1_03.png` (537648 bytes) — Real Service Catalog rendered from the real authenticated API response
 ## Summary
 | TOTAL | PASSED | FAILED | BLOCKED | PASS RATE |
 |---|---|---|---|---|
-| 6 | 6 | 0 | 0 | 100% |
+| 6 | 5 | 1 | 0 | 83% |
 ## Steps
 ### step-1 — Real, automated login reaches a real authenticated view — **PASS**
 - Expected: Real "Sign out" control visible, no longer on /staff/login
@@ -20,9 +20,9 @@
 - Expected: Real page heading "Verification Center"
 - Actual: Real heading: "Verification Center"
 - Evidence: `docs/evidence/playwright_infrastructure/playwright_infrastructure_test_1/playwright_infrastructure_test_1_02.png`
-### step-3 — Real authenticated API request confirmed via network listener — **PASS**
+### step-3 — Real authenticated API request confirmed via network listener — **FAIL**
 - Expected: GET .../oc/verification/services returns real HTTP 200 (would be 401 unauthenticated)
-- Actual: Real HTTP 200 from http://localhost:4200/api/v1/oc/verification/services
+- Actual: No matching request observed
 ### step-4 — Real Service Catalog content rendered — **PASS**
 - Expected: Real "Service Catalog" text present
 - Actual: Confirmed present
@@ -33,8 +33,4 @@
 ### step-6 — Network failures / 5xx during this real run — **PASS**
 - Expected: Zero
 - Actual: 0 failure(s): none
-## Findings
-
-- Real, fully automated authenticated Playwright run succeeded end to end using the dedicated test-staff account — no manual session export required.
-
-## FINAL STATUS: PASS
+## FINAL STATUS: PASS_WITH_RISKS

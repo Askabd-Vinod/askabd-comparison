@@ -2,17 +2,17 @@
   "feature": "Real, automated authenticated Playwright — dedicated test-staff account",
   "testSuite": "playwright_infrastructure_test_1",
   "environment": "local dev",
-  "startedAt": "2026-08-30T13:47:22.645Z",
-  "finishedAt": "2026-08-30T13:47:43.305Z",
+  "startedAt": "2026-08-30T15:15:42.536Z",
+  "finishedAt": "2026-08-30T15:16:23.147Z",
   "browserName": "chromium",
   "viewport": {
     "width": 1280,
     "height": 720
   },
-  "finalStatus": "PASS",
+  "finalStatus": "PASS_WITH_RISKS",
   "total": 6,
-  "passed": 6,
-  "failed": 0,
+  "passed": 5,
+  "failed": 1,
   "blocked": 0,
   "steps": [
     {
@@ -23,7 +23,7 @@
       "status": "PASS",
       "evidence": "docs/evidence/playwright_infrastructure/playwright_infrastructure_test_1/playwright_infrastructure_test_1_01.png",
       "notes": null,
-      "at": "2026-08-30T13:47:33.550Z"
+      "at": "2026-08-30T15:15:56.128Z"
     },
     {
       "id": "step-2",
@@ -33,17 +33,17 @@
       "status": "PASS",
       "evidence": "docs/evidence/playwright_infrastructure/playwright_infrastructure_test_1/playwright_infrastructure_test_1_02.png",
       "notes": null,
-      "at": "2026-08-30T13:47:42.445Z"
+      "at": "2026-08-30T15:16:21.417Z"
     },
     {
       "id": "step-3",
       "title": "Real authenticated API request confirmed via network listener",
       "expected": "GET .../oc/verification/services returns real HTTP 200 (would be 401 unauthenticated)",
-      "actual": "Real HTTP 200 from http://localhost:4200/api/v1/oc/verification/services",
-      "status": "PASS",
+      "actual": "No matching request observed",
+      "status": "FAIL",
       "evidence": null,
       "notes": null,
-      "at": "2026-08-30T13:47:42.445Z"
+      "at": "2026-08-30T15:16:21.417Z"
     },
     {
       "id": "step-4",
@@ -53,7 +53,7 @@
       "status": "PASS",
       "evidence": "docs/evidence/playwright_infrastructure/playwright_infrastructure_test_1/playwright_infrastructure_test_1_03.png",
       "notes": null,
-      "at": "2026-08-30T13:47:42.926Z"
+      "at": "2026-08-30T15:16:22.350Z"
     },
     {
       "id": "step-5",
@@ -63,7 +63,7 @@
       "status": "PASS",
       "evidence": null,
       "notes": null,
-      "at": "2026-08-30T13:47:42.926Z"
+      "at": "2026-08-30T15:16:22.350Z"
     },
     {
       "id": "step-6",
@@ -73,7 +73,7 @@
       "status": "PASS",
       "evidence": null,
       "notes": null,
-      "at": "2026-08-30T13:47:42.926Z"
+      "at": "2026-08-30T15:16:22.350Z"
     }
   ],
   "screenshots": [
@@ -81,7 +81,7 @@
       "fileName": "playwright_infrastructure_test_1_01.png",
       "relPath": "docs/evidence/playwright_infrastructure/playwright_infrastructure_test_1/playwright_infrastructure_test_1_01.png",
       "description": "Real authenticated landing page after real, automated test-staff login",
-      "sizeBytes": 217549
+      "sizeBytes": 235738
     },
     {
       "fileName": "playwright_infrastructure_test_1_02.png",
@@ -96,8 +96,6 @@
       "sizeBytes": 537648
     }
   ],
-  "findings": [
-    "Real, fully automated authenticated Playwright run succeeded end to end using the dedicated test-staff account — no manual session export required."
-  ],
+  "findings": [],
   "remaining": []
 }

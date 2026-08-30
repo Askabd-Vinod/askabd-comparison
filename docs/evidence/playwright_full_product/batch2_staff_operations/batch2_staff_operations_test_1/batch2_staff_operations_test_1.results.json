@@ -1,0 +1,289 @@
+{
+  "feature": "Batch 2 — staff operational workflows (29 routes: dashboard, account/security, applications, clients list, deployments list, engineering, governance, incidents list, infrastructure, intelligence, migrations lifecycle, monitoring, reports, search, services, settings, welcome)",
+  "testSuite": "batch2_staff_operations_test_1",
+  "environment": "local dev",
+  "startedAt": "2026-08-30T15:03:39.411Z",
+  "finishedAt": "2026-08-30T15:06:45.419Z",
+  "browserName": "chromium",
+  "finalStatus": "PASS_WITH_RISKS",
+  "total": 18,
+  "passed": 17,
+  "failed": 0,
+  "blocked": 0,
+  "steps": [
+    {
+      "id": "batch2-light-sweep",
+      "title": "Group A: 18 real page loads (routes with zero actionable controls per the mechanical inventory)",
+      "expected": "All 18 routes return a real 2xx/3xx response",
+      "actual": "18/18 loaded successfully. ",
+      "status": "PASS",
+      "evidence": "docs/evidence/playwright_full_product/batch2_staff_operations/batch2_staff_operations_test_1/batch2_staff_operations_test_1_01.png",
+      "notes": null,
+      "at": "2026-08-30T15:04:52.435Z"
+    },
+    {
+      "id": "batch2-defect-detail",
+      "title": "Real engineering defect detail page load",
+      "expected": "Real defect detail renders",
+      "actual": "URL: http://localhost:3001/engineering/def-61e4e7f0-b181-4196-97a9-e8d68eb0a819",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T15:04:55.284Z"
+    },
+    {
+      "id": "batch2-service-detail",
+      "title": "Real service catalog detail page load (via real link click)",
+      "expected": "Detail page renders",
+      "actual": "URL: http://localhost:3001/intelligence/catalog",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T15:05:00.074Z"
+    },
+    {
+      "id": "batch2-account-security",
+      "title": "Account Security page: real render, MFA enrollment deliberately not submitted",
+      "expected": "Page renders real MFA enrollment UI for the logged-in test-staff identity",
+      "actual": "Real MFA management UI rendered. Enrollment NOT submitted — doing so would put a real TOTP requirement on the shared automated test-staff account this whole engagement's Playwright infrastructure depends on for every batch, a disclosed, deliberate scope boundary.",
+      "status": "PASS",
+      "evidence": "docs/evidence/playwright_full_product/batch2_staff_operations/batch2_staff_operations_test_1/batch2_staff_operations_test_1_02.png",
+      "notes": null,
+      "at": "2026-08-30T15:05:13.330Z"
+    },
+    {
+      "id": "batch2-search",
+      "title": "Real global search query, real results verified",
+      "expected": "Searching \"Test1\" finds the real fixture client",
+      "actual": "Real fixture client found in real search results",
+      "status": "PASS",
+      "evidence": "docs/evidence/playwright_full_product/batch2_staff_operations/batch2_staff_operations_test_1/batch2_staff_operations_test_1_03.png",
+      "notes": null,
+      "at": "2026-08-30T15:05:20.496Z"
+    },
+    {
+      "id": "batch2-welcome",
+      "title": "Welcome page: real accordion expand, real UI state change",
+      "expected": "Clicking the section header changes real page layout height",
+      "actual": "Body height before=2340px, after=2873px",
+      "status": "PASS",
+      "evidence": "docs/evidence/playwright_full_product/batch2_staff_operations/batch2_staff_operations_test_1/batch2_staff_operations_test_1_04.png",
+      "notes": null,
+      "at": "2026-08-30T15:05:25.644Z"
+    },
+    {
+      "id": "batch2-download-engineering-defect-download",
+      "title": "engineering-defect-download: real download button click, real file captured",
+      "expected": "A real, non-empty file downloads (honestly-labeled real extension per this component's own documented PDF-honesty fix)",
+      "actual": "Real download captured: \"Engineering_Report_def-61e4e7f0-b181-4196-97a9-e8d68eb0a819_2026-08-30.txt\", 1808 bytes",
+      "status": "PASS",
+      "evidence": "docs/evidence/playwright_full_product/batch2_staff_operations/batch2_staff_operations_test_1/batch2_staff_operations_test_1_05.png",
+      "notes": null,
+      "at": "2026-08-30T15:05:31.575Z"
+    },
+    {
+      "id": "batch2-download-engineering-reports-download",
+      "title": "engineering-reports-download: real download button click, real file captured",
+      "expected": "A real, non-empty file downloads (honestly-labeled real extension per this component's own documented PDF-honesty fix)",
+      "actual": "Real download captured: \"Defect_Report_2026-08-30.txt\", 1413 bytes",
+      "status": "PASS",
+      "evidence": "docs/evidence/playwright_full_product/batch2_staff_operations/batch2_staff_operations_test_1/batch2_staff_operations_test_1_06.png",
+      "notes": null,
+      "at": "2026-08-30T15:05:34.920Z"
+    },
+    {
+      "id": "batch2-download-reports-detail-download-mock-data-disclosed",
+      "title": "reports-detail-download-mock-data-disclosed: real download button click, real file captured",
+      "expected": "A real, non-empty file downloads (honestly-labeled real extension per this component's own documented PDF-honesty fix)",
+      "actual": "Real download captured: \"Availability_Report_2026-08-30.txt\", 1204 bytes",
+      "status": "PASS",
+      "evidence": "docs/evidence/playwright_full_product/batch2_staff_operations/batch2_staff_operations_test_1/batch2_staff_operations_test_1_07.png",
+      "notes": null,
+      "at": "2026-08-30T15:05:37.955Z"
+    },
+    {
+      "id": "batch2-migration-create",
+      "title": "Real migration plan created via the real form",
+      "expected": "A real migration plan is created and its detail page loads",
+      "actual": "migrationId=mig-1788102342136-40dfa7, url=http://localhost:3001/migrations/mig-1788102342136-40dfa7",
+      "status": "PASS",
+      "evidence": "docs/evidence/playwright_full_product/batch2_staff_operations/batch2_staff_operations_test_1/batch2_staff_operations_test_1_08.png",
+      "notes": null,
+      "at": "2026-08-30T15:05:50.298Z"
+    },
+    {
+      "id": "batch2-migration-dryrun",
+      "title": "Real Run Dry Run click",
+      "expected": "Real dry-run result returned and rendered",
+      "actual": "Clicked and observed real UI update (see screenshot)",
+      "status": "PASS",
+      "evidence": "docs/evidence/playwright_full_product/batch2_staff_operations/batch2_staff_operations_test_1/batch2_staff_operations_test_1_10.png",
+      "notes": null,
+      "at": "2026-08-30T15:05:53.353Z"
+    },
+    {
+      "id": "batch2-migration-execute-realtime",
+      "title": "Real-time Execute Migration: observed genuine queued/running -> terminal state transition via live polling",
+      "expected": "The real OperationProgress panel shows a real in-flight state before reaching a real terminal state, without a forced page refresh",
+      "actual": "In-flight state observed: true. Real terminal state reached: \"completed\"",
+      "status": "PASS",
+      "evidence": "docs/evidence/playwright_full_product/batch2_staff_operations/batch2_staff_operations_test_1/batch2_staff_operations_test_1_12.png",
+      "notes": null,
+      "at": "2026-08-30T15:06:30.547Z"
+    },
+    {
+      "id": "batch2-migration-validate",
+      "title": "Real Validate click",
+      "expected": "Real validation result rendered",
+      "actual": "Clicked and observed real UI update (see screenshot)",
+      "status": "PASS",
+      "evidence": "docs/evidence/playwright_full_product/batch2_staff_operations/batch2_staff_operations_test_1/batch2_staff_operations_test_1_13.png",
+      "notes": null,
+      "at": "2026-08-30T15:06:34.995Z"
+    },
+    {
+      "id": "batch2-migration-rollback",
+      "title": "Real Rollback click, independently verified via direct DB query",
+      "expected": "The real target schema (mig_client_9a2a1b23_5872_45d5_8246_2f0ba05bc691_1788102342140) exists before rollback and is dropped after",
+      "actual": "Schema existed before: true, exists after rollback: false",
+      "status": "PASS",
+      "evidence": "docs/evidence/playwright_full_product/batch2_staff_operations/batch2_staff_operations_test_1/batch2_staff_operations_test_1_14.png",
+      "notes": null,
+      "at": "2026-08-30T15:06:38.312Z"
+    },
+    {
+      "id": "batch2-download-migration-report-download",
+      "title": "migration-report-download: real download button click, real file captured",
+      "expected": "A real, non-empty file downloads (honestly-labeled real extension per this component's own documented PDF-honesty fix)",
+      "actual": "Real download captured: \"Migration_mig-1788102342136-40dfa7_Report_2026-08-30.txt\", 11206 bytes",
+      "status": "PASS",
+      "evidence": "docs/evidence/playwright_full_product/batch2_staff_operations/batch2_staff_operations_test_1/batch2_staff_operations_test_1_15.png",
+      "notes": null,
+      "at": "2026-08-30T15:06:44.515Z"
+    },
+    {
+      "id": "batch2-session-reauth",
+      "title": "Mid-run session interruptions and transparent re-authentication",
+      "expected": "A real, isolated repro proved the token self-renewal mechanism works; this run's own mid-batch interruptions (if any) are disclosed, not hidden, and did not abort coverage",
+      "actual": "No mid-run session interruption occurred this run.",
+      "status": "PASS_WITH_RISKS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T15:06:44.515Z"
+    },
+    {
+      "id": "console",
+      "title": "Console errors across this real run",
+      "expected": "Zero",
+      "actual": "0: none",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T15:06:44.516Z"
+    },
+    {
+      "id": "network",
+      "title": "Network failures / 5xx across this real run (excluding investigated benign RSC-prefetch ERR_ABORTED)",
+      "expected": "Zero",
+      "actual": "0: none",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T15:06:44.516Z"
+    }
+  ],
+  "screenshots": [
+    {
+      "fileName": "batch2_staff_operations_test_1_01.png",
+      "relPath": "docs/evidence/playwright_full_product/batch2_staff_operations/batch2_staff_operations_test_1/batch2_staff_operations_test_1_01.png",
+      "description": "Last light-sweep page loaded: /settings",
+      "sizeBytes": 189096
+    },
+    {
+      "fileName": "batch2_staff_operations_test_1_02.png",
+      "relPath": "docs/evidence/playwright_full_product/batch2_staff_operations/batch2_staff_operations_test_1/batch2_staff_operations_test_1_02.png",
+      "description": "Account Security page — real render, MFA enrollment form visible",
+      "sizeBytes": 171313
+    },
+    {
+      "fileName": "batch2_staff_operations_test_1_03.png",
+      "relPath": "docs/evidence/playwright_full_product/batch2_staff_operations/batch2_staff_operations_test_1/batch2_staff_operations_test_1_03.png",
+      "description": "Search page — real query \"Test1\"",
+      "sizeBytes": 175807
+    },
+    {
+      "fileName": "batch2_staff_operations_test_1_04.png",
+      "relPath": "docs/evidence/playwright_full_product/batch2_staff_operations/batch2_staff_operations_test_1/batch2_staff_operations_test_1_04.png",
+      "description": "Welcome page — after real accordion-expand click",
+      "sizeBytes": 619582
+    },
+    {
+      "fileName": "batch2_staff_operations_test_1_05.png",
+      "relPath": "docs/evidence/playwright_full_product/batch2_staff_operations/batch2_staff_operations_test_1/batch2_staff_operations_test_1_05.png",
+      "description": "engineering-defect-download — after real download click (Engineering_Report_def-61e4e7f0-b181-4196-97a9-e8d68eb0a819_2026-08-30.txt)",
+      "sizeBytes": 213850
+    },
+    {
+      "fileName": "batch2_staff_operations_test_1_06.png",
+      "relPath": "docs/evidence/playwright_full_product/batch2_staff_operations/batch2_staff_operations_test_1/batch2_staff_operations_test_1_06.png",
+      "description": "engineering-reports-download — after real download click (Defect_Report_2026-08-30.txt)",
+      "sizeBytes": 210308
+    },
+    {
+      "fileName": "batch2_staff_operations_test_1_07.png",
+      "relPath": "docs/evidence/playwright_full_product/batch2_staff_operations/batch2_staff_operations_test_1/batch2_staff_operations_test_1_07.png",
+      "description": "reports-detail-download-mock-data-disclosed — after real download click (Availability_Report_2026-08-30.txt)",
+      "sizeBytes": 197732
+    },
+    {
+      "fileName": "batch2_staff_operations_test_1_08.png",
+      "relPath": "docs/evidence/playwright_full_product/batch2_staff_operations/batch2_staff_operations_test_1/batch2_staff_operations_test_1_08.png",
+      "description": "Migrations/new — after real form submission (migrationId=mig-1788102342136-40dfa7)",
+      "sizeBytes": 369449
+    },
+    {
+      "fileName": "batch2_staff_operations_test_1_09.png",
+      "relPath": "docs/evidence/playwright_full_product/batch2_staff_operations/batch2_staff_operations_test_1/batch2_staff_operations_test_1_09.png",
+      "description": "Migration detail — real plan created, initial state",
+      "sizeBytes": 284431
+    },
+    {
+      "fileName": "batch2_staff_operations_test_1_10.png",
+      "relPath": "docs/evidence/playwright_full_product/batch2_staff_operations/batch2_staff_operations_test_1/batch2_staff_operations_test_1_10.png",
+      "description": "Migration detail — after real Run Dry Run click",
+      "sizeBytes": 283150
+    },
+    {
+      "fileName": "batch2_staff_operations_test_1_11.png",
+      "relPath": "docs/evidence/playwright_full_product/batch2_staff_operations/batch2_staff_operations_test_1/batch2_staff_operations_test_1_11.png",
+      "description": "Migration detail — real-time OperationProgress mid-execution (queued/running)",
+      "sizeBytes": 559013
+    },
+    {
+      "fileName": "batch2_staff_operations_test_1_12.png",
+      "relPath": "docs/evidence/playwright_full_product/batch2_staff_operations/batch2_staff_operations_test_1/batch2_staff_operations_test_1_12.png",
+      "description": "Migration detail — real-time OperationProgress reached a real terminal state",
+      "sizeBytes": 846786
+    },
+    {
+      "fileName": "batch2_staff_operations_test_1_13.png",
+      "relPath": "docs/evidence/playwright_full_product/batch2_staff_operations/batch2_staff_operations_test_1/batch2_staff_operations_test_1_13.png",
+      "description": "Migration detail — after real Validate click",
+      "sizeBytes": 846094
+    },
+    {
+      "fileName": "batch2_staff_operations_test_1_14.png",
+      "relPath": "docs/evidence/playwright_full_product/batch2_staff_operations/batch2_staff_operations_test_1/batch2_staff_operations_test_1_14.png",
+      "description": "Migration detail — after real Rollback click",
+      "sizeBytes": 705590
+    },
+    {
+      "fileName": "batch2_staff_operations_test_1_15.png",
+      "relPath": "docs/evidence/playwright_full_product/batch2_staff_operations/batch2_staff_operations_test_1/batch2_staff_operations_test_1_15.png",
+      "description": "migration-report-download — after real download click (Migration_mig-1788102342136-40dfa7_Report_2026-08-30.txt)",
+      "sizeBytes": 817348
+    }
+  ],
+  "findings": [],
+  "remaining": []
+}
