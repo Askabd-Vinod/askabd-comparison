@@ -1553,6 +1553,28 @@ completion" principle.
     `apps/web` — the "no real consumer to break, not the highest-value
     security work available" reasoning still holds. See
     `docs/evidence/security/marketplace_rbac_audit_test_1/`.
+- **Update (2026-08-30, `batch4_marketplace_test_1`, Playwright Coverage
+  Completion Batch 4)**: independently re-proved live, through a real,
+  authenticated Playwright browser session (not `app.inject`, not a
+  locally-signed test JWT — real identity-issued tokens against the real
+  running API) with two freshly-provisioned real seller identities.
+  **Still real, still OPEN** — confirmed reproducible for
+  `merchant.register()`'s `tenantId`, `POST /merchants/:id/verification`,
+  and `POST /merchants/:id/branches`, exactly as previously documented.
+  **New this pass**: the same ownership gap extends to `POST /prices`
+  (not covered by the prior mechanical audit) — a real seller created a
+  real price record attributed to a merchant they do not own, with no
+  ownership check, same root cause. `POST /offers` was exercised but only
+  for the caller's own merchant this pass (not separately tested
+  cross-tenant — real, disclosed gap in this pass's own coverage, likely
+  shares the same root cause given `createOffer` has the identical
+  no-ownership-check shape as `recordPrice`, but not independently
+  proven). Real, fresh evidence:
+  `docs/evidence/playwright_full_product/batch4_marketplace/batch4_marketplace_test_1/`.
+  Two genuinely new, separate marketplace defects were found and fixed
+  this same pass (a decimal-price `BigInt` crash, a malformed-UUID
+  crash) — neither is RISK-017 and neither touches the ownership gap;
+  disclosed separately, not conflated with this entry.
 
 ---
 

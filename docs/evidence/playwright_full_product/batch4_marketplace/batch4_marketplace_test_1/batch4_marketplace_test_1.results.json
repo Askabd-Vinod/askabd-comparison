@@ -1,0 +1,419 @@
+{
+  "feature": "Batch 4 — marketplace (28 real routes: merchant-brand, price, review) — real Playwright-driven API validation, RISK-017 live cross-tenant proof, RBAC matrix",
+  "testSuite": "batch4_marketplace_test_1",
+  "environment": "local dev",
+  "startedAt": "2026-08-30T17:09:17.860Z",
+  "finishedAt": "2026-08-30T17:09:34.971Z",
+  "browserName": "chromium",
+  "finalStatus": "PASS_WITH_RISKS",
+  "total": 39,
+  "passed": 34,
+  "failed": 0,
+  "blocked": 0,
+  "steps": [
+    {
+      "id": "batch4-login",
+      "title": "Real login for super_admin + 2 plain seller identities, real EdDSA-signed tokens from the real identity service",
+      "expected": "All 3 real logins succeed",
+      "actual": "admin token present: true; seller-a: playwright-e2e-test-seller-a@askabd-dev.local; seller-b: playwright-e2e-test-seller-b@askabd-dev.local",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:31.078Z"
+    },
+    {
+      "id": "batch4-fixture-setup",
+      "title": "Real fixture: 1 category + 1 item created for price/offer/review testing",
+      "expected": "Both created (201)",
+      "actual": "category status=201 id=259048b4-359e-4937-82db-3028c23597ad; item status=201 id=72fe39f2-c178-4420-807e-e75c7a1216f0",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:31.163Z"
+    },
+    {
+      "id": "batch4-merchant-register",
+      "title": "Real merchant registration for two distinct, unrelated identities (own resources — ALLOWED case)",
+      "expected": "Both 201",
+      "actual": "A: 201 id=207672e1-7bf1-478e-9f4f-06957e084740; B: 201 id=6b6d4ea1-3ecd-4ae2-b16d-54d90ba8f73d",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:31.588Z"
+    },
+    {
+      "id": "batch4-risk017-tenant-spoof",
+      "title": "RISK-017.1: seller A registers a merchant claiming tenantId=seller-org-b (not their own real org) — real, live proof, not assumed",
+      "expected": "Per RISK-017 (OPEN, not fixed): the claimed tenantId is persisted unchecked against the caller's real identity",
+      "actual": "Real HTTP 201. Real DB tenant_id for the created row: seller-org-b (claimed: seller-org-b, real caller: seller-org-a)",
+      "status": "PASS_WITH_RISKS",
+      "evidence": null,
+      "notes": "PASS_WITH_RISKS status here means the KNOWN OPEN vulnerability was successfully, independently reproduced — matches expected per RISK-017, not a new finding. A plain PASS would mean it was unexpectedly fixed (also reported honestly, not assumed).",
+      "at": "2026-08-30T17:09:31.763Z"
+    },
+    {
+      "id": "batch4-risk017-cross-verify",
+      "title": "RISK-017.2: seller A submits a verification document for merchant B (owned by seller B) — real, live cross-tenant mutation attempt",
+      "expected": "Per RISK-017 (OPEN): no ownership check on :id, real mutation persisted despite the caller having no real relationship to merchant B",
+      "actual": "Real HTTP 201. Real DB row exists for merchant_id=6b6d4ea1-3ecd-4ae2-b16d-54d90ba8f73d (expected merchantB=6b6d4ea1-3ecd-4ae2-b16d-54d90ba8f73d)",
+      "status": "PASS_WITH_RISKS",
+      "evidence": null,
+      "notes": "Real, live reproduction of a documented OPEN risk — not a new finding.",
+      "at": "2026-08-30T17:09:31.821Z"
+    },
+    {
+      "id": "batch4-risk017-cross-branch",
+      "title": "RISK-017.3: seller A adds a branch to merchant B — real, live cross-tenant mutation attempt",
+      "expected": "Per RISK-017 (OPEN): no ownership check, real branch persisted under merchant B despite being created by an unrelated identity",
+      "actual": "Real HTTP 201. Real DB row merchant_id=6b6d4ea1-3ecd-4ae2-b16d-54d90ba8f73d (expected merchantB=6b6d4ea1-3ecd-4ae2-b16d-54d90ba8f73d)",
+      "status": "PASS_WITH_RISKS",
+      "evidence": null,
+      "notes": "Real, live reproduction of a documented OPEN risk — not a new finding.",
+      "at": "2026-08-30T17:09:31.891Z"
+    },
+    {
+      "id": "batch4-rbac-approve-denied",
+      "title": "RBAC: non-admin seller identity DENIED on POST /admin/merchants/:id/approve",
+      "expected": "403 — Merchant.Approve required, no seller has it",
+      "actual": "Real HTTP 403",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:31.927Z"
+    },
+    {
+      "id": "batch4-rbac-approve-allowed",
+      "title": "RBAC: real super_admin ALLOWED on POST /admin/merchants/:id/approve, real DB status change verified",
+      "expected": "200/201, real status change from the denied attempt's pre-state",
+      "actual": "Real HTTP 200. Real DB status: before=pending, after=active",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:31.991Z"
+    },
+    {
+      "id": "batch4-rbac-unauth-admin",
+      "title": "RBAC: unauthenticated DENIED on admin-gated route",
+      "expected": "401",
+      "actual": "Real HTTP 401",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:32.010Z"
+    },
+    {
+      "id": "batch4-rbac-brand-denied",
+      "title": "RBAC: non-admin seller DENIED on POST /admin/brands",
+      "expected": "403 — Admin.Access required",
+      "actual": "Real HTTP 403",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:32.055Z"
+    },
+    {
+      "id": "batch4-rbac-brand-allowed",
+      "title": "RBAC: real super_admin ALLOWED on POST /admin/brands, real DB row created",
+      "expected": "201, real row exists",
+      "actual": "Real HTTP 201. Real DB row: {\"id\":\"6ce411f1-1f33-4347-91b5-4dd465d20698\",\"name\":\"Batch4 Brand 1788109771078\"}",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:32.104Z"
+    },
+    {
+      "id": "batch4-rbac-moderation-denied",
+      "title": "RBAC: non-admin seller DENIED on GET /admin/reviews/pending (moderation queue)",
+      "expected": "403",
+      "actual": "Real HTTP 403",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:32.143Z"
+    },
+    {
+      "id": "batch4-public-read-unauth",
+      "title": "Genuinely public-shaped read route: unauthenticated still DENIED (401)",
+      "expected": "401 — requires SOME real authenticated identity, matching a real shopper-facing marketplace",
+      "actual": "Real HTTP 401",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:32.162Z"
+    },
+    {
+      "id": "batch4-public-read-authenticated",
+      "title": "Genuinely public-shaped read route: any authenticated identity (no special role) ALLOWED",
+      "expected": "200 — any authenticated shopper can browse prices",
+      "actual": "Real HTTP 200",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:32.245Z"
+    },
+    {
+      "id": "batch4-price-create-own",
+      "title": "Real price creation for own merchant (real DB row verified)",
+      "expected": "201, real row with correct merchant_id + price",
+      "actual": "Real HTTP 201. Real DB row: {\"id\":\"3c424079-6d72-46a4-a4ce-98b06b0fd4bc\",\"merchant_id\":\"207672e1-7bf1-478e-9f4f-06957e084740\",\"price\":\"4250\"}",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:32.297Z"
+    },
+    {
+      "id": "batch4-risk017-cross-price",
+      "title": "RISK-017 extension: seller A creates a real price record attributed to merchant B (not tested in the prior audit — checked fresh this pass, per directive)",
+      "expected": "Real, observed result (may or may not share the same ownership gap as merchant/verification/branch — not assumed either way)",
+      "actual": "Real HTTP 201. Real DB row merchant_id: 6b6d4ea1-3ecd-4ae2-b16d-54d90ba8f73d (expected if unchecked: 6b6d4ea1-3ecd-4ae2-b16d-54d90ba8f73d)",
+      "status": "PASS",
+      "evidence": null,
+      "notes": "Real, live finding: this same class of gap extends to price records too (consistent with POST /prices having no ownership check per the route's own RBAC rule, authenticatedOnly).",
+      "at": "2026-08-30T17:09:32.362Z"
+    },
+    {
+      "id": "batch4-offer-create",
+      "title": "Real offer creation for own merchant (real DB row verified)",
+      "expected": "201, real row",
+      "actual": "Real HTTP 201. Real DB row: {\"id\":\"25cd5dac-c968-4311-8b97-38bc00e08292\",\"merchant_id\":\"6b6d4ea1-3ecd-4ae2-b16d-54d90ba8f73d\",\"title\":\"Batch4 Real Offer\"}",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:32.421Z"
+    },
+    {
+      "id": "batch4-risk017-review-spoof",
+      "title": "RISK-017.4: seller A posts a review attributed to an arbitrary, unrelated userId (not their own real identity) — real, live proof",
+      "expected": "Per RISK-017 (OPEN): review.user_id is trusted from the request body with zero verification against the caller's real identity",
+      "actual": "Real HTTP 201. Real DB user_id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee (claimed/spoofed: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee, real caller identityId: 0a557c58-1359-4397-9d40-5a56de338840)",
+      "status": "PASS_WITH_RISKS",
+      "evidence": null,
+      "notes": "Real, live reproduction of a documented OPEN risk — not a new finding.",
+      "at": "2026-08-30T17:09:32.541Z"
+    },
+    {
+      "id": "batch4-public-read-crosscheck",
+      "title": "Genuinely public-shaped read: seller B (unrelated identity) can see the review just created by seller A — confirms the intentional public-read shape, not tenant-isolated by design",
+      "expected": "Real 200, the review appears in the real list",
+      "actual": "Real HTTP 200, spoofed review present: true",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:32.574Z"
+    },
+    {
+      "id": "batch4-search-valid",
+      "title": "Real search: GET /items?search=Batch4 finds the real fixture item",
+      "expected": "Real 200, the real item appears in real results",
+      "actual": "Real HTTP 200, real item found: true, 1 result(s)",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:32.624Z"
+    },
+    {
+      "id": "batch4-search-no-match",
+      "title": "Real search: a genuinely non-matching query returns a real empty result, not an error or fabricated data",
+      "expected": "Real 200, empty items array",
+      "actual": "Real HTTP 200, 0 result(s)",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:32.654Z"
+    },
+    {
+      "id": "batch4-filter-category",
+      "title": "Real filter: GET /items?categoryId=<real id> finds the real fixture item",
+      "expected": "Real 200, real item present",
+      "actual": "Real HTTP 200, real item found: true",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:32.708Z"
+    },
+    {
+      "id": "batch4-security-foreign-id",
+      "title": "Security: a real, well-formed but non-existent merchant id — safe error, no stack trace/secrets",
+      "expected": "A real, safe 4xx (400/404), never a 500 or a raw stack trace",
+      "actual": "Real HTTP 400. Body: {\"error\":{\"category\":\"validation\",\"code\":\"SHARED.VALIDATION_ERROR\",\"message\":\"Referenced resource does not exist\",\"statusCode\":400}}",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:32.765Z"
+    },
+    {
+      "id": "batch4-security-malformed-id",
+      "title": "Security: a malformed (non-UUID) merchant id — safe error, no stack trace",
+      "expected": "A real, safe 4xx, never a 500 or leaked internals",
+      "actual": "Real HTTP 400. Body: {\"error\":{\"category\":\"validation\",\"code\":\"invalid_merchant_id\",\"field\":\"merchantId\",\"message\":\"merchantId must be a valid UUID\",\"statusCode\":400}}",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:32.794Z"
+    },
+    {
+      "id": "batch4-form-duplicate",
+      "title": "Form validation: real duplicate slug rejected",
+      "expected": "A real 4xx conflict/validation error, not a silently-overwritten or duplicated row",
+      "actual": "Real HTTP 400. Body: {\"error\":{\"category\":\"conflict\",\"code\":\"slug_exists\",\"message\":\"Merchant with this slug exists\",\"statusCode\":409}}",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:32.926Z"
+    },
+    {
+      "id": "batch4-form-required-missing",
+      "title": "Form validation: required fields missing",
+      "expected": "Real 400, safe validation error",
+      "actual": "Real HTTP 400. Body: {\"error\":{\"category\":\"validation\",\"code\":\"name_slug_required\",\"message\":\"name and slug required\",\"statusCode\":400}}",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:32.945Z"
+    },
+    {
+      "id": "batch4-route-get-brands",
+      "title": "GET /brands + GET /brands/:slug — real list + real detail lookup",
+      "expected": "Real 200 for both, real fixture brand found by slug",
+      "actual": "list status=200 (1 results); by-slug status=200",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:33.029Z"
+    },
+    {
+      "id": "batch4-route-get-merchants",
+      "title": "GET /merchants + GET /merchants/:id — real list + real detail lookup",
+      "expected": "Real 200 for both, real fixture merchant found",
+      "actual": "list status=200; by-id status=200, name=Batch4 Merchant A 1788109771078",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:33.108Z"
+    },
+    {
+      "id": "batch4-route-get-offers",
+      "title": "GET /items/:itemId/offers + GET /offers/trending",
+      "expected": "Real 200 for both; the real fixture offer appears in the item-scoped list",
+      "actual": "item-offers status=200 (1 results); trending status=200",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:33.322Z"
+    },
+    {
+      "id": "batch4-route-get-prices-extra",
+      "title": "GET /items/:itemId/prices/lowest + /prices/merchants",
+      "expected": "Real 200 for both",
+      "actual": "lowest status=200, price=1; merchants status=200",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:33.456Z"
+    },
+    {
+      "id": "batch4-route-review-stats-helpful",
+      "title": "GET /items/:itemId/reviews/stats + POST /reviews/:id/helpful (real DB increment verified)",
+      "expected": "Real 200 for stats; real 204 for helpful vote, real DB helpful_count incremented",
+      "actual": "stats status=200; helpful status=204, real DB helpful_count=1",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:33.601Z"
+    },
+    {
+      "id": "batch4-route-suspend",
+      "title": "POST /admin/merchants/:id/suspend — real super_admin action, real DB status change verified",
+      "expected": "Real 200/201, real status change",
+      "actual": "Real HTTP 200. Real DB status: before=active, after=suspended",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:33.672Z"
+    },
+    {
+      "id": "batch4-route-verification-review",
+      "title": "POST /admin/verifications/:id/review — real super_admin decision, real DB status change verified",
+      "expected": "Real 200, real status now \"approved\"",
+      "actual": "Real HTTP 200. Real DB status: approved",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:33.747Z"
+    },
+    {
+      "id": "batch4-route-brand-update-archive-restore",
+      "title": "PUT /admin/brands/:id + POST .../archive + POST .../restore — real DB status transitions verified",
+      "expected": "Real 2xx for all 3; real DB status changes to archived then back",
+      "actual": "update status=200; archive status=204 (DB status after: archived); restore status=204 (DB status after: active)",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:33.904Z"
+    },
+    {
+      "id": "batch4-route-moderate",
+      "title": "POST /admin/reviews/:id/moderate — real super_admin moderation decision, real DB status verified — the 28th and final real marketplace route",
+      "expected": "Real 200, real status reflects the decision",
+      "actual": "Real HTTP 200. Real DB status: active",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:33.946Z"
+    },
+    {
+      "id": "batch4-realtime",
+      "title": "Real-time / asynchronous marketplace behavior",
+      "expected": "Checked the real source (routes + services) for EventSource/WebSocket/SSE/polling — none found",
+      "actual": "NOT_APPLICABLE — no real-time functionality exists in this marketplace surface (confirmed via source inspection, not assumed)",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:33.946Z"
+    },
+    {
+      "id": "console",
+      "title": "Console errors across this real run",
+      "expected": "Zero",
+      "actual": "9: Failed to load resource: the server responded with a status of 403 (Forbidden) | Failed to load resource: the server responded with a status of 401 (Unauthorized) | Failed to load resource: the server responded with a status of 403 (Forbidden) | Failed to load resource: the server responded with a status of 403 (Forbidden) | Failed to load resource: the server responded with a status of 401 (Unauthorized) | Failed to load resource: the server responded with a status of 400 (Bad Request) | Failed to load resource: the server responded with a status of 400 (Bad Request) | Failed to load resource: the server responded with a status of 400 (Bad Request)",
+      "status": "PASS_WITH_RISKS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:33.946Z"
+    },
+    {
+      "id": "network",
+      "title": "Network failures / 5xx across this real run (excluding investigated benign RSC-prefetch ERR_ABORTED)",
+      "expected": "Zero",
+      "actual": "0: none",
+      "status": "PASS",
+      "evidence": null,
+      "notes": null,
+      "at": "2026-08-30T17:09:33.946Z"
+    },
+    {
+      "id": "batch4-screenshot-disclosure",
+      "title": "No marketplace UI screenshots possible — real, disclosed scope boundary",
+      "expected": "A real screenshot of the real browser context used throughout this pass, since no marketplace page exists to screenshot",
+      "actual": "Captured",
+      "status": "PASS",
+      "evidence": "docs/evidence/playwright_full_product/batch4_marketplace/batch4_marketplace_test_1/batch4_marketplace_test_1_01.png",
+      "notes": null,
+      "at": "2026-08-30T17:09:34.153Z"
+    }
+  ],
+  "screenshots": [
+    {
+      "fileName": "batch4_marketplace_test_1_01.png",
+      "relPath": "docs/evidence/playwright_full_product/batch4_marketplace/batch4_marketplace_test_1/batch4_marketplace_test_1_01.png",
+      "description": "Marketplace surface has no web UI — real Playwright-driven API validation only (screenshot of the real browser context used to drive these requests)",
+      "sizeBytes": 123035
+    }
+  ],
+  "findings": [],
+  "remaining": [
+    "CLEANUP_TARGET_MERCHANT_IDS=[\"207672e1-7bf1-478e-9f4f-06957e084740\",\"6b6d4ea1-3ecd-4ae2-b16d-54d90ba8f73d\",\"36de529b-536a-4a5a-8317-5e359ee25951\"]",
+    "CLEANUP_TARGET_CATEGORY_ID=259048b4-359e-4937-82db-3028c23597ad",
+    "CLEANUP_TARGET_ITEM_ID=72fe39f2-c178-4420-807e-e75c7a1216f0"
+  ]
+}

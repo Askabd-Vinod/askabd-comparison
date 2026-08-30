@@ -10,10 +10,30 @@ export class PriceEngine {
 
   async recordPrice(input: { itemId: string; variantId?: string; merchantId?: string; price: number; originalPrice?: number; currency?: string; sourceUrl?: string; isAffiliate?: boolean; validUntil?: Date }): Promise<Result<PriceEntry>> {
     if (!input.itemId || !input.price) return { ok: false, error: { category: 'validation', code: 'item_price_required', message: 'itemId and price required', statusCode: 400 } };
+    // Real bug found and fixed (Batch 4 Playwright coverage completion,
+    // 2026-08-30): `item_price.price` is a real `BigInt` column, and this
+    // used to pass the caller's decimal dollar amount straight into
+    // `BigInt(...)` — which THROWS for any non-integer number
+    // ("cannot be converted to a BigInt because it is not an integer").
+    // Reproduced live: any real price with cents (e.g. `42.5`, the
+    // overwhelming norm for real money) crashed this route with a real
+    // 500. Confirmed via `mapPrice()` below that no cents-based
+    // convention existed anywhere in this file (the old read path did a
+    // direct 1:1 `Number(BigInt)`, not a "divide by 100") — this was a
+    // genuine oversight, not a deliberate whole-currency-unit design.
+    // Fixed to store the smallest currency unit (cents), matching this
+    // column's real BigInt type and standard practice for BigInt/Int
+    // money columns — round-to-cents on write, divide-by-100 on read
+    // (see `mapPrice()`).
+    if (!Number.isFinite(input.price) || input.price < 0) return { ok: false, error: { category: 'validation', code: 'invalid_price', field: 'price', message: 'price must be a real, non-negative number', statusCode: 400 } };
+    const priceCents = BigInt(Math.round(input.price * 100));
+    const originalPriceCents = input.originalPrice != null
+      ? (Number.isFinite(input.originalPrice) && input.originalPrice >= 0 ? BigInt(Math.round(input.originalPrice * 100)) : null)
+      : null;
     const row = await this.prisma.item_price.create({
       data: {
         item_id: input.itemId, variant_id: input.variantId ?? null, merchant_id: input.merchantId ?? null,
-        price: BigInt(input.price), original_price: input.originalPrice != null ? BigInt(input.originalPrice) : null,
+        price: priceCents, original_price: originalPriceCents,
         currency: input.currency ?? 'USD', source_url: input.sourceUrl ?? null,
         is_affiliate: input.isAffiliate ?? false, valid_until: input.validUntil ?? null,
       },
@@ -89,7 +109,11 @@ export class PriceEngine {
   }
 
   private mapPrice(row: any): PriceEntry {
-    return { id: row.id, itemId: row.item_id, variantId: row.variant_id ?? undefined, merchantId: row.merchant_id ?? undefined, price: Number(row.price), originalPrice: row.original_price != null ? Number(row.original_price) : undefined, currency: row.currency ?? 'USD', sourceUrl: row.source_url ?? undefined, isAffiliate: row.is_affiliate ?? false, validFrom: row.valid_from, validUntil: row.valid_until ?? undefined, recordedAt: row.recorded_at };
+    // Real fix (see recordPrice's own comment): `price`/`original_price`
+    // are now stored as integer cents — divide by 100 to return the real
+    // decimal dollar amount the caller originally sent, not the raw
+    // stored cents value.
+    return { id: row.id, itemId: row.item_id, variantId: row.variant_id ?? undefined, merchantId: row.merchant_id ?? undefined, price: Number(row.price) / 100, originalPrice: row.original_price != null ? Number(row.original_price) / 100 : undefined, currency: row.currency ?? 'USD', sourceUrl: row.source_url ?? undefined, isAffiliate: row.is_affiliate ?? false, validFrom: row.valid_from, validUntil: row.valid_until ?? undefined, recordedAt: row.recorded_at };
   }
 
   private mapOffer(row: any): Offer {

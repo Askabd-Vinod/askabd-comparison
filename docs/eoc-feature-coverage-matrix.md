@@ -255,19 +255,30 @@ in narrative progress notes. See
 production-readiness synthesis across this entire engagement, and
 `docs/final-validation/final-playwright-product-coverage.md` (2026-08-30,
 Batch 1), `docs/final-validation/final-playwright-product-coverage-batch2.md`
-(2026-08-30, Batch 2), and
+(2026-08-30, Batch 2),
 `docs/final-validation/final-playwright-product-coverage-batch3.md`
-(2026-08-30, Batch 3) for a real, mechanically-derived inventory of all
+(2026-08-30, Batch 3), and
+`docs/final-validation/final-playwright-product-coverage-batch4.md`
+(2026-08-30, Batch 4) for a real, mechanically-derived inventory of all
 124 user-facing routes plus an ongoing page-by-page Playwright coverage
-push — 50/124 routes now have fresh Playwright evidence (Class A) after
-Batches 1-3; 3 more batches genuinely remain. Batch 2 found, fixed, and
+push — 50/124 web routes have fresh Playwright evidence (Class A) after
+Batches 1-3 (unchanged by Batch 4, which has zero web routes — see
+below); 2 more batches genuinely remain. Batch 2 found, fixed, and
 re-verified live a real migration-engine defect (a `GENERATED ALWAYS`
 column data-copy failure). Batch 3 found, root-caused, fixed, and
 regression-tested a real session-eviction defect (a transient identity-
 service DB-connection failure was being treated as a definitive
 credential rejection, evicting valid sessions) and proved a real,
 two-tier RBAC matrix (super_admin/auditor) for the first time this
-engagement — see each report for detail.
+engagement. Batch 4 covered the real marketplace surface (28 real API
+routes, zero web UI — confirmed by fresh grep, not assumed) — all 28/28
+routes now have fresh, real, authenticated Playwright evidence (was
+0/28); found, fixed, and regression-tested 2 real, previously-unknown
+marketplace defects (a decimal-price BigInt crash and a malformed-UUID
+crash, both now safe `400`s instead of `500`s); and independently,
+freshly re-proved RISK-017 (the OPEN marketplace tenant-ownership IDOR)
+is still real and open, extending it to one route class (`POST
+/prices`) the prior audit hadn't covered — see each report for detail.
 
 ## Update discipline
 

@@ -10,6 +10,8 @@ export interface Merchant { id: string; tenantId: string; name: string; slug: st
 export interface MerchantVerification { id: string; merchantId: string; level: VerificationLevel; status: VerificationStatus; documents: unknown[]; reviewerId?: string; notes?: string; expiresAt?: Date; createdAt: Date; }
 export interface MerchantBranch { id: string; merchantId: string; name: string; city?: string; country: string; isHeadquarters: boolean; status: string; }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export class BrandService {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -121,6 +123,17 @@ export class MerchantService {
   }
 
   async submitVerification(input: { merchantId: string; level: VerificationLevel; documents?: unknown[] }): Promise<Result<MerchantVerification>> {
+    // Real bug found and fixed (Batch 4 Playwright coverage completion,
+    // 2026-08-30): `merchant_id` is a real Postgres `@db.Uuid` column
+    // with no validation here — a malformed (non-UUID) `:id` in the URL
+    // reached the database uncaught, producing a genuine 500 ("Database
+    // operation failed" — safely sanitized, but the wrong status code:
+    // this is a real client input error, not a server infrastructure
+    // failure). Reproduced live via `POST /merchants/not-a-real-uuid
+    // /verification`. Fixed with an explicit, real UUID-format check
+    // before the database call, matching this file's own existing
+    // validation style (e.g. `name_slug_required`).
+    if (!UUID_RE.test(input.merchantId)) return { ok: false, error: { category: 'validation', code: 'invalid_merchant_id', field: 'merchantId', message: 'merchantId must be a valid UUID', statusCode: 400 } };
     const row = await this.prisma.merchant_verification.create({
       data: { merchant_id: input.merchantId, level: input.level, status: 'pending', documents: (input.documents ?? []) as any },
     });
@@ -141,6 +154,10 @@ export class MerchantService {
   }
 
   async addBranch(input: { merchantId: string; name: string; city?: string; country: string; isHeadquarters?: boolean }): Promise<Result<MerchantBranch>> {
+    // Same real defect class as submitVerification above, found by
+    // inspecting every write path in this file after reproducing the
+    // one live — fixed the same way.
+    if (!UUID_RE.test(input.merchantId)) return { ok: false, error: { category: 'validation', code: 'invalid_merchant_id', field: 'merchantId', message: 'merchantId must be a valid UUID', statusCode: 400 } };
     const row = await this.prisma.merchant_branch.create({
       data: { merchant_id: input.merchantId, name: input.name, city: input.city ?? null, country: input.country, is_headquarters: input.isHeadquarters ?? false },
     });

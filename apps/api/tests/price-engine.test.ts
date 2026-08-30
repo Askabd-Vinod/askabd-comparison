@@ -48,6 +48,30 @@ describe('PriceEngine (Prisma)', () => {
     expect(r.value.merchantId).toBe('merchant_1');
   });
 
+  it('real bug found and fixed (Batch 4, 2026-08-30): a real decimal price (e.g. $42.50) no longer crashes — item_price.price is a real BigInt column and BigInt(42.5) genuinely throws', async () => {
+    const svc = new PriceEngine(mockPrisma() as any);
+    const r = await svc.recordPrice({ itemId: 'item_decimal', price: 42.5, currency: 'AUD', merchantId: 'merchant_1' });
+    expect(r.ok).toBe(true); if (!r.ok) return;
+    // Round-trips back to the real decimal amount, not a cents value —
+    // confirms the cents conversion is symmetric (write * 100, read / 100).
+    expect(r.value.price).toBeCloseTo(42.5, 2);
+  });
+
+  it('a real decimal originalPrice also round-trips correctly through the same cents conversion', async () => {
+    const svc = new PriceEngine(mockPrisma() as any);
+    const r = await svc.recordPrice({ itemId: 'item_decimal2', price: 9.99, originalPrice: 19.99, merchantId: 'merchant_1' });
+    expect(r.ok).toBe(true); if (!r.ok) return;
+    expect(r.value.price).toBeCloseTo(9.99, 2);
+    expect(r.value.originalPrice).toBeCloseTo(19.99, 2);
+  });
+
+  it('rejects a real invalid price (negative / non-finite) with a real 400, not a crash', async () => {
+    const svc = new PriceEngine(mockPrisma() as any);
+    const r = await svc.recordPrice({ itemId: 'item_x', price: -5, merchantId: 'merchant_1' });
+    expect(r.ok).toBe(false); if (r.ok) return;
+    expect(r.error.statusCode).toBe(400);
+  });
+
   it('gets lowest price', async () => {
     const svc = new PriceEngine(mockPrisma() as any);
     await svc.recordPrice({ itemId: 'i1', price: 500, merchantId: 'm1' });

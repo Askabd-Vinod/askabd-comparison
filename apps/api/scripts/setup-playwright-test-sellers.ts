@@ -1,0 +1,118 @@
+/**
+ * setup-playwright-test-sellers — Batch 4 (marketplace RISK-017 real
+ * cross-tenant proof) addition. Creates (idempotently) TWO real, plain,
+ * dedicated DEVELOPMENT/TEST identities — no staff role granted to
+ * either (mirrors RISK-017's own real-world shape: "any authenticated
+ * AskABD identity, no special role") — used as "Merchant A" and
+ * "Merchant B" sellers for a real, live cross-tenant IDOR proof against
+ * the real, running marketplace API.
+ *
+ * Same real registration/verify/credential flow as the other
+ * setup-playwright-test-staff*.ts scripts, against the real, running
+ * askabd-identity service. Never a real human's password, never
+ * extracted from anywhere, gitignored output, idempotent.
+ */
+import { randomBytes } from 'node:crypto';
+import path from 'node:path';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
+const CREDENTIALS_DIR = path.join(REPO_ROOT, 'scripts', 'playwright-evidence', '.auth');
+
+const IDENTITY_URL = process.env.IDENTITY_URL || 'http://localhost:3100';
+const ORG_CONTEXT = 'askabd-internal';
+
+function generatePassword(): string {
+  return `Pw${randomBytes(18).toString('base64url')}!1`;
+}
+
+async function identityFetch(pathSuffix: string, init: RequestInit & { orgContext?: string } = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  headers.set('Content-Type', 'application/json');
+  if (init.orgContext) headers.set('X-Org-Context', init.orgContext);
+  return fetch(`${IDENTITY_URL}${pathSuffix}`, { ...init, headers });
+}
+
+async function verifyLoginWorks(identifier: string, password: string): Promise<boolean> {
+  try {
+    const res = await identityFetch('/v1/auth/login', {
+      method: 'POST', orgContext: ORG_CONTEXT,
+      body: JSON.stringify({ identifier, credential: password }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function provisionOne(label: 'a' | 'b') {
+  const identifier = `playwright-e2e-test-seller-${label}@askabd-dev.local`;
+  const credentialsPath = path.join(CREDENTIALS_DIR, `test-seller-${label}-credentials.json`);
+  fs.mkdirSync(CREDENTIALS_DIR, { recursive: true });
+
+  if (fs.existsSync(credentialsPath)) {
+    const existing = JSON.parse(fs.readFileSync(credentialsPath, 'utf8'));
+    if (await verifyLoginWorks(identifier, existing.password)) {
+      console.log(`Existing seller-${label} account (${identifier}) still works — reusing it.`);
+      return;
+    }
+    console.log(`Existing seller-${label} credentials found but login failed — provisioning fresh.`);
+  }
+
+  const password = generatePassword();
+  console.log(`Registering real, dedicated test-seller-${label} identity: ${identifier}`);
+  const registerRes = await identityFetch('/v1/identities', {
+    method: 'POST', orgContext: ORG_CONTEXT,
+    body: JSON.stringify({ identifier, identityType: 'human_user' }),
+  });
+
+  let identityId: string;
+  if (registerRes.status === 201) {
+    const body = await registerRes.json() as { identity: { id: string }; verificationToken: string };
+    identityId = body.identity.id;
+    const verifyRes = await identityFetch(`/v1/identities/${identityId}/verify`, {
+      method: 'POST', body: JSON.stringify({ token: body.verificationToken }),
+    });
+    if (!verifyRes.ok) throw new Error(`Real identity verification failed for seller-${label}: HTTP ${verifyRes.status}`);
+
+    const credRes = await identityFetch(`/v1/identities/${identityId}/credential/store`, {
+      method: 'POST', orgContext: ORG_CONTEXT,
+      body: JSON.stringify({ credential: password }),
+    });
+    if (!credRes.ok) {
+      const err = await credRes.json().catch(() => ({}));
+      throw new Error(`Real credential set failed for seller-${label}: ${JSON.stringify(err)}`);
+    }
+  } else if (registerRes.status === 400 || registerRes.status === 409) {
+    throw new Error(`A real identity already exists for ${identifier} but no working local credentials file was found. Manual cleanup required.`);
+  } else {
+    throw new Error(`Real identity registration failed for seller-${label}: HTTP ${registerRes.status}`);
+  }
+
+  // Deliberately NO staff role grant — this real identity has zero rows
+  // in staff_role_assignment, matching RISK-017's own documented shape:
+  // "any authenticated AskABD identity, no special role" is exactly what
+  // a real marketplace seller/buyer looks like today.
+
+  const loginOk = await verifyLoginWorks(identifier, password);
+  if (!loginOk) throw new Error(`Real end-to-end login verification failed for seller-${label} immediately after setup.`);
+
+  fs.writeFileSync(credentialsPath, JSON.stringify({
+    note: `DEVELOPMENT/TEST ACCOUNT ONLY — never a real human. Plain identity, NO staff role granted (matches a real marketplace seller/buyer's actual shape). Generated by setup-playwright-test-sellers.ts. Never commit (gitignored via scripts/playwright-evidence/.auth/).`,
+    orgContext: ORG_CONTEXT, identifier, password, identityId, role: 'none (plain authenticated identity)',
+    createdAt: new Date().toISOString(),
+  }, null, 2));
+  console.log(`Real, working, dedicated test-seller-${label} account provisioned and verified end to end: ${path.relative(REPO_ROOT, credentialsPath)}`);
+}
+
+async function main() {
+  await provisionOne('a');
+  await provisionOne('b');
+}
+
+main().catch((e) => {
+  console.error('setup-playwright-test-sellers FAILED:', e.message);
+  process.exit(1);
+});

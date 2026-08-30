@@ -45,4 +45,20 @@ describe('MerchantService (Prisma)', () => {
   it('submits verification', async () => { const svc = new MerchantService(mockPrisma() as any); const reg = await svc.register({ name: 'V', slug: 'v' }); if (!reg.ok) return; const r = await svc.submitVerification({ merchantId: reg.value.id, level: 'premium' }); expect(r.ok).toBe(true); if (!r.ok) return; expect(r.value.level).toBe('premium'); expect(r.value.status).toBe('pending'); });
   it('reviews verification', async () => { const svc = new MerchantService(mockPrisma() as any); const reg = await svc.register({ name: 'R', slug: 'r' }); if (!reg.ok) return; const v = await svc.submitVerification({ merchantId: reg.value.id, level: 'verified' }); if (!v.ok) return; const r = await svc.reviewVerification(v.value.id, 'approved', 'admin_1', 'All good'); expect(r.ok).toBe(true); if (!r.ok) return; expect(r.value.status).toBe('approved'); });
   it('adds branch', async () => { const svc = new MerchantService(mockPrisma() as any); const reg = await svc.register({ name: 'Multi', slug: 'multi' }); if (!reg.ok) return; const r = await svc.addBranch({ merchantId: reg.value.id, name: 'NYC Office', city: 'New York', country: 'US', isHeadquarters: true }); expect(r.ok).toBe(true); if (!r.ok) return; expect(r.value.isHeadquarters).toBe(true); });
+
+  it('real bug found and fixed (Batch 4, 2026-08-30): a malformed (non-UUID) merchantId is rejected with a real 400, not a raw database crash', async () => {
+    const svc = new MerchantService(mockPrisma() as any);
+    const r = await svc.submitVerification({ merchantId: 'not-a-real-uuid', level: 'basic' });
+    expect(r.ok).toBe(false); if (r.ok) return;
+    expect(r.error.statusCode).toBe(400);
+    expect(r.error.code).toBe('invalid_merchant_id');
+  });
+
+  it('addBranch also rejects a malformed merchantId with a real 400 (same real defect class)', async () => {
+    const svc = new MerchantService(mockPrisma() as any);
+    const r = await svc.addBranch({ merchantId: 'still-not-a-uuid', name: 'X', country: 'AU' });
+    expect(r.ok).toBe(false); if (r.ok) return;
+    expect(r.error.statusCode).toBe(400);
+    expect(r.error.code).toBe('invalid_merchant_id');
+  });
 });
