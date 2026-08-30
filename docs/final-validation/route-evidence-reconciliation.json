@@ -1,0 +1,3189 @@
+{
+  "generatedAt": "2026-08-30T13:32:18.034Z",
+  "countA": 8,
+  "countB": 10,
+  "countC": 106,
+  "total": 124,
+  "routes": [
+    {
+      "route": "/",
+      "role": "staff — internal operations",
+      "sourceFiles": [
+        "layout.tsx",
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 6,
+        "fetchCalls": 3,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/accept-invitation",
+      "role": "auth (unauthenticated)",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 5,
+        "forms": 2,
+        "inputs": 3,
+        "selects": 0,
+        "links": 1,
+        "fetchCalls": 2,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 1
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/account/security",
+      "role": "staff — internal operations",
+      "sourceFiles": [
+        "account-security-manager.tsx",
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 2,
+        "inputs": 2,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 3,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 3
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/applications",
+      "role": "staff — internal operations",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 2,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/client-portal/[clientId]",
+      "role": "client-portal (customer-facing)",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 12,
+        "forms": 0,
+        "inputs": 2,
+        "selects": 2,
+        "links": 2,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 1
+      },
+      "buttonLabels": [
+        "↻",
+        "Submit a request"
+      ],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/client-portal/[clientId]/journey",
+      "role": "client-portal (customer-facing)",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients",
+      "role": "staff — internal operations",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 11,
+        "fetchCalls": 2,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "capability-placeholder.tsx",
+        "client-tabs.tsx",
+        "dynamic-overview.tsx",
+        "layout.tsx",
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 13,
+        "fetchCalls": 5,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/activity",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 3,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 2,
+        "links": 0,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [
+        "setPage(p => (p + 1) * PAGE_SIZE"
+      ],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/alerts",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 1,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/alerts/[alertId]",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 1,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/api-specs",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 5,
+        "forms": 0,
+        "inputs": 2,
+        "selects": 1,
+        "links": 0,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 3
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "B",
+      "evidenceNote": "live_authenticated_verification_test_1 — API Discovery"
+    },
+    {
+      "route": "/clients/[clientId]/applications",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 1,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/applications/[appId]",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 6,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/assessment",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 5,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 2,
+        "fetchCalls": 6,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 1,
+        "mutations": 3
+      },
+      "buttonLabels": [
+        "↻ Refresh Now"
+      ],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/audit",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 2,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 2,
+        "fetchCalls": 6,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 2
+      },
+      "buttonLabels": [
+        "↻ Refresh"
+      ],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/audit/[auditId]",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 1,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/automation",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/business-requirements",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "business-requirements-manager.tsx",
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 1,
+        "forms": 1,
+        "inputs": 6,
+        "selects": 3,
+        "links": 0,
+        "fetchCalls": 7,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 3
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/capabilities",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 3,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/changes",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 14,
+        "forms": 0,
+        "inputs": 7,
+        "selects": 3,
+        "links": 0,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 2
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "B",
+      "evidenceNote": "live_authenticated_verification_test_1 — Change Management"
+    },
+    {
+      "route": "/clients/[clientId]/clarifications",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 5,
+        "forms": 0,
+        "inputs": 2,
+        "selects": 1,
+        "links": 0,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 3
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "B",
+      "evidenceNote": "live_authenticated_verification_test_1 — Requirements Clarification"
+    },
+    {
+      "route": "/clients/[clientId]/comparisons",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "comparisons-manager.tsx",
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 12,
+        "forms": 4,
+        "inputs": 15,
+        "selects": 5,
+        "links": 0,
+        "fetchCalls": 13,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 5
+      },
+      "buttonLabels": [
+        "Cancel"
+      ],
+      "isDynamic": true,
+      "evidenceClass": "A",
+      "evidenceNote": "batch1_client_workflows_test_1 (2026-08-30) — real schema comparison run"
+    },
+    {
+      "route": "/clients/[clientId]/compliance",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 1,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 5,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 2
+      },
+      "buttonLabels": [
+        "↻ Refresh"
+      ],
+      "isDynamic": true,
+      "evidenceClass": "A",
+      "evidenceNote": "batch1_client_workflows_test_1 (2026-08-30) — real load + Refresh click"
+    },
+    {
+      "route": "/clients/[clientId]/connectors",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "connector-grid.tsx",
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 3,
+        "forms": 0,
+        "inputs": 2,
+        "selects": 0,
+        "links": 1,
+        "fetchCalls": 5,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 3
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "A",
+      "evidenceNote": "batch1_client_workflows_test_1 (2026-08-30) — real expand + Run Test click"
+    },
+    {
+      "route": "/clients/[clientId]/consulting",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 3,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/contacts",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "contacts-manager.tsx",
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 1,
+        "forms": 1,
+        "inputs": 6,
+        "selects": 1,
+        "links": 0,
+        "fetchCalls": 4,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 2
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/contracts",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "contracts-view.tsx",
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 3,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 1,
+        "fetchCalls": 0,
+        "downloads": 1,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/data-mappings",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 6,
+        "forms": 0,
+        "inputs": 11,
+        "selects": 1,
+        "links": 0,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 4
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "B",
+      "evidenceNote": "live_authenticated_verification_test_1 — Data Mapping"
+    },
+    {
+      "route": "/clients/[clientId]/data-reconciliation",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 2,
+        "forms": 0,
+        "inputs": 3,
+        "selects": 2,
+        "links": 0,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 1
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "A",
+      "evidenceNote": "batch1_client_workflows_test_1 (2026-08-30) — real reconciliation run, independently API-verified"
+    },
+    {
+      "route": "/clients/[clientId]/dependencies",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 2,
+        "links": 0,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 1
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "B",
+      "evidenceNote": "live_authenticated_verification_test_1 — Dependency Analysis (real entity-picker data verified)"
+    },
+    {
+      "route": "/clients/[clientId]/deployments",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "deployment-grid.tsx",
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 1,
+        "selects": 1,
+        "links": 1,
+        "fetchCalls": 3,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 1
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/deployments/[deploymentId]",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 1,
+        "fetchCalls": 4,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 1
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/discovery",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 3,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 2,
+        "fetchCalls": 2,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 1,
+        "mutations": 1
+      },
+      "buttonLabels": [
+        "↻ Refresh Now"
+      ],
+      "isDynamic": true,
+      "evidenceClass": "A",
+      "evidenceNote": "batch1_client_workflows_test_1 (2026-08-30) — real Start Discovery click, real honest prerequisite-blocked outcome"
+    },
+    {
+      "route": "/clients/[clientId]/discovery-intake",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "discovery-intake-manager.tsx",
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 3,
+        "forms": 3,
+        "inputs": 6,
+        "selects": 2,
+        "links": 0,
+        "fetchCalls": 7,
+        "downloads": 0,
+        "uploads": 1,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 4
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/documents",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "document-generation-view.tsx",
+        "documents-view.tsx",
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 12,
+        "forms": 1,
+        "inputs": 1,
+        "selects": 1,
+        "links": 2,
+        "fetchCalls": 6,
+        "downloads": 1,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 1,
+        "mutations": 6
+      },
+      "buttonLabels": [
+        "Close",
+        "Archive"
+      ],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/edit",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 4,
+        "forms": 0,
+        "inputs": 2,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [
+        "Confirm & Save",
+        "Save Changes"
+      ],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/engagements",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 1,
+        "selects": 1,
+        "links": 0,
+        "fetchCalls": 5,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 1
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/engagements/[engagementId]",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 2,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 9,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 4
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/engineering",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 2,
+        "fetchCalls": 2,
+        "downloads": 1,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/environments",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 4,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/environments/[envName]",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 4,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/executive-reports",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 2,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 1
+      },
+      "buttonLabels": [
+        "Export Markdown"
+      ],
+      "isDynamic": true,
+      "evidenceClass": "B",
+      "evidenceNote": "live_authenticated_verification_test_1 — Executive Reporting (full write+read flow verified live)"
+    },
+    {
+      "route": "/clients/[clientId]/financial",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 3,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/gaps",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 21,
+        "forms": 0,
+        "inputs": 4,
+        "selects": 6,
+        "links": 4,
+        "fetchCalls": 15,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 9
+      },
+      "buttonLabels": [
+        "Save Option"
+      ],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/incidents",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/incidents/[incidentId]",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 1,
+        "fetchCalls": 5,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 1
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/infrastructure",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 2,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/infrastructure/servers/[serverId]",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 1,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/invitations",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 7,
+        "forms": 1,
+        "inputs": 2,
+        "selects": 0,
+        "links": 1,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 3
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/knowledge",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 3,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/lifecycle",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 3,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 7,
+        "fetchCalls": 10,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 7
+      },
+      "buttonLabels": [
+        "↻ Refresh"
+      ],
+      "isDynamic": true,
+      "evidenceClass": "B",
+      "evidenceNote": "comparison_test_1 (2026-08-29, real UI, pre-dates the lifecycle-gate finding) + this pass's own real DB inspection confirming its gate behavior"
+    },
+    {
+      "route": "/clients/[clientId]/maturity",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 3,
+        "fetchCalls": 1,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/migrations",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 3,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 2,
+        "fetchCalls": 5,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 5
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "A",
+      "evidenceNote": "batch1_client_workflows_test_1 (2026-08-30) — real Run Preflight click"
+    },
+    {
+      "route": "/clients/[clientId]/monitoring",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/notes",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "notes-manager.tsx",
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 1,
+        "forms": 1,
+        "inputs": 1,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 4,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 2
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/optimization",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 2,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 5,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [
+        "↻ Refresh"
+      ],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/payments",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 2,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/performance",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/problems",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 2,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 3,
+        "links": 1,
+        "fetchCalls": 4,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [
+        "↻ Refresh"
+      ],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/proposals",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 2,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/readiness",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 2,
+        "fetchCalls": 1,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/recommendations",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 7,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 2,
+        "fetchCalls": 5,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 4
+      },
+      "buttonLabels": [
+        "↻ Refresh"
+      ],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/reconciliation",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 3,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/release-readiness",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 3,
+        "forms": 0,
+        "inputs": 1,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 2
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "B",
+      "evidenceNote": "live_authenticated_verification_test_1 — Release Readiness (full real computation verified)"
+    },
+    {
+      "route": "/clients/[clientId]/reports",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 2,
+        "fetchCalls": 3,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/requests",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 2,
+        "forms": 0,
+        "inputs": 1,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 1
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/risks",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 10,
+        "forms": 0,
+        "inputs": 6,
+        "selects": 4,
+        "links": 0,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 2
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "B",
+      "evidenceNote": "live_authenticated_verification_test_1 — Risk Register"
+    },
+    {
+      "route": "/clients/[clientId]/roadmap",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/scorecard",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 1,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 1,
+        "fetchCalls": 1,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/services",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 2,
+        "forms": 0,
+        "inputs": 1,
+        "selects": 2,
+        "links": 0,
+        "fetchCalls": 5,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 1
+      },
+      "buttonLabels": [
+        "↻ Refresh"
+      ],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/settings",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 2,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 3,
+        "fetchCalls": 1,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/support",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/tasks",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx",
+        "tasks-manager.tsx"
+      ],
+      "signals": {
+        "buttons": 3,
+        "forms": 1,
+        "inputs": 4,
+        "selects": 1,
+        "links": 0,
+        "fetchCalls": 4,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 2
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/testing",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx",
+        "testing-engine-manager.tsx"
+      ],
+      "signals": {
+        "buttons": 1,
+        "forms": 0,
+        "inputs": 1,
+        "selects": 3,
+        "links": 4,
+        "fetchCalls": 9,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 2
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/timeline",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/traceability",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx",
+        "traceability-manager.tsx"
+      ],
+      "signals": {
+        "buttons": 1,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 2,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/transformations",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 4,
+        "selects": 1,
+        "links": 1,
+        "fetchCalls": 4,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 2
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/[clientId]/uat",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 5,
+        "forms": 0,
+        "inputs": 3,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 2
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "B",
+      "evidenceNote": "live_authenticated_verification_test_1 — UAT"
+    },
+    {
+      "route": "/clients/[clientId]/usage",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx",
+        "usage-view.tsx"
+      ],
+      "signals": {
+        "buttons": 1,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 0,
+        "downloads": 1,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/clients/onboard",
+      "role": "staff — client-scoped workflow",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 12,
+        "forms": 0,
+        "inputs": 3,
+        "selects": 2,
+        "links": 0,
+        "fetchCalls": 1,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 1
+      },
+      "buttonLabels": [
+        "Next →"
+      ],
+      "isDynamic": false,
+      "evidenceClass": "A",
+      "evidenceNote": "batch1_client_workflows_test_1 (2026-08-30) + comparison_test_1 (2026-08-29) — real 6-step onboarding wizard"
+    },
+    {
+      "route": "/deployments",
+      "role": "staff — internal operations",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 1,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/engineering",
+      "role": "staff — internal operations",
+      "sourceFiles": [
+        "defects-table.tsx",
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 4,
+        "fetchCalls": 2,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/engineering/[defectId]",
+      "role": "staff — internal operations",
+      "sourceFiles": [
+        "detail-view.tsx",
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 1,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 2,
+        "fetchCalls": 0,
+        "downloads": 1,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/engineering/knowledge",
+      "role": "staff — internal operations",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/engineering/reports",
+      "role": "staff — internal operations",
+      "sourceFiles": [
+        "page.tsx",
+        "reports-view.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 1,
+        "downloads": 1,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/forgot-password",
+      "role": "auth (unauthenticated)",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 1,
+        "forms": 1,
+        "inputs": 2,
+        "selects": 0,
+        "links": 4,
+        "fetchCalls": 1,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 1
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/governance",
+      "role": "staff — internal operations",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 3,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/incidents",
+      "role": "staff — internal operations",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 2,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/infrastructure",
+      "role": "staff — internal operations",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 1,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/intelligence",
+      "role": "staff — internal operations",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 3,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/intelligence/catalog",
+      "role": "staff — internal operations",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 1,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/intelligence/catalog/[serviceId]",
+      "role": "staff — internal operations",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 4,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/intelligence/debt",
+      "role": "staff — internal operations",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/intelligence/proposals",
+      "role": "staff — internal operations",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 1,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/login",
+      "role": "auth (unauthenticated)",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 7,
+        "forms": 2,
+        "inputs": 4,
+        "selects": 0,
+        "links": 2,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 1
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/migrations",
+      "role": "staff — internal operations",
+      "sourceFiles": [
+        "page.tsx",
+        "portfolio.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 2,
+        "fetchCalls": 2,
+        "downloads": 1,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/migrations/[migrationId]",
+      "role": "staff — internal operations",
+      "sourceFiles": [
+        "detail-view.tsx",
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 6,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 1,
+        "fetchCalls": 5,
+        "downloads": 1,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 4
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/migrations/new",
+      "role": "staff — internal operations",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 1,
+        "forms": 0,
+        "inputs": 1,
+        "selects": 1,
+        "links": 0,
+        "fetchCalls": 2,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 1
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/monitoring",
+      "role": "staff — internal operations",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 1,
+        "fetchCalls": 1,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/platform",
+      "role": "staff — platform/admin",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 2,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 15,
+        "fetchCalls": 4,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 1,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/platform/capabilities",
+      "role": "staff — platform/admin",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 3,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 3,
+        "links": 0,
+        "fetchCalls": 2,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [
+        "↻ Refresh"
+      ],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/platform/commercial",
+      "role": "staff — platform/admin",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 1,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/platform/defects",
+      "role": "staff — platform/admin",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 1,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 2,
+        "links": 2,
+        "fetchCalls": 1,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [
+        "Refresh"
+      ],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/platform/incidents",
+      "role": "staff — platform/admin",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 1,
+        "fetchCalls": 1,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/platform/integrations/jira",
+      "role": "staff — platform/admin",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 4,
+        "selects": 2,
+        "links": 1,
+        "fetchCalls": 3,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 2
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/platform/portfolio",
+      "role": "staff — platform/admin",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 2,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 1,
+        "fetchCalls": 7,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [
+        "↻"
+      ],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/platform/production-readiness",
+      "role": "staff — platform/admin",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 1,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 1,
+        "fetchCalls": 1,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [
+        "Re-run Preflight"
+      ],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/platform/services",
+      "role": "staff — platform/admin",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 4,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 4,
+        "fetchCalls": 4,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 1,
+        "mutations": 1
+      },
+      "buttonLabels": [
+        "Retry",
+        "⚡ Recover"
+      ],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/platform/services/registry",
+      "role": "staff — platform/admin",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 2,
+        "forms": 0,
+        "inputs": 1,
+        "selects": 2,
+        "links": 0,
+        "fetchCalls": 3,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [
+        "↻"
+      ],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/platform/verification",
+      "role": "staff — platform/admin",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 2,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 2
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "A",
+      "evidenceNote": "verification_center_journeys_test_1 + responsive_test_1 (2026-08-29/30) — Deep Health Check + all 17 Business Journeys clicked through the real UI"
+    },
+    {
+      "route": "/platform/verification/[runId]",
+      "role": "staff — platform/admin",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 1,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/platform/verification/journeys/[runId]",
+      "role": "staff — platform/admin",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 1,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/platform/workflows",
+      "role": "staff — platform/admin",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 4,
+        "forms": 1,
+        "inputs": 6,
+        "selects": 6,
+        "links": 0,
+        "fetchCalls": 5,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 2
+      },
+      "buttonLabels": [
+        "↻"
+      ],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/reports",
+      "role": "staff — internal operations",
+      "sourceFiles": [
+        "page.tsx",
+        "report-cards.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 0,
+        "downloads": 1,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/reports/[reportId]",
+      "role": "staff — internal operations",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 1,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 0,
+        "downloads": 1,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/reset-password",
+      "role": "auth (unauthenticated)",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 4,
+        "forms": 1,
+        "inputs": 3,
+        "selects": 0,
+        "links": 1,
+        "fetchCalls": 1,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 1
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/search",
+      "role": "staff — internal operations",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 1,
+        "selects": 0,
+        "links": 1,
+        "fetchCalls": 1,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/services",
+      "role": "staff — internal operations",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 2,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/services/[serviceId]",
+      "role": "staff — internal operations",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 1,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": true,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/settings",
+      "role": "staff — internal operations",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 0,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 0,
+        "fetchCalls": 1,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/staff/login",
+      "role": "auth (unauthenticated)",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 4,
+        "forms": 2,
+        "inputs": 4,
+        "selects": 0,
+        "links": 2,
+        "fetchCalls": 0,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/verify",
+      "role": "staff — internal operations",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 5,
+        "forms": 0,
+        "inputs": 1,
+        "selects": 0,
+        "links": 1,
+        "fetchCalls": 3,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 3
+      },
+      "buttonLabels": [
+        "📧 Resend OTP"
+      ],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    },
+    {
+      "route": "/welcome",
+      "role": "staff — internal operations",
+      "sourceFiles": [
+        "page.tsx"
+      ],
+      "signals": {
+        "buttons": 1,
+        "forms": 0,
+        "inputs": 0,
+        "selects": 0,
+        "links": 5,
+        "fetchCalls": 1,
+        "downloads": 0,
+        "uploads": 0,
+        "tabs": 0,
+        "modals": 0,
+        "realtime": 0,
+        "mutations": 0
+      },
+      "buttonLabels": [],
+      "isDynamic": false,
+      "evidenceClass": "C",
+      "evidenceNote": "Not individually reconciled this pass — real automated test coverage likely exists at the API/service layer (1018-test regression suite) per the existing 82-row coverage matrix, but page-level UI evidence was not freshly checked or confirmed for this specific route in this pass."
+    }
+  ]
+}

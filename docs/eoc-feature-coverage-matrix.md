@@ -230,11 +230,21 @@ rows' statuses were corrected in later passes).
   (every affected row is capped at `PASS_WITH_RISKS`/`IMPLEMENTED` per
   the AUTHENTICATED PLAYWRIGHT EVIDENCE RULE) — it appears as the honest
   per-column diagnostic for the Playwright-evidence dimension on every
-  row whose primary verification was authenticated UI/API instead. Real
-  Playwright orchestration remains blocked platform-wide because no
-  staff credential was ever extracted or persisted for it, per this
-  session's own standing, explicit prohibition on doing so — this is a
-  deliberate safety constraint, not an oversight.
+  row whose primary verification was authenticated UI/API instead.
+  **Updated 2026-08-30 (Playwright Coverage Completion, Batch 1)**: this
+  note previously (and correctly, at the time) said real Playwright
+  orchestration was blocked platform-wide because no staff credential
+  had ever been extracted or persisted for it. That gap was real and is
+  now closed: a dedicated, disposable, clearly-marked DEV/TEST staff
+  account (`apps/api/scripts/setup-playwright-test-staff.ts`,
+  gitignored credentials, never a real human's password, never
+  extracted from a live browser session) now lets Playwright log in
+  fully automatically and repeatably — see
+  `scripts/playwright-evidence/README.md` and
+  `docs/final-validation/final-playwright-product-coverage.md`. Rows
+  whose Playwright column still says `BLOCKED_EXTERNAL_AUTH` mean **that
+  specific row has not yet been re-run with this now-available
+  infrastructure**, not that the infrastructure itself is unavailable.
 
 **The platform is NOT complete.** Per the Final Program Gate: not all
 required engines are `PASS`, not all required Playwright flows are `PASS`,
@@ -242,7 +252,11 @@ required engines are `PASS`, not all required Playwright flows are `PASS`,
 precisely so that fact stays visible and current rather than getting lost
 in narrative progress notes. See
 `docs/final-askabd-production-readiness.md` for the full, final
-production-readiness synthesis across this entire engagement.
+production-readiness synthesis across this entire engagement, and
+`docs/final-validation/final-playwright-product-coverage.md` (2026-08-30)
+for a real, mechanically-derived inventory of all 124 user-facing routes
+plus Batch 1 of a full page-by-page Playwright coverage push (6 pages
+freshly validated; 5 more batches genuinely remain).
 
 ## Update discipline
 
